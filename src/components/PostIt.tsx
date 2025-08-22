@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   collection,
   query,
@@ -7,6 +7,7 @@ import {
   writeBatch,
   doc as fsDoc,
   getDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { PostIt, QuadrantKey } from "../types";
@@ -48,16 +49,25 @@ async function bumpOrder(postItId: string, delta: number) {
 }
 
 const PostItComponent: React.FC<{ data: PostIt }> = ({ data }) => {
+  // 1) Initialiser originQuadrant en base si manquant (pour figer la couleur)
+  useEffect(() => {
+    if (!data.originQuadrant) {
+      updateDoc(fsDoc(db, "postits", data.id), {
+        originQuadrant: data.quadrant,
+      }).catch(() => {});
+    }
+  }, [data.id, data.originQuadrant, data.quadrant]);
+
   const origin = (data.originQuadrant ?? data.quadrant) as QuadrantKey;
   const color = ORIGIN_BG[origin] ?? "bg-gray-100 border-gray-300";
 
   return (
     <div
-      className={`relative rounded-lg p-3 shadow-sm border ${color} select-none`}
+      className={`group relative rounded-lg p-3 shadow-sm border ${color} select-none`}
       title={`Origine: ${origin}`}
     >
-      {/* Flèches au survol */}
-      <div className="absolute right-1 top-1 opacity-0 hover:opacity-100 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+      {/* 2) Flèches visibles au survol grâce à `group` */}
+      <div className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
         <button
           className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-sm font-bold"
           title="Monter (↑)"

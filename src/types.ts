@@ -1,4 +1,3 @@
-
 import { Type } from "@google/genai";
 
 export type QuadrantKey = 'acquis' | 'faiblesses' | 'opportunites' | 'menaces';
@@ -9,10 +8,18 @@ export interface PostIt {
   quadrant: QuadrantKey;
   content: string;
   author: string;
-  timestamp: {
-    seconds: number;
-    nanoseconds: number;
-  } | Date;
+  timestamp:
+    | {
+        seconds: number;
+        nanoseconds: number;
+      }
+    | Date;
+
+  /** Ordre d’affichage persistant dans le cadran (facultatif si non encore initialisé) */
+  sortIndex?: number;
+
+  /** Quadrant d’origine pour figer la couleur, même après déplacement */
+  originQuadrant?: QuadrantKey;
 }
 
 export interface QuadrantData {
@@ -58,27 +65,19 @@ export interface QuadrantAnalysis {
 export interface AnalysisData {
   metrics: AnalysisMetrics;
   quadrants: Record<QuadrantKey, QuadrantAnalysis>;
-  timeline: { time: string; acquis: number; faiblesses: number; opportunites: number; menaces: number }[];
+  timeline: {
+    time: string;
+    acquis: number;
+    faiblesses: number;
+    opportunites: number;
+    menaces: number;
+  }[];
   contributors: Contributor[];
   insights: Insight[];
   recommendations: Recommendation[];
 }
 
 export const RecommendationSchema = {
-    type: Type.OBJECT,
-    properties: {
-        title: { type: Type.STRING, description: "A concise title for the recommendation." },
-        content: { type: Type.STRING, description: "A detailed explanation of the strategic recommendation." },
-        priority: { type: Type.STRING, enum: ['URGENT', 'HIGH', 'MEDIUM', 'LOW'], description: "The priority level of the recommendation." },
-    },
-    required: ["title", "content", "priority"],
-};
-
-export const InsightSchema = {
-    type: Type.OBJECT,
-    properties: {
-        title: { type: Type.STRING, description: "A concise title for the insight." },
-        content: { type: Type.STRING, description: "A detailed explanation of the strategic insight discovered from the data." },
-    },
-    required: ["title", "content"],
-};
+  type: Type.OBJECT,
+  properties: {
+    ti
