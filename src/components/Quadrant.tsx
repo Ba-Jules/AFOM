@@ -15,7 +15,7 @@ import { PostIt, QuadrantKey } from "../types";
 interface QuadrantProps {
   info: {
     title: string;
-    subtitle: string;
+  subtitle: string;
     textColor: string;
     borderColor: string;
     bgColor: string;
@@ -26,7 +26,8 @@ interface QuadrantProps {
   onToggleExpand: () => void;
 }
 
-/** calcule l’index d’insertion en fonction de la position Y du curseur */
+/* -------- helpers drag-sort -------- */
+
 function computeTargetIndex(container: HTMLElement, clientY: number) {
   const items = Array.from(
     container.querySelectorAll<HTMLElement>("[data-note-id]")
@@ -39,18 +40,13 @@ function computeTargetIndex(container: HTMLElement, clientY: number) {
   return items.length;
 }
 
-/**
- * Déplace un post-it en base (Firestore) :
- *  - réordonne au sein d’un même cadran OU
- *  - déplace dans un autre cadran à l’index choisi,
- * en recalculant tous les sortIndex concernés en batch.
- */
+/** Déplacement/reorder persistant en Firestore */
 async function moveOrReorderInFirestore(
   postItId: string,
   targetQuadrant: QuadrantKey,
   targetIndex: number
 ) {
-  // 1) Lire le doc pour avoir sessionId + quadrant source
+  // 1) lire le doc courant (session + quadrant source)
   const curSnap = await getDoc(fsDoc(db, "postits", postItId));
   if (!curSnap.exists()) return;
   const cur = curSnap.data() as any;
@@ -59,7 +55,7 @@ async function moveOrReorderInFirestore(
 
   const colRef = collection(db, "postits");
 
-  // 2) Récupérer listes source et (si besoin) cible
+  // 2) récupérer listes source + (si besoin) cible
   const srcSnap = await getDocs(
     query(
       colRef,
@@ -89,31 +85,26 @@ async function moveOrReorderInFirestore(
         .map((d) => ({ id: d.id, ...(d.data() as any) }))
         .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
 
-  // 3) Retirer de la source
+  // 3) retirer de la source
   const idxSrc = srcList.findIndex((x) => x.id === postItId);
   if (idxSrc < 0) return;
   const [moving] = srcList.splice(idxSrc, 1);
 
-  // 4) Insérer dans la cible à targetIndex
+  // 4) insérer dans la cible
   const clamped = Math.max(0, Math.min(dstList.length, targetIndex));
   dstList.splice(clamped, 0, { ...moving, quadrant: targetQuadrant });
 
-  // 5) Réécrire tous les sortIndex (et quadrant si changement) en batch
+  // 5) réécrire en batch
   const batch = writeBatch(db);
-
-  // réécrire la source
-  srcList.forEach((it, i) => {
-    batch.update(fsDoc(db, "postits", it.id), { sortIndex: i });
-  });
-
-  // réécrire la cible
-  dstList.forEach((it, i) => {
+  srcList.forEach((it, i) =>
+    batch.update(fsDoc(db, "postits", it.id), { sortIndex: i })
+  );
+  dstList.forEach((it, i) =>
     batch.update(fsDoc(db, "postits", it.id), {
       sortIndex: i,
       quadrant: targetQuadrant,
-    });
-  });
-
+    })
+  );
   await batch.commit();
 }
 
@@ -127,12 +118,9 @@ const Quadrant: React.FC<QuadrantProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // on rend dans l’ordre (si sortIndex est présent)
+  // on rend toujours trié par sortIndex (si manquant => 0)
   const ordered = useMemo(
-    () =>
-      [...postIts].sort(
-        (a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)
-      ),
+    () => [...postIts].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)),
     [postIts]
   );
 
@@ -140,37 +128,34 @@ const Quadrant: React.FC<QuadrantProps> = ({
     e.preventDefault();
     setIsDragOver(false);
 
-    const postItId = e.dataTransfer.getData("postItId");
-    const newQuadrant = e.currentTarget.dataset.quadrant as QuadrantKey;
+    // compatible avec l’existant et nos ajouts
+    const postItId =
+      e.dataTransfer.getData("postItId") ||
+      e.dataTransfer.getData("postitId") ||
+      e.dataTransfer.getData("text/plain");
+    if (!postItId) return;
 
-    if (!postItId || !newQuadrant) return;
+    const target = quadrantKey;
+    const idx = containerRef.current
+      ? computeTargetIndex(containerRef.current, e.clientY)
+      : Number.MAX_SAFE_INTEGER;
 
     try {
-      // index d’insertion calculé en fonction de la position du curseur
-      const idx = containerRef.current
-        ? computeTargetIndex(containerRef.current, e.clientY)
-        : Number.MAX_SAFE_INTEGER;
-
-      await moveOrReorderInFirestore(postItId, newQuadrant, idx);
-    } catch (error) {
-      console.error("Error moving/reordering post-it: ", error);
-      // pas d’alert: on évite de gêner l’atelier
+      await moveOrReorderInFirestore(postItId, target, idx);
+    } catch (err) {
+      console.error("Move/reorder error:", err);
     }
   };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => setIsDragOver(false);
 
   return (
     <div
       data-quadrant={quadrantKey}
       onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={() => setIsDragOver(false)}
       className={`p-4 transition-all duration-300 ${
         isDragOver ? "bg-indigo-100" : ""
       } ${
@@ -183,14 +168,8 @@ const Quadrant: React.FC<QuadrantProps> = ({
         className={`p-2 sticky top-[76px] bg-white/80 backdrop-blur-sm z-10 border-b-4 ${info.borderColor} flex items-center justify-between`}
       >
         <div>
-          <h3
-            className={`text-xl font-black text-center sm:text-left ${info.textColor}`}
-          >
-            {info.title}
-          </h3>
-          <p className="text-xs text-center sm:text-left text-gray-500 font-semibold hidden sm:block">
-            {info.subtitle}
-          </p>
+          <h3 className={`text-xl font-black ${info.textColor}`}>{info.title}</h3>
+          <p className="text-xs text-gray-500 font-semibold">{info.subtitle}</p>
         </div>
         <button
           onClick={onToggleExpand}
@@ -215,12 +194,14 @@ const Quadrant: React.FC<QuadrantProps> = ({
             data-note-id={postit.id}
             draggable
             onDragStart={(e) => {
+              // on pose plusieurs clés pour compatibilité
               e.dataTransfer.setData("postItId", postit.id);
+              e.dataTransfer.setData("postitId", postit.id);
+              e.dataTransfer.setData("text/plain", postit.id);
               e.dataTransfer.effectAllowed = "move";
             }}
           >
-            {/* On garde ton composant d’étiquette tel quel */}
-            <PostItComponent key={postit.id} data={postit} />
+            <PostItComponent data={postit} />
           </div>
         ))}
       </div>
