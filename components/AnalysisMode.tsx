@@ -1,0 +1,227 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { PostIt, AnalysisData, Contributor, Insight, Recommendation, AnalysisMetrics, QuadrantAnalysis, QuadrantKey } from '../types';
+import { getAIAnalysis } from '../services/geminiService';
+import { BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { QUADRANT_INFO, PRIORITY_STYLES } from '../constants';
+
+interface AnalysisModeProps {
+    postIts: PostIt[];
+}
+
+const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
+    const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+    const [loadingAI, setLoadingAI] = useState(false);
+
+    const processData = (rawData: PostIt[]): Omit<AnalysisData, 'insights' | 'recommendations'> => {
+        const metrics: AnalysisMetrics = {
+            totalContributions: rawData.length,
+            uniqueParticipants: new Set(rawData.map(p => p.author)).size,
+            sessionDuration: 0,
+            engagementScore: 0,
+        };
+
+        if (rawData.length > 0) {
+            const timestamps = rawData.filter(p => p.timestamp).map(p => (p.timestamp as any).seconds * 1000);
+            if (timestamps.length > 0) {
+                const minTs = Math.min(...timestamps);
+                const maxTs = Math.max(...timestamps);
+                metrics.sessionDuration = Math.round((maxTs - minTs) / (1000 * 60));
+            }
+        }
+
+        metrics.engagementScore = Math.round(
+            (metrics.totalContributions * 0.3 + metrics.uniqueParticipants * 0.4 + Math.min(metrics.sessionDuration, 120) * 0.3) * 0.83
+        );
+
+        const quadrantKeys: QuadrantKey[] = ['acquis', 'faiblesses', 'opportunites', 'menaces'];
+        const quadrants: Record<QuadrantKey, QuadrantAnalysis> = {} as any;
+        quadrantKeys.forEach(key => {
+            const items = rawData.filter(p => p.quadrant === key);
+            quadrants[key] = {
+                count: items.length,
+                wordCount: items.reduce((sum, item) => sum + item.content.split(' ').length, 0),
+            };
+        });
+
+        const contributorMap: Record<string, Contributor> = {};
+        rawData.forEach(p => {
+            if (!contributorMap[p.author]) {
+                contributorMap[p.author] = { name: p.author, count: 0, totalWords: 0 };
+            }
+            contributorMap[p.author].count++;
+            contributorMap[p.author].totalWords += p.content.split(' ').length;
+        });
+        const contributors = Object.values(contributorMap).sort((a, b) => b.count - a.count).slice(0, 5);
+        
+        const timelineMap: Record<string, { time: string; acquis: number; faiblesses: number; opportunites: number; menaces: number }> = {};
+        rawData.filter(p => p.timestamp).forEach(p => {
+             const date = (p.timestamp as any).toDate ? (p.timestamp as any).toDate() : new Date((p.timestamp as any).seconds * 1000);
+             const timeKey = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+             if (!timelineMap[timeKey]) {
+                timelineMap[timeKey] = { time: timeKey, acquis: 0, faiblesses: 0, opportunites: 0, menaces: 0 };
+             }
+             timelineMap[timeKey][p.quadrant]++;
+        });
+        const timeline = Object.values(timelineMap);
+
+
+        return { metrics, quadrants, contributors, timeline };
+    };
+
+    useEffect(() => {
+        if (postIts.length > 0) {
+            const basicData = processData(postIts);
+            setAnalysisData({ ...basicData, insights: [], recommendations: [] });
+
+            setLoadingAI(true);
+            const timer = setTimeout(() => {
+                 getAIAnalysis(postIts).then(({ insights, recommendations }) => {
+                    setAnalysisData(prev => prev ? { ...prev, insights, recommendations } : null);
+                    setLoadingAI(false);
+                });
+            }, 1000); // Debounce AI analysis
+            
+            return () => clearTimeout(timer);
+        } else {
+            setAnalysisData(null);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [postIts]);
+    
+    const doughnutData = useMemo(() => {
+        if (!analysisData) return [];
+        return Object.entries(analysisData.quadrants).map(([key, value]) => ({
+            name: QUADRANT_INFO[key as QuadrantKey].title,
+            value: value.count,
+            color: QUADRANT_INFO[key as QuadrantKey].color,
+        }));
+    }, [analysisData]);
+
+    if (!analysisData) {
+        return <div className="p-8 text-center text-gray-500">Commencez à ajouter des post-its pour voir l'analyse.</div>;
+    }
+
+    return (
+        <div className="p-4 sm:p-8 bg-gray-50 space-y-8">
+            <MetricGrid metrics={analysisData.metrics} />
+
+            <div className="grid lg:grid-cols-2 gap-8">
+                <ChartCard title="Répartition AFOM">
+                     <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                            <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                                {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+                 <ChartCard title="Timeline des Contributions">
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={analysisData.timeline}>
+                            <XAxis dataKey="time" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} />
+                            <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} />
+                            <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} />
+                            <Bar dataKey="menaces" stackId="a" fill={QUADRANT_INFO.menaces.color} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+            </div>
+            
+            <div className="grid lg:grid-cols-5 gap-8">
+                <div className="lg:col-span-3"><InsightsList insights={analysisData.insights} loading={loadingAI} /></div>
+                <div className="lg:col-span-2"><ContributorsList contributors={analysisData.contributors} /></div>
+            </div>
+
+            <RecommendationsList recommendations={analysisData.recommendations} loading={loadingAI} />
+        </div>
+    );
+};
+
+const MetricGrid: React.FC<{metrics: AnalysisMetrics}> = ({metrics}) => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard label="Contributions" value={metrics.totalContributions} />
+        <MetricCard label="Participants" value={metrics.uniqueParticipants} />
+        <MetricCard label="Durée (min)" value={metrics.sessionDuration} />
+        <MetricCard label="Engagement" value={metrics.engagementScore} />
+    </div>
+);
+
+const MetricCard: React.FC<{ label: string; value: number }> = ({ label, value }) => (
+    <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200 text-center">
+        <div className="text-3xl font-black text-indigo-600">{value}</div>
+        <div className="text-sm font-bold text-gray-500">{label}</div>
+    </div>
+);
+
+const ChartCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+        <h3 className="text-lg font-black text-gray-700 mb-4">{title}</h3>
+        {children}
+    </div>
+);
+
+const InsightsList: React.FC<{ insights: Insight[], loading: boolean }> = ({ insights, loading }) => (
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-full">
+        <h3 className="text-lg font-black text-gray-700 mb-4">🧠 Insights Stratégiques (IA)</h3>
+        {loading ? <div className="text-center p-4">Analyse par IA en cours...</div> : 
+         !insights.length ? <div className="text-center p-4 text-gray-500">Pas assez de données pour l'analyse IA.</div> :
+        <div className="space-y-4">
+            {insights.map((insight, i) => (
+                <div key={i} className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
+                    <h4 className="font-bold text-blue-800">{insight.title}</h4>
+                    <p className="text-sm text-blue-700">{insight.content}</p>
+                </div>
+            ))}
+        </div>}
+    </div>
+);
+
+const RecommendationsList: React.FC<{ recommendations: Recommendation[], loading: boolean }> = ({ recommendations, loading }) => (
+    <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+        <h3 className="text-lg font-black text-gray-700 mb-4">🎯 Recommandations Stratégiques (IA)</h3>
+         {loading ? <div className="text-center p-4">Génération des recommandations par IA...</div> : 
+          !recommendations.length ? <div className="text-center p-4 text-gray-500">Pas assez de données pour les recommandations IA.</div> :
+        <div className="space-y-4">
+            {recommendations.map((rec, i) => {
+                const styles = PRIORITY_STYLES[rec.priority] || { bg: 'bg-gray-100', color: 'text-gray-800', icon: '💡', borderColor: 'border-gray-500' };
+                return (
+                    <div key={i} className={`p-4 rounded-lg border-l-4 ${styles.bg} ${styles.borderColor}`}>
+                        <h4 className={`font-bold ${styles.color}`}>
+                            {styles.icon} {rec.title}
+                            <span className={`ml-2 text-xs font-bold px-2 py-0.5 rounded-full ${styles.bg}`}>{rec.priority}</span>
+                        </h4>
+                        <p className="text-sm text-gray-700">{rec.content}</p>
+                    </div>
+                );
+            })}
+        </div>}
+    </div>
+);
+
+const ContributorsList: React.FC<{ contributors: Contributor[] }> = ({ contributors }) => {
+    const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
+    return (
+    <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-6 rounded-xl shadow-lg h-full">
+        <h3 className="text-lg font-black mb-4">🏆 Top Contributeurs</h3>
+        <div className="space-y-3">
+            {contributors.map((c, i) => (
+                <div key={i} className="bg-white/20 p-3 rounded-lg flex justify-between items-center">
+                    <div>
+                        <div className="font-bold">{medals[i]} {c.name}</div>
+                        <div className="text-xs opacity-80">{c.totalWords} mots</div>
+                    </div>
+                    <div className="text-lg font-black">{c.count}</div>
+                </div>
+            ))}
+        </div>
+    </div>
+)};
+
+
+export default AnalysisMode;

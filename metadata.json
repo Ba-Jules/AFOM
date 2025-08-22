@@ -1,0 +1,5 @@
+{
+  "name": "AFOM Ultimate AI",
+  "description": "An AI-powered, real-time collaborative platform for conducting professional AFOM (SWOT) analysis workshops. It features a presentation mode for training, a dynamic collection board, and AI-generated strategic insights and recommendations powered by Gemini.",
+  "requestFramePermissions": []
+}
