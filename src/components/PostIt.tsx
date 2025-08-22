@@ -20,6 +20,7 @@ const ORIGIN_BG: Record<QuadrantKey, string> = {
   menaces: "bg-rose-100 border-rose-400",
 };
 
+// Fallback si on ne reçoit pas de handlers (vieux rendu)
 async function bumpOrder(postItId: string, delta: number) {
   const curSnap = await getDoc(fsDoc(db, "postits", postItId));
   if (!curSnap.exists()) return;
@@ -48,8 +49,16 @@ async function bumpOrder(postItId: string, delta: number) {
   await batch.commit();
 }
 
-const PostItComponent: React.FC<{ data: PostIt }> = ({ data }) => {
-  // 1) Initialiser originQuadrant en base si manquant (pour figer la couleur)
+type PostItProps = {
+  data: PostIt;
+  /** déplacement d’un pas (← / →) : -1 / +1 */
+  onMoveStep?: (delta: number) => void;
+  /** déplacement d’une ligne (↑ / ↓) : -1 / +1 ligne */
+  onMoveRow?: (rows: number) => void;
+};
+
+const PostItComponent: React.FC<PostItProps> = ({ data, onMoveStep, onMoveRow }) => {
+  // Initialise originQuadrant si manquant (pour figer la couleur)
   useEffect(() => {
     if (!data.originQuadrant) {
       updateDoc(fsDoc(db, "postits", data.id), {
@@ -61,24 +70,44 @@ const PostItComponent: React.FC<{ data: PostIt }> = ({ data }) => {
   const origin = (data.originQuadrant ?? data.quadrant) as QuadrantKey;
   const color = ORIGIN_BG[origin] ?? "bg-gray-100 border-gray-300";
 
+  // handlers + fallback
+  const moveLeft  = () => (onMoveStep ? onMoveStep(-1) : bumpOrder(data.id, -1));
+  const moveRight = () => (onMoveStep ? onMoveStep(+1) : bumpOrder(data.id, +1));
+  const moveUp    = () => (onMoveRow  ? onMoveRow(-1)   : bumpOrder(data.id, -2));
+  const moveDown  = () => (onMoveRow  ? onMoveRow(+1)   : bumpOrder(data.id, +2));
+
   return (
     <div
       className={`group relative rounded-lg p-3 shadow-sm border ${color} select-none`}
       title={`Origine: ${origin}`}
     >
-      {/* 2) Flèches visibles au survol grâce à `group` */}
-      <div className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+      {/* Flèches (↑ ↓ ← →) visibles au survol */}
+      <div className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity grid grid-cols-2 gap-1">
         <button
-          className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-sm font-bold"
+          className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold"
           title="Monter (↑)"
-          onClick={() => bumpOrder(data.id, -1)}
+          onClick={moveUp}
         >
           ↑
         </button>
         <button
-          className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-sm font-bold"
+          className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold"
+          title="Droite (→)"
+          onClick={moveRight}
+        >
+          →
+        </button>
+        <button
+          className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold"
+          title="Gauche (←)"
+          onClick={moveLeft}
+        >
+          ←
+        </button>
+        <button
+          className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold"
           title="Descendre (↓)"
-          onClick={() => bumpOrder(data.id, +1)}
+          onClick={moveDown}
         >
           ↓
         </button>

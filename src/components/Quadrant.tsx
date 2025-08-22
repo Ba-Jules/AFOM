@@ -1,12 +1,12 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   collection,
-  query,
-  where,
-  getDocs,
-  writeBatch,
   doc as fsDoc,
   getDoc,
+  getDocs,
+  query,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import PostItComponent from "./PostIt";
@@ -15,7 +15,7 @@ import { PostIt, QuadrantKey } from "../types";
 interface QuadrantProps {
   info: {
     title: string;
-  subtitle: string;
+    subtitle: string;
     textColor: string;
     borderColor: string;
     bgColor: string;
@@ -26,36 +26,98 @@ interface QuadrantProps {
   onToggleExpand: () => void;
 }
 
-/* -------- helpers drag-sort -------- */
+/* -------- utils DOM / grille -------- */
 
-function computeTargetIndex(container: HTMLElement, clientY: number) {
+/** nombre de colonnes effectif de la grille (résolu par le navigateur) */
+function getColumnCount(el: HTMLElement | null): number {
+  if (!el) return 2;
+  const tpl = getComputedStyle(el).gridTemplateColumns; // ex: "320px 320px" ou "240px 240px 240px"
+  if (!tpl) return 2;
+  return tpl.split(" ").filter((t) => t.trim().length > 0).length || 2;
+}
+
+/** index d’insertion dans l’ordre DOM (row-major), pour curseur clientX/Y */
+function computeTargetIndex(container: HTMLElement, clientX: number, clientY: number) {
   const items = Array.from(
     container.querySelectorAll<HTMLElement>("[data-note-id]")
   );
-  for (let i = 0; i < items.length; i++) {
-    const r = items[i].getBoundingClientRect();
-    const mid = r.top + r.height / 2;
-    if (clientY < mid) return i;
+  if (items.length === 0) return 0;
+
+  // On ordonne virtuellement par (top, left) pour refléter la grille
+  const positions = items.map((el, i) => ({
+    i,
+    rect: el.getBoundingClientRect(),
+  }));
+  positions.sort(
+    (a, b) =>
+      a.rect.top - b.rect.top || a.rect.left - b.rect.left
+  );
+
+  for (let k = 0; k < positions.length; k++) {
+    const r = positions[k].rect;
+    const midY = r.top + r.height / 2;
+    // si on passe avant la "moitié" d'une carte sur l'axe Y -> insertion ici
+    if (clientY < midY) return positions[k].i;
   }
-  return items.length;
+  return positions.length;
 }
 
-/** Déplacement/reorder persistant en Firestore */
-async function moveOrReorderInFirestore(
+/* -------- Firestore: réordonnancement / déplacement -------- */
+
+/** réordonne dans le MÊME cadran (une seule liste) */
+async function reorderWithinSameQuadrant(
+  postItId: string,
+  targetIndex: number
+) {
+  const curSnap = await getDoc(fsDoc(db, "postits", postItId));
+  if (!curSnap.exists()) return;
+
+  const cur = curSnap.data() as any;
+  const sessionId = cur.sessionId as string;
+  const quadrant = cur.quadrant as QuadrantKey;
+
+  const colRef = collection(db, "postits");
+  const snap = await getDocs(
+    query(
+      colRef,
+      where("sessionId", "==", sessionId),
+      where("quadrant", "==", quadrant)
+    )
+  );
+  const list = snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as any) }))
+    .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+
+  const fromIdx = list.findIndex((x) => x.id === postItId);
+  if (fromIdx < 0) return;
+
+  const [moving] = list.splice(fromIdx, 1);
+  const clamped = Math.max(0, Math.min(list.length, targetIndex));
+  list.splice(clamped, 0, moving);
+
+  const batch = writeBatch(db);
+  list.forEach((it, i) => {
+    batch.update(fsDoc(db, "postits", it.id), { sortIndex: i });
+  });
+  await batch.commit();
+}
+
+/** déplace entre cadrans (2 listes: source + cible) */
+async function moveAcrossQuadrants(
   postItId: string,
   targetQuadrant: QuadrantKey,
   targetIndex: number
 ) {
-  // 1) lire le doc courant (session + quadrant source)
   const curSnap = await getDoc(fsDoc(db, "postits", postItId));
   if (!curSnap.exists()) return;
+
   const cur = curSnap.data() as any;
   const sessionId = cur.sessionId as string;
   const sourceQuadrant = cur.quadrant as QuadrantKey;
 
   const colRef = collection(db, "postits");
 
-  // 2) récupérer listes source + (si besoin) cible
+  // Source
   const srcSnap = await getDocs(
     query(
       colRef,
@@ -67,34 +129,26 @@ async function moveOrReorderInFirestore(
     .map((d) => ({ id: d.id, ...(d.data() as any) }))
     .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
 
-  const sameQuadrant = sourceQuadrant === targetQuadrant;
-
-  const dstSnap = sameQuadrant
-    ? srcSnap
-    : await getDocs(
-        query(
-          colRef,
-          where("sessionId", "==", sessionId),
-          where("quadrant", "==", targetQuadrant)
-        )
-      );
-
-  const dstList = sameQuadrant
-    ? [...srcList]
-    : dstSnap.docs
-        .map((d) => ({ id: d.id, ...(d.data() as any) }))
-        .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
-
-  // 3) retirer de la source
   const idxSrc = srcList.findIndex((x) => x.id === postItId);
   if (idxSrc < 0) return;
   const [moving] = srcList.splice(idxSrc, 1);
 
-  // 4) insérer dans la cible
+  // Cible
+  const dstSnap = await getDocs(
+    query(
+      colRef,
+      where("sessionId", "==", sessionId),
+      where("quadrant", "==", targetQuadrant)
+    )
+  );
+  const dstList = dstSnap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as any) }))
+    .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+
   const clamped = Math.max(0, Math.min(dstList.length, targetIndex));
   dstList.splice(clamped, 0, { ...moving, quadrant: targetQuadrant });
 
-  // 5) réécrire en batch
+  // Écriture
   const batch = writeBatch(db);
   srcList.forEach((it, i) =>
     batch.update(fsDoc(db, "postits", it.id), { sortIndex: i })
@@ -108,6 +162,24 @@ async function moveOrReorderInFirestore(
   await batch.commit();
 }
 
+/** wrapper: choisit reorder vs move selon quadrant courant */
+async function moveOrReorder(
+  postItId: string,
+  targetQuadrant: QuadrantKey,
+  targetIndex: number
+) {
+  const curSnap = await getDoc(fsDoc(db, "postits", postItId));
+  if (!curSnap.exists()) return;
+  const cur = curSnap.data() as any;
+  const sourceQuadrant = cur.quadrant as QuadrantKey;
+
+  if (sourceQuadrant === targetQuadrant) {
+    await reorderWithinSameQuadrant(postItId, targetIndex);
+  } else {
+    await moveAcrossQuadrants(postItId, targetQuadrant, targetIndex);
+  }
+}
+
 const Quadrant: React.FC<QuadrantProps> = ({
   info,
   postIts,
@@ -118,17 +190,17 @@ const Quadrant: React.FC<QuadrantProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // on rend toujours trié par sortIndex (si manquant => 0)
+  // Rendu trié par sortIndex d’abord
   const ordered = useMemo(
     () => [...postIts].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)),
     [postIts]
   );
 
+  /* ---- DnD interne & inter-cadrans ---- */
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(false);
 
-    // compatible avec l’existant et nos ajouts
     const postItId =
       e.dataTransfer.getData("postItId") ||
       e.dataTransfer.getData("postitId") ||
@@ -137,14 +209,55 @@ const Quadrant: React.FC<QuadrantProps> = ({
 
     const target = quadrantKey;
     const idx = containerRef.current
-      ? computeTargetIndex(containerRef.current, e.clientY)
+      ? computeTargetIndex(containerRef.current, e.clientX, e.clientY)
       : Number.MAX_SAFE_INTEGER;
 
     try {
-      await moveOrReorderInFirestore(postItId, target, idx);
+      await moveOrReorder(postItId, target, idx);
     } catch (err) {
-      console.error("Move/reorder error:", err);
+      console.error("move/reorder error:", err);
     }
+  };
+
+  /* ---- Reorder via flèches ↑ ↓ ← → ---- */
+  const reorderByDelta = async (postItId: string, delta: number) => {
+    // on lit la liste actuelle depuis Firestore pour bâtir le nouvel ordre
+    const curSnap = await getDoc(fsDoc(db, "postits", postItId));
+    if (!curSnap.exists()) return;
+    const cur = curSnap.data() as any;
+    const sessionId = cur.sessionId as string;
+    const quadrant = cur.quadrant as QuadrantKey;
+
+    const colRef = collection(db, "postits");
+    const snap = await getDocs(
+      query(
+        colRef,
+        where("sessionId", "==", sessionId),
+        where("quadrant", "==", quadrant)
+      )
+    );
+    const list = snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as any) }))
+      .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+
+    const from = list.findIndex((x) => x.id === postItId);
+    if (from < 0) return;
+    const to = Math.max(0, Math.min(list.length - 1, from + delta));
+    if (to === from) return;
+
+    const [moving] = list.splice(from, 1);
+    list.splice(to, 0, moving);
+
+    const batch = writeBatch(db);
+    list.forEach((it, i) =>
+      batch.update(fsDoc(db, "postits", it.id), { sortIndex: i })
+    );
+    await batch.commit();
+  };
+
+  const reorderByRows = async (postItId: string, rowDelta: number) => {
+    const cols = getColumnCount(containerRef.current!);
+    await reorderByDelta(postItId, rowDelta * cols);
   };
 
   return (
@@ -153,6 +266,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
       onDrop={handleDrop}
       onDragOver={(e) => {
         e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
         setIsDragOver(true);
       }}
       onDragLeave={() => setIsDragOver(false)}
@@ -187,26 +301,3 @@ const Quadrant: React.FC<QuadrantProps> = ({
             ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
             : "grid-cols-2"
         }`}
-      >
-        {ordered.map((postit) => (
-          <div
-            key={postit.id}
-            data-note-id={postit.id}
-            draggable
-            onDragStart={(e) => {
-              // on pose plusieurs clés pour compatibilité
-              e.dataTransfer.setData("postItId", postit.id);
-              e.dataTransfer.setData("postitId", postit.id);
-              e.dataTransfer.setData("text/plain", postit.id);
-              e.dataTransfer.effectAllowed = "move";
-            }}
-          >
-            <PostItComponent data={postit} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-export default Quadrant;
