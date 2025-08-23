@@ -1,25 +1,24 @@
 import { Type } from "@google/genai";
 
 export type QuadrantKey = "acquis" | "faiblesses" | "opportunites" | "menaces";
+export type PostItStatus = "active" | "bin";
 
 export interface PostIt {
   id: string;
-  sessionId: string;
-  quadrant: QuadrantKey;
+  sessionId: string;               // (= boardId / QR)
+  quadrant: QuadrantKey;           // quadrant courant (quand actif)
+  originQuadrant?: QuadrantKey;    // quadrant d’origine (couleur figée)
+  sortIndex?: number;              // ordre dans son quadrant
+  status?: PostItStatus;           // "active" (défaut) ou "bin" (panier)
+
+  // pour restauration depuis le panier
+  lastQuadrant?: QuadrantKey;
+  lastSortIndex?: number;
+  deletedAt?: any;                 // Date ou Firestore Timestamp
+
   content: string;
   author: string;
-  timestamp:
-    | {
-        seconds: number;
-        nanoseconds: number;
-      }
-    | Date;
-
-  /** Ordre d’affichage persistant dans le cadran */
-  sortIndex?: number;
-
-  /** Quadrant d’origine pour figer la couleur même après déplacement */
-  originQuadrant?: QuadrantKey;
+  timestamp: { seconds: number; nanoseconds: number } | Date;
 }
 
 export interface QuadrantData {
@@ -31,11 +30,14 @@ export interface QuadrantData {
   postIts: PostIt[];
 }
 
-export interface Insight {
-  title: string;
-  content: string;
+export interface BoardMeta {
+  projectName: string;
+  themeName: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
+export interface Insight { title: string; content: string; }
 export type RecommendationPriority = "URGENT" | "HIGH" | "MEDIUM" | "LOW";
 
 export interface Recommendation {
@@ -50,28 +52,13 @@ export interface AnalysisMetrics {
   sessionDuration: number;
   engagementScore: number;
 }
-
-export interface Contributor {
-  name: string;
-  count: number;
-  totalWords: number;
-}
-
-export interface QuadrantAnalysis {
-  count: number;
-  wordCount: number;
-}
+export interface Contributor { name: string; count: number; totalWords: number; }
+export interface QuadrantAnalysis { count: number; wordCount: number; }
 
 export interface AnalysisData {
   metrics: AnalysisMetrics;
   quadrants: Record<QuadrantKey, QuadrantAnalysis>;
-  timeline: {
-    time: string;
-    acquis: number;
-    faiblesses: number;
-    opportunites: number;
-    menaces: number;
-  }[];
+  timeline: { time: string; acquis: number; faiblesses: number; opportunites: number; menaces: number }[];
   contributors: Contributor[];
   insights: Insight[];
   recommendations: Recommendation[];
@@ -80,36 +67,18 @@ export interface AnalysisData {
 export const RecommendationSchema = {
   type: Type.OBJECT,
   properties: {
-    title: {
-      type: Type.STRING,
-      description: "A concise title for the recommendation.",
-    },
-    content: {
-      type: Type.STRING,
-      description:
-        "A detailed explanation of the strategic recommendation.",
-    },
-    priority: {
-      type: Type.STRING,
-      enum: ["URGENT", "HIGH", "MEDIUM", "LOW"],
-      description: "The priority level of the recommendation.",
-    },
+    title: { type: Type.STRING, description: "A concise title for the recommendation." },
+    content: { type: Type.STRING, description: "A detailed explanation of the strategic recommendation." },
+    priority: { type: Type.STRING, enum: ["URGENT", "HIGH", "MEDIUM", "LOW"], description: "The priority level of the recommendation." },
   },
   required: ["title", "content", "priority"],
-} as const;
+};
 
 export const InsightSchema = {
   type: Type.OBJECT,
   properties: {
-    title: {
-      type: Type.STRING,
-      description: "A concise title for the insight.",
-    },
-    content: {
-      type: Type.STRING,
-      description:
-        "A detailed explanation of the strategic insight discovered from the data.",
-    },
+    title: { type: Type.STRING, description: "A concise title for the insight." },
+    content: { type: Type.STRING, description: "A detailed explanation of the strategic insight discovered from the data." },
   },
   required: ["title", "content"],
-} as const;
+};
