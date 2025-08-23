@@ -239,16 +239,13 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
 
       {/* ===================== Grand cadran 2×2 (restauré) ===================== */}
       <div className="max-w-6xl mx-auto px-4">
-        {/* Quand un quadrant est agrandi : on n’affiche que lui, sur toute la surface */}
+        {/* Quand un quadrant est agrandi : on n’affiche que lui */}
         {expanded ? (
           <div className="relative rounded-2xl border-4 border-slate-800 bg-white/40 backdrop-blur p-3 min-h-[70vh]">
             <Quadrant
               info={{
                 title: QUADRANTS[expanded].title,
                 subtitle: QUADRANTS[expanded].subtitle,
-                textColor: QUADRANTS[expanded].textColor,
-                borderColor: QUADRANTS[expanded].borderColor,
-                bgColor: QUADRANTS[expanded].bgColor,
               }}
               postIts={byQuadrant[expanded]}
               quadrantKey={expanded}
@@ -273,13 +270,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
               ).map(([key, info]) => (
                 <div key={key} className="min-h-[32vh]">
                   <Quadrant
-                    info={{
-                      title: info.title,
-                      subtitle: info.subtitle,
-                      textColor: info.textColor,
-                      borderColor: info.borderColor,
-                      bgColor: info.bgColor,
-                    }}
+                    info={{ title: info.title, subtitle: info.subtitle }}
                     postIts={byQuadrant[key]}
                     quadrantKey={key}
                     isExpanded={false}
@@ -380,11 +371,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
 
       {/* ===================== Modal QR Code ===================== */}
       {!showQR ? null : (
-        <QRCodeModal
-          isOpen={showQR}
-          sessionId={sessionId}
-          onClose={() => setShowQR(false)}
-        />
+        <QRCodeModal isOpen={showQR} sessionId={sessionId} onClose={() => setShowQR(false)} />
       )}
     </div>
   );
