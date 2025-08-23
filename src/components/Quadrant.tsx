@@ -16,9 +16,9 @@ interface QuadrantProps {
   info: {
     title: string;
     subtitle: string;
-    textColor: string;   // ex: "text-green-700"
-    borderColor: string; // ex: "border-green-500"
-    bgColor: string;     // inutilisé ici mais conservé pour compat
+    textColor: string;
+    borderColor: string;
+    bgColor: string;
   };
   postIts: PostIt[];
   quadrantKey: QuadrantKey;
@@ -26,7 +26,13 @@ interface QuadrantProps {
   onToggleExpand: () => void;
 }
 
-/* --------------------- helpers grille & DnD --------------------- */
+/* Couleurs d’entête + bordure renforcées (différenciation) */
+const HEADER_COLORS: Record<QuadrantKey, { text: string; border: string }> = {
+  acquis:       { text: "text-green-700",   border: "border-green-500"   },
+  opportunites: { text: "text-emerald-900", border: "border-emerald-700" },
+  faiblesses:   { text: "text-red-700",     border: "border-red-500"     },
+  menaces:      { text: "text-red-900",     border: "border-red-700"     },
+};
 
 function getColumnCount(el: HTMLElement | null): number {
   if (!el) return 2;
@@ -38,11 +44,9 @@ function getColumnCount(el: HTMLElement | null): number {
 function computeTargetIndex(container: HTMLElement, clientX: number, clientY: number) {
   const items = Array.from(container.querySelectorAll<HTMLElement>("[data-note-id]"));
   if (items.length === 0) return 0;
-
   const positions = items
     .map((el, i) => ({ i, rect: el.getBoundingClientRect() }))
     .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
-
   for (let k = 0; k < positions.length; k++) {
     const r = positions[k].rect;
     if (clientY < r.top + r.height / 2) return positions[k].i;
@@ -50,19 +54,15 @@ function computeTargetIndex(container: HTMLElement, clientX: number, clientY: nu
   return positions.length;
 }
 
-/* --------------------- Firestore ops --------------------- */
-
 async function reorderWithinSameQuadrant(postItId: string, targetIndex: number) {
   const curSnap = await getDoc(fsDoc(db, "postits", postItId));
   if (!curSnap.exists()) return;
-
   const cur = curSnap.data() as any;
   const sessionId = cur.sessionId as string;
   const quadrant = cur.quadrant as QuadrantKey;
 
-  const colRef = collection(db, "postits");
   const snap = await getDocs(
-    query(colRef, where("sessionId", "==", sessionId), where("quadrant", "==", quadrant))
+    query(collection(db, "postits"), where("sessionId", "==", sessionId), where("quadrant", "==", quadrant))
   );
   const list = snap.docs
     .map((d) => ({ id: d.id, ...(d.data() as any) }))
@@ -80,23 +80,16 @@ async function reorderWithinSameQuadrant(postItId: string, targetIndex: number) 
   await batch.commit();
 }
 
-async function moveAcrossQuadrants(
-  postItId: string,
-  targetQuadrant: QuadrantKey,
-  targetIndex: number
-) {
+async function moveAcrossQuadrants(postItId: string, targetQuadrant: QuadrantKey, targetIndex: number) {
   const curSnap = await getDoc(fsDoc(db, "postits", postItId));
   if (!curSnap.exists()) return;
-
   const cur = curSnap.data() as any;
   const sessionId = cur.sessionId as string;
   const sourceQuadrant = cur.quadrant as QuadrantKey;
 
-  const colRef = collection(db, "postits");
-
   // source
   const srcSnap = await getDocs(
-    query(colRef, where("sessionId", "==", sessionId), where("quadrant", "==", sourceQuadrant))
+    query(collection(db, "postits"), where("sessionId", "==", sessionId), where("quadrant", "==", sourceQuadrant))
   );
   const srcList = srcSnap.docs
     .map((d) => ({ id: d.id, ...(d.data() as any) }))
@@ -107,7 +100,7 @@ async function moveAcrossQuadrants(
 
   // cible
   const dstSnap = await getDocs(
-    query(colRef, where("sessionId", "==", sessionId), where("quadrant", "==", targetQuadrant))
+    query(collection(db, "postits"), where("sessionId", "==", sessionId), where("quadrant", "==", targetQuadrant))
   );
   const dstList = dstSnap.docs
     .map((d) => ({ id: d.id, ...(d.data() as any) }))
@@ -118,26 +111,20 @@ async function moveAcrossQuadrants(
 
   const batch = writeBatch(db);
   srcList.forEach((it, i) => batch.update(fsDoc(db, "postits", it.id), { sortIndex: i }));
-  dstList.forEach((it, i) =>
-    batch.update(fsDoc(db, "postits", it.id), { sortIndex: i, quadrant: targetQuadrant })
-  );
+  dstList.forEach((it, i) => batch.update(fsDoc(db, "postits", it.id), { sortIndex: i, quadrant: targetQuadrant }));
   await batch.commit();
 }
 
 async function moveOrReorder(postItId: string, targetQuadrant: QuadrantKey, targetIndex: number) {
   const curSnap = await getDoc(fsDoc(db, "postits", postItId));
   if (!curSnap.exists()) return;
-  const cur = curSnap.data() as any;
-  const sourceQuadrant = cur.quadrant as QuadrantKey;
-
-  if (sourceQuadrant === targetQuadrant) {
+  const srcQ = (curSnap.data() as any).quadrant as QuadrantKey;
+  if (srcQ === targetQuadrant) {
     await reorderWithinSameQuadrant(postItId, targetIndex);
   } else {
     await moveAcrossQuadrants(postItId, targetQuadrant, targetIndex);
   }
 }
-
-/* --------------------- Composant --------------------- */
 
 const Quadrant: React.FC<QuadrantProps> = ({
   info,
@@ -154,11 +141,11 @@ const Quadrant: React.FC<QuadrantProps> = ({
     [postIts]
   );
 
-  // DnD handlers
+  const colors = HEADER_COLORS[quadrantKey];
+
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(false);
-
     const postItId =
       e.dataTransfer.getData("postItId") ||
       e.dataTransfer.getData("postitId") ||
@@ -183,9 +170,8 @@ const Quadrant: React.FC<QuadrantProps> = ({
     const sessionId = cur.sessionId as string;
     const quadrant = cur.quadrant as QuadrantKey;
 
-    const colRef = collection(db, "postits");
     const snap = await getDocs(
-      query(colRef, where("sessionId", "==", sessionId), where("quadrant", "==", quadrant))
+      query(collection(db, "postits"), where("sessionId", "==", sessionId), where("quadrant", "==", quadrant))
     );
     const list = snap.docs
       .map((d) => ({ id: d.id, ...(d.data() as any) }))
@@ -209,6 +195,11 @@ const Quadrant: React.FC<QuadrantProps> = ({
     await reorderByDelta(postItId, rowDelta * cols);
   };
 
+  /* ---- Wrapper plein écran quand agrandi ---- */
+  const wrapperClasses = isExpanded
+    ? "fixed inset-[84px_16px_16px_16px] z-50 overflow-auto bg-white rounded-xl shadow-2xl p-4"
+    : "p-4";
+
   return (
     <div
       data-quadrant={quadrantKey}
@@ -219,17 +210,13 @@ const Quadrant: React.FC<QuadrantProps> = ({
         setIsDragOver(true);
       }}
       onDragLeave={() => setIsDragOver(false)}
-      className={`p-4 transition-all duration-300 ${
-        isDragOver ? "bg-indigo-100" : ""
-      } ${isExpanded ? "bg-white rounded-xl shadow-2xl min-h-[calc(100vh-160px)]" : "min-h-[40vh]"}`}
+      className={`${wrapperClasses} transition-all duration-300 ${isDragOver ? "bg-indigo-50" : ""}`}
     >
-      {/* Header */}
-      <div
-        className={`p-2 sticky top-[76px] bg-white/80 backdrop-blur-sm z-10 border-b-4 ${info.borderColor} flex items-center justify-between`}
-      >
+      {/* En-tête */}
+      <div className={`p-2 sticky top-0 bg-white/85 backdrop-blur-sm z-10 border-b-4 ${colors.border} flex items-center justify-between`}>
         <div>
-          <h3 className={`text-xl font-black ${info.textColor}`}>{info.title}</h3>
-          <p className="text-xs text-gray-500 font-semibold">{info.subtitle}</p>
+          <h3 className={`text-xl md:text-2xl font-black ${colors.text}`}>{info.title}</h3>
+          <p className="text-xs text-gray-600 font-semibold">{info.subtitle}</p>
         </div>
         <button
           onClick={onToggleExpand}
@@ -240,31 +227,27 @@ const Quadrant: React.FC<QuadrantProps> = ({
         </button>
       </div>
 
-      {/* Grille */}
+      {/* Grille des post-its */}
       <div
         ref={containerRef}
-        className={`pt-4 grid gap-3 ${
-          isExpanded
-            ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
-            : "grid-cols-2"
-        }`}
+        className={`pt-4 grid gap-3 ${isExpanded ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" : "grid-cols-2"}`}
       >
-        {ordered.map((postit) => (
+        {ordered.map((p) => (
           <div
-            key={postit.id}
-            data-note-id={postit.id}
+            key={p.id}
+            data-note-id={p.id}
             draggable
             onDragStart={(e) => {
-              e.dataTransfer.setData("postItId", postit.id);
-              e.dataTransfer.setData("postitId", postit.id);
-              e.dataTransfer.setData("text/plain", postit.id);
+              e.dataTransfer.setData("postItId", p.id);
+              e.dataTransfer.setData("postitId", p.id);
+              e.dataTransfer.setData("text/plain", p.id);
               e.dataTransfer.effectAllowed = "move";
             }}
           >
             <PostItComponent
-              data={postit}
-              onMoveStep={(d) => reorderByDelta(postit.id, d)}   // ← / →
-              onMoveRow={(r) => reorderByRows(postit.id, r)}     // ↑ / ↓
+              data={p}
+              onMoveStep={(d) => reorderByDelta(p.id, d)} // ← / →
+              onMoveRow={(r) => reorderByRows(p.id, r)}   // ↑ / ↓
             />
           </div>
         ))}
