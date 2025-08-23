@@ -110,23 +110,45 @@ const PostItComponent: React.FC<PostItProps> = ({ data, onMoveStep, onMoveRow })
   return (
     <>
       <div
-        className={`group relative rounded-lg p-3 md:p-3.5 shadow-sm border ${color} select-none`}
+        className={`group relative overflow-visible rounded-lg p-3 md:p-3.5 shadow-sm border ${color} select-none`}
         title={`Origine: ${origin}`}
       >
-        {/* Flèches (↑ ↓ ← →) au survol, en haut à droite */}
-        <div className="absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity grid grid-cols-2 gap-1">
-          <button className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold" title="Monter (↑)"   onClick={moveUp}>↑</button>
-          <button className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold" title="Droite (→)"  onClick={moveRight}>→</button>
-          <button className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold" title="Gauche (←)"  onClick={moveLeft}>←</button>
-          <button className="w-7 h-7 rounded-md bg-white/90 hover:bg-gray-100 border shadow text-xs font-bold" title="Descendre (↓)" onClick={moveDown}>↓</button>
-        </div>
+        {/* Mini chevrons edge (ils ne chevauchent plus le contenu) */}
+        <button
+          className="absolute -left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/95 border text-gray-700 shadow-sm opacity-0 group-hover:opacity-100 hover:bg-gray-100"
+          title="Gauche (←)"
+          onClick={moveLeft}
+        >
+          ‹
+        </button>
+        <button
+          className="absolute -right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/95 border text-gray-700 shadow-sm opacity-0 group-hover:opacity-100 hover:bg-gray-100"
+          title="Droite (→)"
+          onClick={moveRight}
+        >
+          ›
+        </button>
+        <button
+          className="absolute left-1/2 -top-2 -translate-x-1/2 w-6 h-6 rounded-full bg-white/95 border text-gray-700 shadow-sm opacity-0 group-hover:opacity-100 hover:bg-gray-100"
+          title="Monter (↑)"
+          onClick={moveUp}
+        >
+          ▲
+        </button>
+        <button
+          className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-6 h-6 rounded-full bg-white/95 border text-gray-700 shadow-sm opacity-0 group-hover:opacity-100 hover:bg-gray-100"
+          title="Descendre (↓)"
+          onClick={moveDown}
+        >
+          ▼
+        </button>
 
-        {/* Actions visibles : éditer / supprimer (bas droite) */}
-        <div className="absolute right-1 bottom-1 flex gap-1">
+        {/* Actions visibles : éditer / supprimer (bas droite), plus petites */}
+        <div className="absolute right-1 bottom-1 flex gap-1 z-10">
           <button
             title="Éditer"
             onClick={onEditOpen}
-            className="w-7 h-7 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+            className="w-6 h-6 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-[12px]"
             aria-label="Éditer"
           >
             ✎
@@ -134,13 +156,14 @@ const PostItComponent: React.FC<PostItProps> = ({ data, onMoveStep, onMoveRow })
           <button
             title="Supprimer"
             onClick={onDelete}
-            className="w-7 h-7 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+            className="w-6 h-6 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-[12px]"
             aria-label="Supprimer"
           >
             🗑
           </button>
         </div>
 
+        {/* Contenu */}
         <div className="text-sm text-gray-600 mb-1">par {data.author}</div>
         <div className="text-[15px] sm:text-base md:text-lg leading-snug font-semibold tracking-[0.005em] whitespace-pre-wrap">
           {data.content}
