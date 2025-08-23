@@ -17,14 +17,42 @@ import QRCodeModal from "./QRCodeModal";
 import { PostIt, QuadrantKey, BoardMeta } from "../types";
 import { QUADRANTS } from "../constants";
 
-/** Récupère un sessionId depuis l’URL ou le localStorage */
+/* Palette (clair vs foncé) demandée
+   - Acquis / Faiblesses : tons clairs
+   - Opportunités / Menaces : tons plus soutenus
+*/
+const PALETTE: Record<
+  QuadrantKey,
+  { textColor: string; borderColor: string; bgColor: string }
+> = {
+  acquis: {
+    textColor: "text-green-800",
+    borderColor: "border-green-600",
+    bgColor: "bg-green-50",
+  },
+  opportunites: {
+    textColor: "text-emerald-900",
+    borderColor: "border-emerald-700",
+    bgColor: "bg-emerald-100",
+  },
+  faiblesses: {
+    textColor: "text-red-800",
+    borderColor: "border-red-600",
+    bgColor: "bg-red-50",
+  },
+  menaces: {
+    textColor: "text-rose-900",
+    borderColor: "border-rose-700",
+    bgColor: "bg-rose-100",
+  },
+};
+
 function resolveSessionId(): string | null {
   const url = new URL(window.location.href);
   const s = url.searchParams.get("session") || url.searchParams.get("board");
   return s || localStorage.getItem("sessionId") || localStorage.getItem("boardId") || null;
 }
 
-/** Props optionnelles pour compatibilité avec App.tsx */
 type WorkInterfaceProps = {
   sessionId?: string;
   onBackToPresentation?: () => void;
@@ -46,7 +74,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
   // QR modal
   const [showQR, setShowQR] = useState(false);
 
-  // sessionId effectif : priorité à la prop si fournie, sinon URL/LS
   const sessionId = useMemo(() => {
     if (sessionFromProps && sessionFromProps.trim()) return sessionFromProps;
     return resolveSessionId();
@@ -80,7 +107,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     })();
   }, [sessionId]);
 
-  // Répartition par quadrant (on exclut ce qui est "au panier")
+  // Répartition par quadrant (exclut le panier)
   const byQuadrant = useMemo(() => {
     const res: Record<QuadrantKey, PostIt[]> = {
       acquis: [],
@@ -143,10 +170,9 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
 
   return (
     <div className="min-h-screen">
-      {/* ===================== Bandeau principal (restauré) ===================== */}
+      {/* ====== Bandeau principal (restauré) ====== */}
       <div className="bg-gradient-to-r from-orange-400 to-pink-400 text-white shadow">
         <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          {/* Titre + modes */}
           <div className="flex items-center gap-4">
             <div>
               <div className="text-2xl font-extrabold tracking-wide">🚀 AFOM Ultimate</div>
@@ -155,25 +181,16 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
               </div>
             </div>
             <div className="hidden md:flex items-center gap-2 ml-2">
-              <a
-                href="?v=drag2"
-                className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 text-sm"
-                title="Mode Collecte"
-              >
+              <a href="?v=drag2" className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 text-sm">
                 Collecte
               </a>
-              <a
-                href="?v=analysis"
-                className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 text-sm"
-                title="Mode Analyse"
-              >
+              <a href="?v=analysis" className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 text-sm">
                 Analyse
               </a>
               {onBackToPresentation && (
                 <button
                   onClick={onBackToPresentation}
                   className="px-3 py-1 rounded-md bg-white/15 hover:bg-white/25 text-sm"
-                  title="Retour Présentation"
                 >
                   ↩︎ Présentation
                 </button>
@@ -181,33 +198,28 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             </div>
           </div>
 
-          {/* Boutons d'action */}
           <div className="flex items-center gap-2">
             <button
               onClick={handleNewSession}
               className="px-3 py-2 rounded-md bg-white text-gray-800 hover:bg-gray-50 text-sm shadow"
-              title="Démarrer une nouvelle session"
             >
               Nouvelle
             </button>
             <button
               onClick={handleClearSession}
               className="px-3 py-2 rounded-md bg-white/20 hover:bg-white/25 text-sm"
-              title="Supprimer toutes les étiquettes"
             >
               Supprimer
             </button>
             <button
               onClick={() => setShowQR(true)}
               className="px-3 py-2 rounded-md bg-white/20 hover:bg-white/25 text-sm"
-              title="Afficher le QR Code de participation"
             >
               QR Code
             </button>
             <a
               href="?v=formation"
               className="px-3 py-2 rounded-md bg-white/20 hover:bg-white/25 text-sm"
-              title="Démonstration & Formation"
             >
               Formation
             </a>
@@ -215,47 +227,47 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         </div>
       </div>
 
-      {/* ===================== Rubrique Projet / Thème ===================== */}
+      {/* ====== Rubrique Projet / Thème ====== */}
       <div className="max-w-6xl mx-auto px-4 mt-3 mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="text-sm text-gray-700">
-          <div>
-            <span className="font-semibold">Projet :</span> {meta?.projectName || "—"}
-          </div>
+          <span className="font-semibold">Projet :</span> {meta?.projectName || "—"}
         </div>
         <div className="text-sm text-gray-700">
-          <div>
-            <span className="font-semibold">Thème :</span> {meta?.themeName || "—"}
-          </div>
+          <span className="font-semibold">Thème :</span> {meta?.themeName || "—"}
         </div>
-        <div>
-          <button
-            onClick={() => setShowMetaModal(true)}
-            className="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-sm"
-          >
-            {meta ? "Modifier Projet/Thème" : "Définir Projet/Thème"}
-          </button>
-        </div>
+        <button
+          onClick={() => setShowMetaModal(true)}
+          className="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-sm"
+        >
+          {meta ? "Modifier Projet/Thème" : "Définir Projet/Thème"}
+        </button>
       </div>
 
-      {/* ===================== Grand cadran 2×2 (restauré) ===================== */}
+      {/* ====== Grand cadran 2×2 (restauré) ====== */}
       <div className="max-w-6xl mx-auto px-4">
-        {/* Quand un quadrant est agrandi : on n’affiche que lui */}
         {expanded ? (
           <div className="relative rounded-2xl border-4 border-slate-800 bg-white/40 backdrop-blur p-3 min-h-[70vh]">
-            <Quadrant
-              info={{
-                title: QUADRANTS[expanded].title,
-                subtitle: QUADRANTS[expanded].subtitle,
-              }}
-              postIts={byQuadrant[expanded]}
-              quadrantKey={expanded}
-              isExpanded={true}
-              onToggleExpand={() => setExpanded(null)}
-            />
+            {(() => {
+              const pal = PALETTE[expanded];
+              return (
+                <Quadrant
+                  info={{
+                    title: QUADRANTS[expanded].title,
+                    subtitle: QUADRANTS[expanded].subtitle,
+                    textColor: pal.textColor,
+                    borderColor: pal.borderColor,
+                    bgColor: pal.bgColor,
+                  }}
+                  postIts={byQuadrant[expanded]}
+                  quadrantKey={expanded}
+                  isExpanded={true}
+                  onToggleExpand={() => setExpanded(null)}
+                />
+              );
+            })()}
           </div>
         ) : (
           <div className="relative rounded-2xl border-4 border-slate-800 bg-white/40 backdrop-blur p-3 min-h-[70vh]">
-            {/* Croix centrale */}
             <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 w-[3px] h-full bg-slate-800/80" />
             <div className="pointer-events-none absolute top-1/2 left-0 -translate-y-1/2 h-[3px] w-full bg-slate-800/80" />
 
@@ -267,28 +279,37 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                   ["opportunites", QUADRANTS.opportunites],
                   ["menaces", QUADRANTS.menaces],
                 ] as [QuadrantKey, any][]
-              ).map(([key, info]) => (
-                <div key={key} className="min-h-[32vh]">
-                  <Quadrant
-                    info={{ title: info.title, subtitle: info.subtitle }}
-                    postIts={byQuadrant[key]}
-                    quadrantKey={key}
-                    isExpanded={false}
-                    onToggleExpand={() => setExpanded(key)}
-                  />
-                </div>
-              ))}
+              ).map(([key, info]) => {
+                const pal = PALETTE[key];
+                return (
+                  <div key={key} className="min-h-[32vh]">
+                    <Quadrant
+                      info={{
+                        title: info.title,
+                        subtitle: info.subtitle,
+                        textColor: pal.textColor,
+                        borderColor: pal.borderColor,
+                        bgColor: pal.bgColor,
+                      }}
+                      postIts={byQuadrant[key]}
+                      quadrantKey={key}
+                      isExpanded={false}
+                      onToggleExpand={() => setExpanded(key)}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
       </div>
 
-      {/* ===================== 5e cadran : Panier / À discuter ===================== */}
+      {/* ====== 5e cadran : Panier ====== */}
       <div className="max-w-6xl mx-auto px-4 mt-6">
         <BinPanel />
       </div>
 
-      {/* ===================== Modal Projet/Thème ===================== */}
+      {/* ====== Modal Projet/Thème ====== */}
       {!showMetaModal ? null : (
         <div className="fixed inset-0 bg-black/30 z-[80] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
@@ -302,7 +323,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 ×
               </button>
             </div>
-
             <div className="p-4 space-y-3">
               <div>
                 <label className="text-sm font-semibold text-gray-600">Nom du projet</label>
@@ -323,7 +343,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 />
               </div>
             </div>
-
             <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
               <button
                 onClick={() => setShowMetaModal(false)}
@@ -369,7 +388,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         </div>
       )}
 
-      {/* ===================== Modal QR Code ===================== */}
+      {/* ====== Modal QR Code ====== */}
       {!showQR ? null : (
         <QRCodeModal isOpen={showQR} sessionId={sessionId} onClose={() => setShowQR(false)} />
       )}
