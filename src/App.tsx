@@ -1,14 +1,17 @@
+// src/App.tsx
 import React, { useEffect, useState } from "react";
 import PresentationMode from "./components/PresentationMode";
 import WorkInterface from "./components/WorkInterface";
 import ParticipantInterface from "./components/ParticipantInterface";
 import AnalysisMode from "./components/AnalysisMode";
 
-// ---- Helpers ---------------------------------------------------------------
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "./services/firebase";
+import type { PostIt } from "./types";
 
 type View = "presentation" | "work" | "analysis" | "participant";
 
-/** Détermine la vue depuis l’URL (compat avec l’ancien mode=participant). */
+/** Lit la vue depuis l’URL (compat avec l’ancien mode=participant). */
 function resolveViewFromUrl(): View {
   const url = new URL(window.location.href);
   const v = (url.searchParams.get("v") || "").toLowerCase();
@@ -17,11 +20,11 @@ function resolveViewFromUrl(): View {
   if (mode === "participant" || v === "participant") return "participant";
   if (v === "analysis") return "analysis";
   if (v === "drag2" || v === "work" || v === "collecte") return "work";
-  // v=formation ou rien → slides
+  // v=formation ou rien -> slides
   return "presentation";
 }
 
-/** Récupère ou génère l’id de session, et le persiste. */
+/** Récupère ou crée un sessionId, et le persiste. */
 function resolveSessionId(): string {
   const url = new URL(window.location.href);
   const fromUrl = url.searchParams.get("session");
@@ -42,7 +45,7 @@ function resolveSessionId(): string {
   return gen;
 }
 
-/** Met à jour l’URL (sans recharger) pour rester cohérent avec le bandeau. */
+/** Met à jour l’URL (sans reload) pour rester en phase avec la vue courante. */
 function pushUrl(next: Partial<{ v: string; session: string }>) {
   const url = new URL(window.location.href);
   if (next.v !== undefined) url.searchParams.set("v", next.v);
@@ -50,23 +53,35 @@ function pushUrl(next: Partial<{ v: string; session: string }>) {
   window.history.replaceState(null, "", url.toString());
 }
 
-// ---- App -------------------------------------------------------------------
-
 const App: React.FC = () => {
   const [view, setView] = useState<View>(() => resolveViewFromUrl());
   const [sessionId, setSessionId] = useState<string>(() => resolveSessionId());
 
-  // Si l’utilisateur navigue (liens du bandeau), on relit l’URL au montage.
-  // (Pour une SPA plus poussée on écouterait popstate, mais ici c’est suffisant.)
+  // Flux de post-its pour l'AnalysisMode
+  const [analysisPostIts, setAnalysisPostIts] = useState<PostIt[]>([]);
+
+  // (Ré)initialise vue + session au montage
   useEffect(() => {
     setView(resolveViewFromUrl());
     setSessionId(resolveSessionId());
   }, []);
 
-  // ----- Callbacks passés aux écrans -----
+  // Abonnement Firestore sur la session courante (sert à AnalysisMode)
+  useEffect(() => {
+    if (!sessionId) return;
+    const q = query(
+      collection(db, "postits"),
+      where("sessionId", "==", sessionId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PostIt[];
+      setAnalysisPostIts(arr);
+    });
+    return () => unsub();
+  }, [sessionId]);
 
+  // Callbacks
   const handleLaunchSession = (newSessionId: string) => {
-    // depuis les slides → lancer la vue de travail avec la session donnée
     localStorage.setItem("sessionId", newSessionId);
     setSessionId(newSessionId);
     setView("work");
@@ -75,21 +90,18 @@ const App: React.FC = () => {
 
   const handleBackToPresentation = () => {
     setView("presentation");
-    pushUrl({ v: "formation" }); // cohérent avec tes liens
+    pushUrl({ v: "formation" });
   };
 
-  // ----- Rendu conditionnel -----
-
+  // Rendu
   let content: React.ReactNode = null;
 
   switch (view) {
     case "analysis":
-      // Écran d’analyse (graphiques)
-      content = <AnalysisMode />;
+      content = <AnalysisMode postIts={analysisPostIts} />;
       break;
 
     case "work":
-      // Cadran 2×2 + panier, avec session courante
       content = (
         <WorkInterface
           sessionId={sessionId}
@@ -104,7 +116,6 @@ const App: React.FC = () => {
 
     case "presentation":
     default:
-      // Slides de formation / démarrage d’atelier
       content = (
         <PresentationMode
           onLaunchSession={handleLaunchSession}
