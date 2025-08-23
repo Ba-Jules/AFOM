@@ -1,18 +1,36 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { collection, doc as fsDoc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
+import {
+  collection,
+  doc as fsDoc,
+  getDoc,
+  onSnapshot,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "../services/firebase";
 import Quadrant from "./Quadrant";
 import BinPanel from "./BinPanel";
 import { PostIt, QuadrantKey, BoardMeta } from "../types";
-import { QUADRANTS } from "../constants"; // suppose {acquis:{...},...} existe comme avant
+import { QUADRANTS } from "../constants";
 
+/** Récupère un sessionId depuis l’URL ou le localStorage */
 function resolveSessionId(): string | null {
   const url = new URL(window.location.href);
   const s = url.searchParams.get("session") || url.searchParams.get("board");
   return s || localStorage.getItem("sessionId") || localStorage.getItem("boardId") || null;
 }
 
-const WorkInterface: React.FC = () => {
+/** Props que App.tsx peut passer (facultatives) */
+type WorkInterfaceProps = {
+  sessionId?: string;
+  onBackToPresentation?: () => void;
+};
+
+const WorkInterface: React.FC<WorkInterfaceProps> = ({
+  sessionId: sessionFromProps,
+  onBackToPresentation,
+}) => {
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
 
@@ -22,7 +40,11 @@ const WorkInterface: React.FC = () => {
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
-  const sessionId = useMemo(resolveSessionId, []);
+  // sessionId effectif : priorité à la prop si fournie, sinon URL/LS
+  const sessionId = useMemo(() => {
+    if (sessionFromProps && sessionFromProps.trim()) return sessionFromProps;
+    return resolveSessionId();
+  }, [sessionFromProps]);
 
   // Écoute des post-its de la session
   useEffect(() => {
@@ -31,7 +53,10 @@ const WorkInterface: React.FC = () => {
     const unsub = onSnapshot(
       query(collection(db, "postits"), where("sessionId", "==", sessionId)),
       (snap) => {
-        const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PostIt[];
+        const arr = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        })) as PostIt[];
         setPostIts(arr);
       }
     );
@@ -53,12 +78,16 @@ const WorkInterface: React.FC = () => {
     })();
   }, [sessionId]);
 
+  // Répartition par quadrant (on exclut ce qui est "au panier")
   const byQuadrant = useMemo(() => {
     const res: Record<QuadrantKey, PostIt[]> = {
-      acquis: [], faiblesses: [], opportunites: [], menaces: [],
+      acquis: [],
+      faiblesses: [],
+      opportunites: [],
+      menaces: [],
     };
     for (const p of postIts) {
-      if (p.status === "bin") continue; // pas dans les 4 cadrans
+      if ((p as any).status === "bin") continue; // pas dans les 4 cadrans
       res[p.quadrant].push(p);
     }
     return res;
@@ -68,25 +97,45 @@ const WorkInterface: React.FC = () => {
     return (
       <div className="p-6">
         <h2 className="text-xl font-bold">Session introuvable</h2>
-        <p>Ouvrez l’atelier via un lien ou un QR contenant <code>?session=...</code>.</p>
+        <p>
+          Ouvrez l’atelier via un lien ou un QR contenant <code>?session=...</code>.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="p-4">
-      {/* Barre haute projet/thème */}
-      <div className="mb-4 flex items-center justify-between">
+      {/* Barre haute projet/thème + éventuel retour présentation */}
+      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="text-sm text-gray-700">
-          <div><span className="font-semibold">Projet :</span> {meta?.projectName || "—"}</div>
-          <div><span className="font-semibold">Thème :</span> {meta?.themeName || "—"}</div>
+          <div>
+            <span className="font-semibold">Projet :</span>{" "}
+            {meta?.projectName || "—"}
+          </div>
+          <div>
+            <span className="font-semibold">Thème :</span>{" "}
+            {meta?.themeName || "—"}
+          </div>
         </div>
-        <button
-          onClick={() => setShowMetaModal(true)}
-          className="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-sm"
-        >
-          {meta ? "Modifier Projet/Thème" : "Définir Projet/Thème"}
-        </button>
+
+        <div className="flex items-center gap-2">
+          {onBackToPresentation && (
+            <button
+              onClick={onBackToPresentation}
+              className="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-sm"
+              title="Retour à la présentation"
+            >
+              ↩︎ Présentation
+            </button>
+          )}
+          <button
+            onClick={() => setShowMetaModal(true)}
+            className="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-sm"
+          >
+            {meta ? "Modifier Projet/Thème" : "Définir Projet/Thème"}
+          </button>
+        </div>
       </div>
 
       {/* Grille 2×2 habituelle */}
@@ -111,13 +160,15 @@ const WorkInterface: React.FC = () => {
               postIts={byQuadrant[key]}
               quadrantKey={key}
               isExpanded={expanded === key}
-              onToggleExpand={() => setExpanded(expanded === key ? null : key)}
+              onToggleExpand={() =>
+                setExpanded(expanded === key ? null : key)
+              }
             />
           </div>
         ))}
       </div>
 
-      {/* 5e cadran : Panier */}
+      {/* 5e cadran : Panier / À discuter */}
       <BinPanel />
 
       {/* Modal Projet/Thème */}
@@ -126,31 +177,71 @@ const WorkInterface: React.FC = () => {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <h4 className="font-bold">Définir Projet & Thème</h4>
-              <button onClick={() => setShowMetaModal(false)} className="w-8 h-8 rounded-md border hover:bg-gray-100">×</button>
+              <button
+                onClick={() => setShowMetaModal(false)}
+                className="w-8 h-8 rounded-md border hover:bg-gray-100"
+                aria-label="Fermer"
+              >
+                ×
+              </button>
             </div>
+
             <div className="p-4 space-y-3">
               <div>
-                <label className="text-sm font-semibold text-gray-600">Nom du projet</label>
-                <input value={projectName} onChange={(e) => setProjectName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400" placeholder="Ex : Transformation 2025" />
+                <label className="text-sm font-semibold text-gray-600">
+                  Nom du projet
+                </label>
+                <input
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                  placeholder="Ex : Transformation 2025"
+                />
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-600">Thème de la session</label>
-                <input value={themeName} onChange={(e) => setThemeName(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400" placeholder="Ex : Offre digitale PME" />
+                <label className="text-sm font-semibold text-gray-600">
+                  Thème de la session
+                </label>
+                <input
+                  value={themeName}
+                  onChange={(e) => setThemeName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                  placeholder="Ex : Offre digitale PME"
+                />
               </div>
             </div>
+
             <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-              <button onClick={() => setShowMetaModal(false)} className="px-4 py-2 rounded-md border hover:bg-gray-50">Annuler</button>
+              <button
+                onClick={() => setShowMetaModal(false)}
+                className="px-4 py-2 rounded-md border hover:bg-gray-50"
+              >
+                Annuler
+              </button>
               <button
                 onClick={async () => {
-                  if (!projectName.trim() || !themeName.trim()) { alert("Merci de renseigner Projet et Thème."); return; }
+                  if (!projectName.trim() || !themeName.trim()) {
+                    alert("Merci de renseigner Projet et Thème.");
+                    return;
+                  }
                   try {
-                    await setDoc(fsDoc(db, "boards", sessionId), {
+                    const now = new Date();
+                    await setDoc(
+                      fsDoc(db, "boards", sessionId),
+                      {
+                        projectName: projectName.trim(),
+                        themeName: themeName.trim(),
+                        updatedAt: now,
+                        // si pas de createdAt en base, on le définit au premier enregistrement
+                        createdAt: meta?.createdAt || now,
+                      } as Partial<BoardMeta>,
+                      { merge: true }
+                    );
+                    setMeta({
+                      ...(meta || {}),
                       projectName: projectName.trim(),
                       themeName: themeName.trim(),
-                      updatedAt: new Date(),
-                      createdAt: meta?.createdAt || new Date(),
-                    } as BoardMeta, { merge: true });
-                    setMeta({ projectName: projectName.trim(), themeName: themeName.trim() });
+                    } as BoardMeta);
                     setShowMetaModal(false);
                   } catch (e) {
                     console.error(e);

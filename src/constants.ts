@@ -60,3 +60,22 @@ export const PRIORITY_STYLES: Record<RecommendationPriority, { icon: string; col
     MEDIUM: { icon: '📋', color: 'text-blue-600', bg: 'bg-blue-100', borderColor: 'border-blue-500' },
     LOW: { icon: '💡', color: 'text-green-600', bg: 'bg-green-100', borderColor: 'border-green-500' },
 };
+// --- Quadrants config minimaliste pour l'UI ---
+export const QUADRANTS = {
+  acquis: {
+    title: "Acquis",
+    subtitle: "Forces • Réalisations positives",
+  },
+  faiblesses: {
+    title: "Faiblesses",
+    subtitle: "Échecs • Aspects négatifs",
+  },
+  opportunites: {
+    title: "Opportunités",
+    subtitle: "Potentialités • Ressources exploitables",
+  },
+  menaces: {
+    title: "Menaces",
+    subtitle: "Risques • Obstacles • Craintes",
+  },
+} as const;
