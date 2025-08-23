@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
+  addDoc,
   collection,
   doc as fsDoc,
   getDoc,
@@ -37,7 +38,7 @@ function getColumnCount(el: HTMLElement | null): number {
 
 function computeTargetIndex(
   container: HTMLElement,
-  clientX: number,
+  _clientX: number,
   clientY: number
 ) {
   const items = Array.from(
@@ -163,6 +164,57 @@ async function moveOrReorder(
   }
 }
 
+/* ---------- helpers: création animateur ---------- */
+
+// Essaie de retrouver le boardId (sessionId) même si le cadran est vide
+function resolveBoardIdFromContext(postIts: PostIt[]): string | null {
+  if (postIts.length > 0) return postIts[0].sessionId;
+  // 1) URL ?session=...
+  const url = new URL(window.location.href);
+  const s = url.searchParams.get("session") || url.searchParams.get("board");
+  if (s) return s;
+  // 2) localStorage (au cas où l’appli l’ait enregistré)
+  return (
+    localStorage.getItem("sessionId") ||
+    localStorage.getItem("boardId") ||
+    null
+  );
+}
+
+async function createFacilitatorNote(
+  quadrant: QuadrantKey,
+  sessionId: string,
+  author: string,
+  content: string
+) {
+  // déterminer le prochain sortIndex en fin de liste
+  const snap = await getDocs(
+    query(
+      collection(db, "postits"),
+      where("sessionId", "==", sessionId),
+      where("quadrant", "==", quadrant)
+    )
+  );
+  const list = snap.docs
+    .map((d) => d.data() as any)
+    .sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0));
+  const nextIndex =
+    list.length === 0
+      ? 0
+      : Math.max(...list.map((x) => x.sortIndex ?? 0)) + 1;
+
+  await addDoc(collection(db, "postits"), {
+    sessionId,
+    quadrant,
+    originQuadrant: quadrant,  // couleur figée
+    sortIndex: nextIndex,
+    author: author || "Animateur",
+    content,
+    status: "active",
+    timestamp: new Date(),
+  });
+}
+
 /* ---------- Composant ---------- */
 
 const Quadrant: React.FC<QuadrantProps> = ({
@@ -174,6 +226,11 @@ const Quadrant: React.FC<QuadrantProps> = ({
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // UI ajout animateur
+  const [showAdd, setShowAdd] = useState(false);
+  const [author, setAuthor] = useState<string>(() => localStorage.getItem("lastAuthor") || "Animateur");
+  const [content, setContent] = useState("");
 
   const ordered = useMemo(
     () => [...postIts].sort((a, b) => (a.sortIndex ?? 0) - (b.sortIndex ?? 0)),
@@ -240,6 +297,37 @@ const Quadrant: React.FC<QuadrantProps> = ({
   };
 
   /* ----- Rendu standard (comme avant) ----- */
+  const Header = (
+    <div
+      className={`p-2 sticky top-[76px] bg-white/80 backdrop-blur-sm z-10 border-b-4 ${info.borderColor} flex items-center justify-between`}
+    >
+      <div className="flex items-baseline gap-3">
+        <h3 className={`text-xl font-black ${info.textColor}`}>{info.title}</h3>
+        <p className="text-xs text-gray-600 font-semibold">{info.subtitle}</p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {/* Bouton ajouter (toujours visible) */}
+        <button
+          onClick={() => setShowAdd(true)}
+          title="Ajouter une étiquette dans ce cadran"
+          className="p-2 w-10 h-10 flex items-center justify-center rounded-full bg-indigo-600 text-white hover:bg-indigo-700 shadow"
+        >
+          <i className="fas fa-plus" />
+        </button>
+
+        {/* Pictogramme agrandir (par quadrant) */}
+        <button
+          onClick={onToggleExpand}
+          title={isExpanded ? "Réduire" : "Agrandir"}
+          className="p-2 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
+        >
+          <i className={`fas fa-lg ${isExpanded ? "fa-compress-alt" : "fa-expand-alt"}`} />
+        </button>
+      </div>
+    </div>
+  );
+
   const StandardCard = (
     <div
       data-quadrant={quadrantKey}
@@ -250,31 +338,10 @@ const Quadrant: React.FC<QuadrantProps> = ({
         setIsDragOver(true);
       }}
       onDragLeave={() => setIsDragOver(false)}
-      className={`p-4 transition-all duration-300 ${
-        isDragOver ? "bg-indigo-100" : ""
-      } min-h-[40vh]`}
+      className={`p-4 transition-all duration-300 ${isDragOver ? "bg-indigo-100" : ""} min-h-[40vh]`}
     >
-      <div
-        className={`p-2 sticky top-[76px] bg-white/80 backdrop-blur-sm z-10 border-b-4 ${info.borderColor} flex items-center justify-between`}
-      >
-        <div>
-          <h3 className={`text-xl font-black ${info.textColor}`}>{info.title}</h3>
-          <p className="text-xs text-gray-600 font-semibold">{info.subtitle}</p>
-        </div>
-        {/* Pictogramme agrandir (par quadrant) */}
-        <button
-          onClick={onToggleExpand}
-          title="Agrandir"
-          className="p-2 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
-        >
-          <i className="fas fa-lg fa-expand-alt" />
-        </button>
-      </div>
-
-      <div
-        ref={containerRef}
-        className="pt-4 grid gap-3 grid-cols-2"
-      >
+      {Header}
+      <div ref={containerRef} className="pt-4 grid gap-3 grid-cols-2">
         {ordered.map((p) => (
           <div
             key={p.id}
@@ -301,18 +368,29 @@ const Quadrant: React.FC<QuadrantProps> = ({
   /* ----- Rendu plein écran (overlay), ce quadrant seul est visible ----- */
   const Overlay = (
     <div className="fixed inset-0 z-50 bg-white">
-      <div className={`p-3 border-b-4 ${info.borderColor} flex items-center justify-between sticky top-0 bg-white`}>
+      <div
+        className={`p-3 border-b-4 ${info.borderColor} flex items-center justify-between sticky top-0 bg-white`}
+      >
         <div>
           <h3 className={`text-2xl md:text-3xl font-black ${info.textColor}`}>{info.title}</h3>
           <p className="text-sm text-gray-600 font-semibold">{info.subtitle}</p>
         </div>
-        <button
-          onClick={onToggleExpand}
-          title="Réduire"
-          className="p-2 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
-        >
-          <i className="fas fa-lg fa-compress-alt" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAdd(true)}
+            title="Ajouter une étiquette dans ce cadran"
+            className="p-2 w-10 h-10 flex items-center justify-center rounded-full bg-indigo-600 text-white hover:bg-indigo-700 shadow"
+          >
+            <i className="fas fa-plus" />
+          </button>
+          <button
+            onClick={onToggleExpand}
+            title="Réduire"
+            className="p-2 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
+          >
+            <i className="fas fa-lg fa-compress-alt" />
+          </button>
+        </div>
       </div>
 
       <div
@@ -347,7 +425,85 @@ const Quadrant: React.FC<QuadrantProps> = ({
     </div>
   );
 
-  return isExpanded ? Overlay : StandardCard;
+  /* ----- Modal "Ajouter" (Animateur) ----- */
+  const AddModal = !showAdd ? null : (
+    <div className="fixed inset-0 z-[60] bg-black/30 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <h4 className="font-bold">Nouvelle étiquette — {info.title}</h4>
+          <button
+            onClick={() => setShowAdd(false)}
+            className="p-2 rounded hover:bg-gray-100"
+            title="Fermer"
+          >
+            <i className="fas fa-times" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="text-sm font-semibold text-gray-600">Auteur</label>
+            <input
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+              placeholder="Animateur"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-600">Contenu</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="mt-1 w-full rounded-lg border px-3 py-2 h-32 resize-y outline-none focus:ring-2 focus:ring-indigo-400"
+              placeholder="Saisir l'idée…"
+            />
+          </div>
+        </div>
+
+        <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+          <button
+            onClick={() => setShowAdd(false)}
+            className="px-4 py-2 rounded-md border hover:bg-gray-50"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={async () => {
+              const boardId = resolveBoardIdFromContext(postIts);
+              if (!boardId) {
+                alert("Session introuvable. Ouvrez l'atelier via le QR ou un lien de session.");
+                return;
+              }
+              if (!content.trim()) {
+                alert("Le contenu ne peut pas être vide.");
+                return;
+              }
+              try {
+                await createFacilitatorNote(quadrantKey, boardId, author.trim() || "Animateur", content.trim());
+                localStorage.setItem("lastAuthor", author.trim() || "Animateur");
+                setContent("");
+                setShowAdd(false);
+              } catch (e) {
+                console.error("Create note failed", e);
+                alert("Impossible de créer l'étiquette (réseau ? permissions ?).");
+              }
+            }}
+            className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+          >
+            Ajouter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {isExpanded ? Overlay : StandardCard}
+      {AddModal}
+    </>
+  );
 };
 
 export default Quadrant;
