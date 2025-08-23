@@ -169,11 +169,9 @@ async function moveOrReorder(
 // Essaie de retrouver le boardId (sessionId) même si le cadran est vide
 function resolveBoardIdFromContext(postIts: PostIt[]): string | null {
   if (postIts.length > 0) return postIts[0].sessionId;
-  // 1) URL ?session=...
   const url = new URL(window.location.href);
   const s = url.searchParams.get("session") || url.searchParams.get("board");
   if (s) return s;
-  // 2) localStorage (au cas où l’appli l’ait enregistré)
   return (
     localStorage.getItem("sessionId") ||
     localStorage.getItem("boardId") ||
@@ -187,7 +185,6 @@ async function createFacilitatorNote(
   author: string,
   content: string
 ) {
-  // déterminer le prochain sortIndex en fin de liste
   const snap = await getDocs(
     query(
       collection(db, "postits"),
@@ -296,7 +293,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
     await reorderByDelta(postItId, rowDelta * cols);
   };
 
-  /* ----- Rendu standard (comme avant) ----- */
+  /* ----- En-tête : boutons petit carré visibles ----- */
   const Header = (
     <div
       className={`p-2 sticky top-[76px] bg-white/80 backdrop-blur-sm z-10 border-b-4 ${info.borderColor} flex items-center justify-between`}
@@ -307,27 +304,30 @@ const Quadrant: React.FC<QuadrantProps> = ({
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Bouton ajouter (toujours visible) */}
+        {/* Bouton ajouter : petit carré + */}
         <button
           onClick={() => setShowAdd(true)}
           title="Ajouter une étiquette dans ce cadran"
-          className="p-2 w-10 h-10 flex items-center justify-center rounded-full bg-indigo-600 text-white hover:bg-indigo-700 shadow"
+          className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+          aria-label="Ajouter une étiquette"
         >
-          <i className="fas fa-plus" />
+          +
         </button>
 
-        {/* Pictogramme agrandir (par quadrant) */}
+        {/* Pictogramme agrandir/réduire : petit carré ⤢ / ⤡ */}
         <button
           onClick={onToggleExpand}
           title={isExpanded ? "Réduire" : "Agrandir"}
-          className="p-2 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
+          className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+          aria-label={isExpanded ? "Réduire ce cadran" : "Agrandir ce cadran"}
         >
-          <i className={`fas fa-lg ${isExpanded ? "fa-compress-alt" : "fa-expand-alt"}`} />
+          {isExpanded ? "⤡" : "⤢"}
         </button>
       </div>
     </div>
   );
 
+  /* ----- Vue standard (comme avant) ----- */
   const StandardCard = (
     <div
       data-quadrant={quadrantKey}
@@ -365,7 +365,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
     </div>
   );
 
-  /* ----- Rendu plein écran (overlay), ce quadrant seul est visible ----- */
+  /* ----- Plein écran (overlay) ----- */
   const Overlay = (
     <div className="fixed inset-0 z-50 bg-white">
       <div
@@ -379,16 +379,18 @@ const Quadrant: React.FC<QuadrantProps> = ({
           <button
             onClick={() => setShowAdd(true)}
             title="Ajouter une étiquette dans ce cadran"
-            className="p-2 w-10 h-10 flex items-center justify-center rounded-full bg-indigo-600 text-white hover:bg-indigo-700 shadow"
+            className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+            aria-label="Ajouter une étiquette"
           >
-            <i className="fas fa-plus" />
+            +
           </button>
           <button
             onClick={onToggleExpand}
             title="Réduire"
-            className="p-2 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600"
+            className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
+            aria-label="Réduire ce cadran"
           >
-            <i className="fas fa-lg fa-compress-alt" />
+            ⤡
           </button>
         </div>
       </div>
@@ -435,8 +437,9 @@ const Quadrant: React.FC<QuadrantProps> = ({
             onClick={() => setShowAdd(false)}
             className="p-2 rounded hover:bg-gray-100"
             title="Fermer"
+            aria-label="Fermer"
           >
-            <i className="fas fa-times" />
+            ×
           </button>
         </div>
 
