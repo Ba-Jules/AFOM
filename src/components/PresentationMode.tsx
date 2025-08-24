@@ -120,11 +120,6 @@ function MatrixSlide() {
         {/* Axe du jugement (rouge vertical) - plus épais */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[160px] h-[480px] w-[48px] bg-[#d50000] border-6 border-black rounded-md" />
         
-        {/* Flèche verticale vers le haut intégrée */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[156px]">
-          <div className="w-0 h-0 border-b-[20px] border-b-[#d50000] border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-4 border-black"></div>
-        </div>
-        
         {/* Pastille + en haut - remonté d'1cm */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[98px]">
           <Pill sign="+" />
