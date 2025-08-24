@@ -1,30 +1,17 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { QRCodeCanvas } from "qrcode.react"; // ✅ v4: import nommé
+import { QRCodeCanvas } from "qrcode.react";
 
-type Slide = {
-  id: string;
-  kicker?: string;
-  title: string;
-  subtitle?: string;
-  color?: string; // accent (tailwind) pour la bordure/étiquette
-  body?: React.ReactNode;
-};
+type Slide = { id: string; component: React.ReactNode };
 
 interface Props {
   onLaunchSession: (sessionId: string) => void;
   initialSessionId: string;
 }
 
-const accent = {
-  acquis: "text-green-700 border-green-300",
-  faiblesses: "text-red-700 border-red-300",
-  opportunites: "text-emerald-700 border-emerald-300",
-  menaces: "text-rose-700 border-rose-300",
-};
-
 const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }) => {
   // Session
   const [sessionId, setSessionId] = useState<string>(initialSessionId || "");
+
   useEffect(() => {
     if (initialSessionId) setSessionId(initialSessionId);
   }, [initialSessionId]);
@@ -38,197 +25,393 @@ const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }
     return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(sessionId || "")}`;
   }, [sessionId]);
 
-  // Slides
-  const slides: Slide[] = useMemo(
+  // SLIDES
+  const slides: Slide[] = useMemo<Slide[]>(
     () => [
       {
-        id: "intro",
-        kicker: "AFOM Ultimate",
-        title: "L’outil qui transforme vos ateliers en décisions",
-        subtitle:
-          "Collecter, structurer, analyser et décider – en une seule expérience, fluide et collaborative.",
-        body: (
-          <div className="grid gap-6 md:grid-cols-3 mt-6">
-            {[
-              { emoji: "🧠", label: "Compréhension", text: "Un langage commun & sans ambiguïté." },
-              { emoji: "🤝", label: "Collaboration", text: "Tous contributeurs, synchronisés & sereins." },
-              { emoji: "🚀", label: "Décision", text: "Des priorités claires & des actions concrètes." },
-            ].map((b, i) => (
-              <div key={i} className="rounded-xl bg-white/70 backdrop-blur border border-gray-200 p-4 shadow-sm">
-                <div className="text-3xl">{b.emoji}</div>
-                <div className="mt-2 font-semibold">{b.label}</div>
-                <div className="text-sm text-gray-600">{b.text}</div>
+        id: "hero",
+        component: (
+          <div className="relative min-h-[70vh] flex items-center justify-center">
+            {/* Gradient de fond simple (fiable au build) */}
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 opacity-10" />
+            <div className="relative z-10 text-center space-y-8 px-8">
+              <div className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black text-sm tracking-wider shadow-2xl animate-pulse">
+                🚀 RÉVOLUTION ANALYTIQUE
               </div>
-            ))}
-          </div>
-        ),
-      },
-      {
-        id: "axes",
-        kicker: "Le Cadre",
-        title: "AFOM : axes & logique d’analyse",
-        subtitle:
-          "Deux axes structurants : Temps (passé ↔ futur) & Jugement (+ ↔ −). Interne vs Externe.",
-        body: (
-          <div className="grid gap-6 md:grid-cols-2 mt-6">
-            <div className="rounded-xl bg-white/70 border p-4">
-              <div className="text-sm text-gray-600">
-                Interne (≃ responsabilité de l’équipe) : <b>Acquis</b> & <b>Faiblesses</b>. Externe (environnement) :
-                <b> Opportunités</b> & <b>Menaces</b>. Axe vertical : <b>+ / −</b>. Axe horizontal : <b>passé / futur</b>.
+
+              <h1 className="text-7xl md:text-8xl font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent leading-tight">
+                AFOM
+              </h1>
+
+              <div className="text-2xl md:text-3xl font-bold text-gray-700 max-w-4xl mx-auto leading-relaxed">
+                L'outil qui transforme vos <span className="text-indigo-600 font-black">ateliers stratégiques</span> en
+                <span className="text-purple-600 font-black"> décisions concrètes</span>
               </div>
-              <div className="mt-4 grid grid-cols-2 grid-rows-2 gap-3">
-                <div className="rounded-lg border-2 border-green-300 p-3">
-                  <div className="font-semibold text-green-700">A — Acquis</div>
-                  <div className="text-xs text-gray-600">Passé positif • Interne</div>
-                </div>
-                <div className="rounded-lg border-2 border-emerald-300 p-3">
-                  <div className="font-semibold text-emerald-700">O — Opportunités</div>
-                  <div className="text-xs text-gray-600">Futur positif • Externe</div>
-                </div>
-                <div className="rounded-lg border-2 border-red-300 p-3">
-                  <div className="font-semibold text-red-700">F — Faiblesses</div>
-                  <div className="text-xs text-gray-600">Passé négatif • Interne</div>
-                </div>
-                <div className="rounded-lg border-2 border-rose-300 p-3">
-                  <div className="font-semibold text-rose-700">M — Menaces</div>
-                  <div className="text-xs text-gray-600">Futur négatif • Externe</div>
-                </div>
+
+              <div className="text-lg text-gray-600 max-w-3xl mx-auto">
+                Acquis • Faiblesses • Opportunités • Menaces
+                <br />
+                <span className="font-semibold text-indigo-600">Collaboration temps réel + IA stratégique intégrée</span>
               </div>
-              <div className="mt-3 text-xs text-gray-500">
-                (Rappel : ne pas confondre <b>Acquis</b> avec <b>Opportunités</b>, ni <b>Faiblesses</b> avec <b>Menaces</b>.)
+
+              <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mt-12">
+                {[
+                  {
+                    icon: "🧠",
+                    title: "Intelligence Collective",
+                    desc: "Un langage commun, structuré et sans ambiguïté pour tous vos projets",
+                  },
+                  {
+                    icon: "⚡",
+                    title: "Collaboration Temps Réel",
+                    desc: "Synchronisation instantanée de tous les participants avec IA intégrée",
+                  },
+                  {
+                    icon: "🎯",
+                    title: "Décisions Actionables",
+                    desc: "Des insights automatiques et des recommandations stratégiques précises",
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="group">
+                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-2xl border border-white/50 hover:scale-105 transform transition-all duration-300">
+                      <div className="text-4xl mb-3">{item.icon}</div>
+                      <div className="text-xl font-black text-gray-800 mb-2">{item.title}</div>
+                      <div className="text-sm text-gray-600 leading-relaxed">{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="rounded-xl bg-white/70 border p-4">
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>• <b>Passé (Interne)</b> : ce qui a fonctionné / n’a pas fonctionné dans le projet.</li>
-                <li>• <b>Futur (Externe)</b> : ce qui nous attend dehors (leviers & obstacles).</li>
-                <li>• Une grille simple pour <b>voir clair</b>, décider vite et mieux prioriser.</li>
-              </ul>
             </div>
           </div>
         ),
       },
+
       {
-        id: "acquis",
-        title: "A — Acquis",
-        subtitle: "Forces • Succès • Réalisations positives • Ce qu’on a aimé",
-        color: accent.acquis,
-      },
-      {
-        id: "faiblesses",
-        title: "F — Faiblesses",
-        subtitle: "Échecs • Aspects négatifs • Difficultés • Ce qu’on n’a pas aimé",
-        color: accent.faiblesses,
-      },
-      {
-        id: "opportunites",
-        title: "O — Opportunités",
-        subtitle: "Potentialités • Ressources exploitables • Atouts à valoriser",
-        color: accent.opportunites,
-      },
-      {
-        id: "menaces",
-        title: "M — Menaces",
-        subtitle: "Risques • Obstacles • Craintes • Suppositions influençant le projet",
-        color: accent.menaces,
-      },
-      {
-        id: "flow",
-        kicker: "Méthode",
-        title: "Déroulé d’un atelier AFOM",
-        subtitle: "Rôles, étapes, consignes – simple et efficace.",
-        body: (
-          <div className="grid gap-6 md:grid-cols-2 mt-6">
-            <div className="rounded-xl bg-white/70 border p-4">
-              <div className="font-semibold mb-2">Rôles</div>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>• <b>Modérateur</b> — cadence, règles & arbitrage.</li>
-                <li>• <b>Rapporteur</b> — synthèse & restitution.</li>
-                <li>• <b>Participants</b> — contributions, échanges, priorisation.</li>
-              </ul>
-              <div className="font-semibold mt-4 mb-2">Étapes</div>
-              <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside">
-                <li>Réflexion individuelle (post-its numériques).</li>
-                <li>Partage & clustering par cadran.</li>
-                <li>Hiérarchisation (↑/↓ & glisser-déposer).</li>
-                <li>Analyse & recommandations.</li>
-              </ol>
-            </div>
-            <div className="rounded-xl bg-white/70 border p-4">
-              <div className="font-semibold mb-2">Règles du jeu</div>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>• Une idée par post-it. Formulation courte & claire.</li>
-                <li>• Bien placer : Interne vs Externe, Passé vs Futur.</li>
-                <li>• Respect & écoute. On challenge les idées, pas les personnes.</li>
-                <li>• On conclut par des <b>actions concrètes</b> & responsables.</li>
-              </ul>
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "qr",
-        kicker: "Connexion",
-        title: "Inviter les participants",
-        subtitle: "Scannez ou partagez le lien pour contribuer en direct.",
-        body: (
-          <div className="grid md:grid-cols-2 gap-6 mt-6 items-center">
-            <div className="rounded-xl bg-white/70 border p-4 flex flex-col items-center justify-center">
-              <QRCodeCanvas value={participantUrl} size={184} includeMargin />{/* ✅ */}
-              <div className="mt-3 text-xs text-gray-600 break-all text-center">{participantUrl}</div>
-              <div className="mt-3 flex gap-2">
-                <button
-                  className="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
-                  onClick={() => window.open(participantUrl, "_blank")}
-                >
-                  Ouvrir le lien participant
-                </button>
-                <button
-                  className="px-3 py-2 rounded-md border bg-white hover:bg-gray-50 text-sm"
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(participantUrl);
-                    alert("Lien copié !");
-                  }}
-                >
-                  Copier
-                </button>
+        id: "framework",
+        component: (
+          <div className="space-y-8">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center px-4 py-2 rounded-full bg-indigo-100 text-indigo-800 font-bold text-sm">
+                🏗️ CADRE CONCEPTUEL
               </div>
-            </div>
-            <div className="rounded-xl bg-white/70 border p-4">
-              <div className="font-semibold">ID de session</div>
-              <input
-                value={sessionId}
-                onChange={(e) => setSessionId(e.target.value)}
-                className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                placeholder="SESSION-AAAA-XYZ"
-              />
-              <p className="text-xs text-gray-600 mt-2">
-                L’ID s’affiche aussi en haut à droite de l’interface de travail.
-                Il est gardé pour toute la durée de l’atelier.
+              <h2 className="text-5xl font-black text-gray-800">
+                La Logique des <span className="text-indigo-600">Deux Axes</span>
+              </h2>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                Temps (Passé ↔ Futur) × Jugement (Positif ↔ Négatif) = Vision stratégique complète
               </p>
             </div>
+
+            <div className="relative max-w-5xl mx-auto">
+              {/* Étiquettes Axes */}
+              <div className="absolute -top-16 left-1/2 -translate-x-1/2">
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-2 rounded-full font-black shadow-lg">
+                  ↑ SOUHAITÉ (POSITIF)
+                </div>
+              </div>
+              <div className="absolute -bottom-16 left-1/2 -translate-x-1/2">
+                <div className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-2 rounded-full font-black shadow-lg">
+                  ↓ NON SOUHAITÉ (NÉGATIF)
+                </div>
+              </div>
+              <div className="absolute top-1/2 -left-20 -translate-y-1/2 -rotate-90">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-2 rounded-full font-black shadow-lg whitespace-nowrap">
+                  ← PASSÉ (INTERNE)
+                </div>
+              </div>
+              <div className="absolute top-1/2 -right-20 -translate-y-1/2 rotate-90">
+                <div className="bg-gradient-to-r from-purple-500 to-violet-500 text-white px-6 py-2 rounded-full font-black shadow-lg whitespace-nowrap">
+                  FUTUR (EXTERNE) →
+                </div>
+              </div>
+
+              {/* Matrice */}
+              <div className="relative bg-white rounded-3xl shadow-2xl border-4 border-gray-800 overflow-hidden">
+                <div className="grid grid-cols-2 aspect-square">
+                  {/* A */}
+                  <div className="relative bg-gradient-to-br from-emerald-400 to-green-500 p-8 flex flex-col justify-center border-r-4 border-b-4 border-gray-800">
+                    <div className="absolute top-4 left-4 w-8 h-8 bg-white/30 rounded-full flex items-center justify-center">
+                      <span className="text-white font-black text-lg">A</span>
+                    </div>
+                    <div className="text-white space-y-3">
+                      <h3 className="text-3xl font-black">ACQUIS</h3>
+                      <p className="text-lg font-semibold opacity-90">Passé • Positif • Interne</p>
+                      <div className="text-sm opacity-80 space-y-1">
+                        <div>• Succès réalisés</div>
+                        <div>• Forces démontrées</div>
+                        <div>• Réalisations valorisées</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* O */}
+                  <div className="relative bg-gradient-to-br from-emerald-300 to-teal-400 p-8 flex flex-col justify-center border-b-4 border-gray-800">
+                    <div className="absolute top-4 left-4 w-8 h-8 bg-white/30 rounded-full flex items-center justify-center">
+                      <span className="text-white font-black text-lg">O</span>
+                    </div>
+                    <div className="text-white space-y-3">
+                      <h3 className="text-3xl font-black">OPPORTUNITÉS</h3>
+                      <p className="text-lg font-semibold opacity-90">Futur • Positif • Externe</p>
+                      <div className="text-sm opacity-80 space-y-1">
+                        <div>• Potentialités externes</div>
+                        <div>• Ressources exploitables</div>
+                        <div>• Leviers de croissance</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* F */}
+                  <div className="relative bg-gradient-to-br from-red-500 to-rose-600 p-8 flex flex-col justify-center border-r-4 border-gray-800">
+                    <div className="absolute top-4 left-4 w-8 h-8 bg-white/30 rounded-full flex items-center justify-center">
+                      <span className="text-white font-black text-lg">F</span>
+                    </div>
+                    <div className="text-white space-y-3">
+                      <h3 className="text-3xl font-black">FAIBLESSES</h3>
+                      <p className="text-lg font-semibold opacity-90">Passé • Négatif • Interne</p>
+                      <div className="text-sm opacity-80 space-y-1">
+                        <div>• Échecs identifiés</div>
+                        <div>• Lacunes internes</div>
+                        <div>• Points d'amélioration</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* M */}
+                  <div className="relative bg-gradient-to-br from-red-400 to-orange-500 p-8 flex flex-col justify-center">
+                    <div className="absolute top-4 left-4 w-8 h-8 bg-white/30 rounded-full flex items-center justify-center">
+                      <span className="text-white font-black text-lg">M</span>
+                    </div>
+                    <div className="text-white space-y-3">
+                      <h3 className="text-3xl font-black">MENACES</h3>
+                      <p className="text-lg font-semibold opacity-90">Futur • Négatif • Externe</p>
+                      <div className="text-sm opacity-80 space-y-1">
+                        <div>• Risques environnementaux</div>
+                        <div>• Obstacles potentiels</div>
+                        <div>• Contraintes externes</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Croisillons */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-800 -translate-y-0.5" />
+                  <div className="absolute left-1/2 top-0 h-full w-1 bg-gray-800 -translate-x-0.5" />
+                </div>
+              </div>
+            </div>
+
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-8 border-amber-400 rounded-r-2xl p-6">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">💡</div>
+                  <div>
+                    <div className="text-lg font-black text-amber-800">Clé de réussite</div>
+                    <div className="text-amber-700">
+                      <strong>Interne vs Externe :</strong> Acquis/Faiblesses relèvent de votre responsabilité directe. Opportunités/Menaces
+                      sont dans l'environnement externe — à exploiter ou contrer.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         ),
       },
+
       {
-        id: "start",
-        kicker: "Prêt",
-        title: "Lancer la session",
-        subtitle: "Passez à l’interface de travail en un clic.",
-        body: (
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              onClick={() => onLaunchSession(sessionId || "")}
-              className="px-5 py-3 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow"
-            >
-              🚀 Lancer la session
-            </button>
-            <button
-              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className="px-4 py-3 rounded-lg border bg-white hover:bg-gray-50"
-            >
-              Revoir les slides
-            </button>
+        id: "methodology",
+        component: (
+          <div className="space-y-8">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center px-4 py-2 rounded-full bg-purple-100 text-purple-800 font-bold text-sm">
+                ⚡ MÉTHODOLOGIE
+              </div>
+              <h2 className="text-5xl font-black text-gray-800">
+                Workflow <span className="text-purple-600">Révolutionnaire</span>
+              </h2>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                De la collecte collaborative à l'analyse IA — en temps réel et sans friction
+              </p>
+            </div>
+
+            <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
+              {/* Processus */}
+              <div className="space-y-6">
+                <h3 className="text-2xl font-black text-gray-800 mb-6">🎯 Processus Guidé</h3>
+                {[
+                  { step: "01", title: "Lancement Session", desc: "Le modérateur démarre et partage le QR code", color: "from-blue-500 to-indigo-600" },
+                  { step: "02", title: "Connexion Participants", desc: "Scan QR → Interface mobile optimisée", color: "from-indigo-500 to-purple-600" },
+                  { step: "03", title: "Collecte Temps Réel", desc: "Post-its colorés synchronisés instantanément", color: "from-purple-500 to-pink-600" },
+                  { step: "04", title: "Organisation Dynamique", desc: "Drag & drop + hiérarchisation collaborative", color: "from-pink-500 to-red-600" },
+                  { step: "05", title: "Analyse IA Automatique", desc: "Insights stratégiques + recommandations", color: "from-green-500 to-emerald-600" },
+                  { step: "06", title: "Export Professionnel", desc: "Rapport exécutif PDF + données Excel", color: "from-amber-500 to-orange-600" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-4 group">
+                    <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${item.color} flex items-center justify-center text-white font-black text-sm shadow-lg group-hover:scale-110 transition-all`}>
+                      {item.step}
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-lg font-black text-gray-800">{item.title}</div>
+                      <div className="text-gray-600">{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Fonctionnalités */}
+              <div className="space-y-6">
+                <h3 className="text-2xl font-black text-gray-800 mb-6">🔥 Fonctionnalités Uniques</h3>
+                {[
+                  { icon: "🧠", title: "IA Stratégique Intégrée", desc: "Détection des déséquilibres, insights prédictifs, recommandations adaptatives" },
+                  { icon: "⚡", title: "Collaboration Temps Réel", desc: "Firebase synchronisé, modifications instantanées, participation globale" },
+                  { icon: "🎨", title: "Post-its Intelligents", desc: "Couleurs automatiques, hiérarchisation, traçabilité des déplacements" },
+                  { icon: "📊", title: "Analytics Avancées", desc: "Métriques d'engagement, timeline interactive, scores qualité" },
+                  { icon: "📱", title: "Multi-Device Natif", desc: "Interface responsive, expérience optimisée mobile/desktop" },
+                  { icon: "🔄", title: "Dual-Mode Révolutionnaire", desc: "Basculement instantané Collecte ↔ Analyse sans perdre de données" },
+                ].map((feature, i) => (
+                  <div key={i} className="bg-white/60 backdrop-blur-sm rounded-xl p-4 border border-white/50 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl">{feature.icon}</div>
+                      <div>
+                        <div className="font-black text-gray-800">{feature.title}</div>
+                        <div className="text-sm text-gray-600">{feature.desc}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-l-4 border-emerald-400 rounded-r-xl p-4 mt-2">
+                  <div className="text-sm font-black text-emerald-800 mb-2">📋 Règles d'Or</div>
+                  <ul className="text-sm text-emerald-700 space-y-1">
+                    <li>• <strong>Une idée = un post-it</strong> (concision et clarté)</li>
+                    <li>• <strong>Placement précis</strong> selon les axes Temps/Jugement</li>
+                    <li>• <strong>Challenge constructif</strong> des idées, pas des personnes</li>
+                    <li>• <strong>Conclusion actionable</strong> avec responsables désignés</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+
+      {
+        id: "launch",
+        component: (
+          <div className="space-y-8">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center px-4 py-2 rounded-full bg-emerald-100 text-emerald-800 font-bold text-sm">
+                🚀 PRÊT AU DÉCOLLAGE
+              </div>
+              <h2 className="text-5xl font-black text-gray-800">
+                Lancer Votre <span className="text-emerald-600">Session AFOM</span>
+              </h2>
+              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+                Connectez vos participants et transformez vos ateliers en expériences inoubliables
+              </p>
+            </div>
+
+            <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-8 items-center">
+              {/* QR Code */}
+              <div className="order-2 md:order-1">
+                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
+                  <div className="text-center space-y-6">
+                    <h3 className="text-2xl font-black text-gray-800">📱 Connexion Instantanée</h3>
+                    <div className="inline-block p-4 bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-inner border-4 border-gray-100">
+                      <QRCodeCanvas value={participantUrl} size={192} includeMargin />
+                    </div>
+                    <div className="space-y-3">
+                      <div className="text-xs text-gray-500 font-mono break-all bg-gray-100 p-2 rounded-lg">{participantUrl}</div>
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => window.open(participantUrl, "_blank")}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-semibold shadow-md transition-all hover:scale-105"
+                        >
+                          🌐 Ouvrir
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(participantUrl);
+                            alert("Lien copié !");
+                          }}
+                          className="px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-semibold shadow-md transition-all hover:scale-105"
+                        >
+                          📋 Copier
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Config session */}
+              <div className="order-1 md:order-2 space-y-6">
+                <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
+                  <h3 className="text-2xl font-black text-gray-800 mb-6">⚙️ Configuration Session</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-black text-gray-700 mb-2">🔑 ID de Session</label>
+                      <input
+                        value={sessionId}
+                        onChange={(e) => setSessionId(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-mono"
+                        placeholder="SESSION-2025-XXX"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        💡 L'ID reste actif durant tout l'atelier — les participants peuvent rejoindre à tout moment
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 rounded-r-xl p-4">
+                      <div className="text-sm">
+                        <div className="font-black text-blue-800 mb-1">🎯 Session Active</div>
+                        <div className="text-blue-700">Les participants restent connectés même lors du changement de sessions thématiques</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <button
+                    onClick={() => onLaunchSession(sessionId || "")}
+                    className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xl font-black rounded-xl shadow-2xl hover:scale-105 transition-all hover:shadow-emerald-500/25"
+                  >
+                    🚀 LANCER LA SESSION AFOM
+                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                      className="flex-1 py-3 border-2 border-gray-200 bg-white text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all hover:scale-105"
+                    >
+                      📖 Revoir Formation
+                    </button>
+                    <button
+                      onClick={() => {
+                        const newSession = "SESSION-" + new Date().getFullYear() + "-" + String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+                        setSessionId(newSession);
+                      }}
+                      className="flex-1 py-3 border-2 border-indigo-200 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 font-semibold transition-all hover:scale-105"
+                    >
+                      🔄 Nouveau ID
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="max-w-4xl mx-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { value: "< 2min", label: "Setup time", icon: "⚡" },
+                  { value: "∞", label: "Participants", icon: "👥" },
+                  { value: "100%", label: "Temps réel", icon: "🔄" },
+                  { value: "🧠", label: "IA intégrée", icon: "🤖" },
+                ].map((stat, i) => (
+                  <div key={i} className="text-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/50">
+                    <div className="text-2xl mb-1">{stat.icon}</div>
+                    <div className="text-2xl font-black text-gray-800">{stat.value}</div>
+                    <div className="text-sm text-gray-600">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ),
       },
@@ -236,7 +419,7 @@ const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }
     [participantUrl, sessionId, onLaunchSession]
   );
 
-  // Navigation
+  // NAV
   const [index, setIndex] = useState(0);
   const clamp = useCallback((i: number) => Math.max(0, Math.min(slides.length - 1, i)), [slides.length]);
   const next = useCallback(() => setIndex((i) => clamp(i + 1)), [clamp]);
@@ -244,24 +427,25 @@ const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " ") next();
-      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); next(); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
+      if (e.key === "Enter") { e.preventDefault(); onLaunchSession(sessionId || ""); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, prev]);
+  }, [next, prev, onLaunchSession, sessionId]);
 
-  const s = slides[index];
+  const currentSlide = slides[index];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
-      {/* Top bar */}
-      <div className="sticky top-0 z-50 backdrop-blur bg-white/60 border-b">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      {/* Barre du haut */}
+      <div className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-white/50 shadow-lg">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="text-sm text-gray-600">
             <span className="font-semibold">Mode Formation</span>
             <span className="mx-2">•</span>
-            <span>Utilisez ← / → pour naviguer</span>
+            <span>Flèches ← →, Espace, Entrée (lancer)</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="hidden md:block text-xs text-gray-500">Session :</div>
@@ -280,46 +464,20 @@ const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }
             </button>
           </div>
         </div>
-        {/* Progress */}
+        {/* Progression */}
         <div className="h-1 bg-indigo-200">
-          <div
-            className="h-full bg-indigo-600 transition-all"
-            style={{ width: `${((index + 1) / slides.length) * 100}%` }}
-          />
+          <div className="h-full bg-indigo-600 transition-all" style={{ width: `${((index + 1) / slides.length) * 100}%` }} />
         </div>
       </div>
 
       {/* Slide */}
-      <div className="max-w-6xl mx-auto px-4 py-10">
+      <div className="max-w-7xl mx-auto px-6 py-10">
         <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 shadow-xl p-6 md:p-10">
-          {s.kicker && <div className="text-xs uppercase tracking-widest text-indigo-600 font-semibold">{s.kicker}</div>}
-          <h1 className="mt-2 text-2xl md:text-4xl font-extrabold leading-tight">{s.title}</h1>
-          {s.subtitle && <p className="mt-2 text-gray-600 text-base md:text-lg">{s.subtitle}</p>}
+          {currentSlide.component}
 
-          {/* Quadrant slides accent */}
-          {s.color && (
-            <div className={`mt-6 rounded-xl border-2 p-5 ${s.color}`}>
-              <ul className="text-sm text-gray-700 leading-6">
-                <li>
-                  <span className="text-gray-600">
-                    Positionnement : <b>Voir le slide “Axes & logique”</b> — Interne/Externe & Passé/Futur.
-                  </span>
-                </li>
-                <li className="text-gray-600">Conseil : une idée par post-it. Soyez concrets & factuels.</li>
-              </ul>
-            </div>
-          )}
-
-          {/* Corps */}
-          {s.body && <div className="mt-6">{s.body}</div>}
-
-          {/* Nav bottom */}
+          {/* Nav bas */}
           <div className="mt-8 flex items-center justify-between">
-            <button
-              onClick={prev}
-              disabled={index === 0}
-              className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
+            <button onClick={prev} disabled={index === 0} className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
               ← Précédent
             </button>
             <div className="flex gap-2">
@@ -328,9 +486,7 @@ const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }
                   key={i}
                   aria-label={`Aller au slide ${i + 1}`}
                   onClick={() => setIndex(i)}
-                  className={`h-2.5 w-2.5 rounded-full transition-all ${
-                    i === index ? "bg-indigo-600 w-6" : "bg-gray-300 hover:bg-gray-400"
-                  }`}
+                  className={`h-2.5 w-2.5 rounded-full transition-all ${i === index ? "bg-indigo-600 w-6" : "bg-gray-300 hover:bg-gray-400"}`}
                 />
               ))}
             </div>
