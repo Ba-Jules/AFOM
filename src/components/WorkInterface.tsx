@@ -8,11 +8,15 @@ import {
   query,
   setDoc,
   where,
+  getDocs,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
+
 import Quadrant from "./Quadrant";
 import BinPanel from "./BinPanel";
 import QRCodeModal from "./QRCodeModal";
+
 import { PostIt, QuadrantKey, BoardMeta } from "../types";
 import { QUADRANTS } from "../constants";
 
@@ -24,18 +28,21 @@ type Props = {
 const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => {
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
-  const [showQr, setShowQr] = useState(false);
 
-  // Meta Projet/Thème
+  // Métadonnées Projet / Thème
   const [meta, setMeta] = useState<BoardMeta | null>(null);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
-  // Écoute de la session
+  // Modale QR
+  const [isQrOpen, setIsQrOpen] = useState(false);
+
+  // --- Écoute des Post-its de la session ---
   useEffect(() => {
     if (!sessionId) return;
     localStorage.setItem("sessionId", sessionId);
+
     const unsub = onSnapshot(
       query(collection(db, "postits"), where("sessionId", "==", sessionId)),
       (snap) => {
@@ -46,20 +53,23 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
     return () => unsub();
   }, [sessionId]);
 
-  // Charger/Créer meta Projet/Thème
+  // --- Charger/Créer les métadonnées Projet / Thème ---
   useEffect(() => {
     (async () => {
       if (!sessionId) return;
       const ref = fsDoc(db, "boards", sessionId);
       const s = await getDoc(ref);
       if (s.exists()) {
-        setMeta(s.data() as BoardMeta);
+        const m = s.data() as BoardMeta;
+        setMeta(m);
       } else {
+        // Première fois : on propose la saisie
         setShowMetaModal(true);
       }
     })();
   }, [sessionId]);
 
+  // Répartition par quadrant (hors éléments du Panier)
   const byQuadrant = useMemo(() => {
     const res: Record<QuadrantKey, PostIt[]> = {
       acquis: [],
@@ -74,110 +84,119 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
     return res;
   }, [postIts]);
 
-  const participantUrl = useMemo(() => {
+  // --- Actions Header ---
+  const gotoAnalysis = () => {
     const { origin, pathname } = window.location;
-    return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(
-      sessionId
-    )}`;
-  }, [sessionId]);
-
-  // Navigation rapide en conservant la session
-  const go = (view: "analysis" | "matrix" | "drag2") => {
-    const { origin, pathname } = window.location;
-    window.location.href = `${origin}${pathname}?v=${view}&session=${encodeURIComponent(
+    window.location.href = `${origin}${pathname}?v=analysis&session=${encodeURIComponent(
       sessionId
     )}`;
   };
 
+  const gotoMatrix = () => {
+    const { origin, pathname } = window.location;
+    window.location.href = `${origin}${pathname}?v=matrix&session=${encodeURIComponent(
+      sessionId
+    )}`;
+  };
+
+  // Vider la session courante (sans changer d’URL / QR)
+  const clearSession = async () => {
+    if (!confirm("Vider totalement ce tableau ?")) return;
+    const snap = await getDocs(
+      query(collection(db, "postits"), where("sessionId", "==", sessionId))
+    );
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  };
+
+  // --- Rendu ---
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
-      {/* Bandeau principal */}
-      <div className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 border-b border-white/60 shadow">
+      {/* Bandeau supérieur */}
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-white/60">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="text-sm text-gray-700">
-            <div>
-              <span className="font-semibold">Projet :</span> {meta?.projectName || "—"}
-            </div>
-            <div>
-              <span className="font-semibold">Thème :</span> {meta?.themeName || "—"}
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-2 rounded-md bg-indigo-600 text-white font-semibold shadow-sm"
+              onClick={() => {/* Collecte = vue actuelle */}}
+              title="Collecte (vue actuelle)"
+            >
+              Collecte
+            </button>
+            <button
+              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              onClick={gotoAnalysis}
+              title="Analyse (graphiques, IA)"
+            >
+              Analyse
+            </button>
+            <button
+              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              onClick={gotoMatrix}
+              title="Matrice de confrontation"
+            >
+              Matrice
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={onBackToPresentation}
-              className="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-sm"
+              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              onClick={() => setIsQrOpen(true)}
             >
-              ↩︎ Présentation
+              QR Code
             </button>
             <button
+              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
               onClick={() => setShowMetaModal(true)}
-              className="px-3 py-2 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-sm"
             >
               Modifier Projet/Thème
             </button>
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div className="max-w-7xl mx-auto px-4 pb-3">
-          <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => go("drag2")}
-              className="px-3 py-1.5 rounded-md bg-white text-gray-700 border hover:bg-gray-50 text-sm"
-              title="Mode collecte"
+              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              onClick={clearSession}
             >
-              🧩 Collecte
+              Supprimer
             </button>
-
             <button
-              onClick={() => go("analysis")}
-              className="px-3 py-1.5 rounded-md bg-white text-gray-700 border hover:bg-gray-50 text-sm"
-              title="Analyse & graphiques"
+              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              onClick={onBackToPresentation}
             >
-              📊 Analyse
-            </button>
-
-            <button
-              onClick={() => setShowQr(true)}
-              className="px-3 py-1.5 rounded-md bg-white text-gray-700 border hover:bg-gray-50 text-sm"
-              title="Montrer le QR pour les participants"
-            >
-              🔗 QR Code
-            </button>
-
-            {/* Nouveau bouton */}
-            <button
-              onClick={() => go("matrix")}
-              className="px-3 py-1.5 rounded-md bg-amber-500 text-white hover:bg-amber-600 text-sm shadow"
-              title="Ouvrir la matrice de confrontation"
-            >
-              🧮 Matrice de Confrontation
+              Présentation
             </button>
           </div>
         </div>
       </div>
 
-      {/* Board 2×2 */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Infos Projet/Thème */}
+      <div className="max-w-7xl mx-auto px-4 pt-4 pb-2 flex items-center justify-between">
+        <div className="text-sm text-gray-700">
+          <div>
+            <span className="font-semibold">Projet :</span>{" "}
+            {meta?.projectName || "—"}
+          </div>
+          <div>
+            <span className="font-semibold">Thème :</span>{" "}
+            {meta?.themeName || "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* Grille 2×2 classique */}
+      <div className="max-w-7xl mx-auto px-4 pb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {(
             [
               ["acquis", QUADRANTS.acquis],
               ["faiblesses", QUADRANTS.faiblesses],
               ["opportunites", QUADRANTS.opportunites],
               ["menaces", QUADRANTS.menaces],
-            ] as [QuadrantKey, any][]
+            ] as [QuadrantKey, { title: string; subtitle: string }][]
           ).map(([key, info]) => (
             <div key={key} className="min-h-[40vh]">
               <Quadrant
-                info={{
-                  title: info.title,
-                  subtitle: info.subtitle,
-                  textColor: info.textColor,
-                  borderColor: info.borderColor,
-                  bgColor: info.bgColor,
-                }}
+                info={{ title: info.title, subtitle: info.subtitle }}
                 postIts={byQuadrant[key]}
                 quadrantKey={key}
                 isExpanded={expanded === key}
@@ -189,21 +208,13 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
           ))}
         </div>
 
-        {/* Panier */}
-        <div className="mt-6">
+        {/* 5e cadran : Panier */}
+        <div className="mt-8">
           <BinPanel />
         </div>
       </div>
 
-      {/* QR modal – prop 'url' uniquement */}
-      {showQr && (
-        <QRCodeModal
-          onClose={() => setShowQr(false)}
-          url={participantUrl}
-        />
-      )}
-
-      {/* Modal Projet/Thème */}
+      {/* Modale Projet/Thème */}
       {!showMetaModal ? null : (
         <div className="fixed inset-0 bg-black/30 z-[80] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
@@ -260,7 +271,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
                         projectName: projectName.trim(),
                         themeName: themeName.trim(),
                         updatedAt: new Date(),
-                        createdAt: meta?.createdAt || new Date(),
+                        // createdAt : gardé si déjà présent
                       } as BoardMeta,
                       { merge: true }
                     );
@@ -282,6 +293,13 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
           </div>
         </div>
       )}
+
+      {/* Modale QR Code (props corrigés) */}
+      <QRCodeModal
+        isOpen={isQrOpen}
+        onClose={() => setIsQrOpen(false)}
+        sessionId={sessionId}
+      />
     </div>
   );
 };
