@@ -126,6 +126,7 @@ function MatrixSlide() {
         <div className="absolute left-1/2 -translate-x-1/2 top-[738px]">
           <Pill sign="-" />
         </div>
+
         
         {/* Label "Axe du jugement" - remonté d'1cm sur l'axe vertical */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[302px] -rotate-90 z-10">
