@@ -88,8 +88,8 @@ function MatrixSlide() {
         className="relative rounded-[24px] shadow-2xl overflow-hidden"
         style={{ width: BASE_W, height: BASE_H, background: "#0a0a0a" }}
       >
-        {/* Titre */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-4 text-white text-[48px] font-extrabold tracking-tight">
+        {/* Titre - remonté de 2cm et sur une ligne */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[-20px] text-white text-[48px] font-extrabold tracking-tight whitespace-nowrap">
           Composantes de l'outil AFOM
         </div>
 
@@ -125,19 +125,19 @@ function MatrixSlide() {
           <div className="w-0 h-0 border-b-[20px] border-b-[#d50000] border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-4 border-black"></div>
         </div>
         
-        {/* Pastille + en haut - déplacée plus haut pour éviter le O */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[135px]">
+        {/* Pastille + en haut - remonté d'1cm */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[98px]">
           <Pill sign="+" />
         </div>
         
-        {/* Pastille - en bas */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[700px]">
+        {/* Pastille - en bas - descendu d'1cm */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[738px]">
           <Pill sign="-" />
         </div>
         
-        {/* Label "Axe du jugement" vertical - mieux positionné */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[420px] -rotate-90">
-          <div className="text-white font-black text-xl tracking-wider drop-shadow-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap">
+        {/* Label "Axe du jugement" - POSÉ sur l'axe vertical */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[340px] -rotate-90 z-10">
+          <div className="text-white font-black text-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du jugement
           </div>
         </div>
@@ -150,22 +150,22 @@ function MatrixSlide() {
           <div className="w-0 h-0 border-l-[20px] border-l-[#ffea00] border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent border-4 border-black"></div>
         </div>
         
-        {/* Label "Passé" directement sur l'axe à gauche - BIEN VISIBLE */}
-        <div className="absolute left-[90px] top-[444px] -translate-y-1/2">
+        {/* Label "Passé" - VISIBLE sur l'axe */}
+        <div className="absolute left-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Passé
           </div>
         </div>
         
-        {/* Label "Axe du temps" au centre de l'axe */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[444px] -translate-y-1/2">
-          <div className="text-black font-black text-xl bg-[#ffea00] px-4 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
+        {/* Label "Axe du temps" - POSÉ sur l'axe horizontal */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[420px] z-10">
+          <div className="text-black font-black text-lg bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du temps
           </div>
         </div>
         
-        {/* Label "Futur" directement sur l'axe à droite - BIEN VISIBLE */}
-        <div className="absolute right-[90px] top-[444px] -translate-y-1/2">
+        {/* Label "Futur" - VISIBLE sur l'axe */}
+        <div className="absolute right-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Futur
           </div>
