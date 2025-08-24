@@ -17,64 +17,62 @@ import BinPanel from "./BinPanel";
 import QRCodeModal from "./QRCodeModal";
 
 import { PostIt, QuadrantKey, BoardMeta } from "../types";
-import { QUADRANTS } from "../constants"; // mapping { acquis, faiblesses, opportunites, menaces }
+import { QUADRANTS } from "../constants";
 
-/** Props attendues par App.tsx */
-interface WorkInterfaceProps {
+type Props = {
   sessionId: string;
   onBackToPresentation: () => void;
-}
+};
 
-const WorkInterface: React.FC<WorkInterfaceProps> = ({
-  sessionId,
-  onBackToPresentation,
-}) => {
-  /** UI state */
+const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => {
+  // --- Données temps réel ---
+  const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
-  const [isQrOpen, setIsQrOpen] = useState(false);
 
-  /** Meta Projet/Thème */
+  // --- Projet / Thème ---
   const [meta, setMeta] = useState<BoardMeta | null>(null);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
-  /** Données post-its */
-  const [postIts, setPostIts] = useState<PostIt[]>([]);
+  // --- QR ---
+  const [qrOpen, setQrOpen] = useState(false);
+  const participantUrl = useMemo(() => {
+    const { origin, pathname } = window.location;
+    return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(
+      sessionId
+    )}`;
+  }, [sessionId]);
 
-  /** --------- Firestore: écoute de la session --------- */
+  // === Effects ===
+  // Abonnement aux post-its
   useEffect(() => {
-    if (!sessionId) return;
     localStorage.setItem("sessionId", sessionId);
-
     const unsub = onSnapshot(
       query(collection(db, "postits"), where("sessionId", "==", sessionId)),
       (snap) => {
-        const arr = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        })) as PostIt[];
+        const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PostIt[];
         setPostIts(arr);
       }
     );
     return () => unsub();
   }, [sessionId]);
 
-  /** --------- Charger/Créer meta Projet/Thème --------- */
+  // Chargement meta Projet/Thème
   useEffect(() => {
     (async () => {
-      if (!sessionId) return;
       const ref = fsDoc(db, "boards", sessionId);
       const s = await getDoc(ref);
       if (s.exists()) {
-        setMeta(s.data() as BoardMeta);
+        const m = s.data() as BoardMeta;
+        setMeta(m);
       } else {
         setShowMetaModal(true);
       }
     })();
   }, [sessionId]);
 
-  /** Regrouper par quadrant (hors panier/bin) */
+  // Groupement par quadrant (on exclut le panier)
   const byQuadrant = useMemo(() => {
     const res: Record<QuadrantKey, PostIt[]> = {
       acquis: [],
@@ -83,152 +81,160 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
       menaces: [],
     };
     for (const p of postIts) {
-      if ((p as any).status === "bin") continue;
-      res[p.quadrant].push(p);
+      // @ts-ignore : certains post-its « panier » ont p.status === "bin"
+      if (p.status === "bin") continue;
+      res[p.quadrant]?.push(p);
     }
     return res;
   }, [postIts]);
 
-  /** --------- Actions header --------- */
-  const navigate = (v: "work" | "analysis" | "matrix") => {
+  // === Navigation header ===
+  const goto = (v: "work" | "analysis" | "matrix" | "presentation") => {
     const { origin, pathname } = window.location;
-    const url = `${origin}${pathname}?v=${v}&session=${encodeURIComponent(
-      sessionId
-    )}`;
-    window.location.assign(url);
-  };
-
-  const handleDeleteSession = async () => {
-    if (
-      !window.confirm(
-        "Supprimer toutes les étiquettes de cette session ? (irréversible)"
-      )
-    )
+    if (v === "presentation") {
+      window.history.replaceState({}, "", `${origin}${pathname}`);
+      onBackToPresentation();
       return;
-
-    const snap = await getDocs(
-      query(collection(db, "postits"), where("sessionId", "==", sessionId))
-    );
-    const batch = writeBatch(db);
-    snap.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-    alert("Session vidée.");
+    }
+    const url = `${origin}${pathname}?v=${v}&session=${encodeURIComponent(sessionId)}`;
+    window.location.href = url;
   };
 
-  /** --------- Rendu --------- */
+  // === Suppression session (post-its uniquement) ===
+  const wipeSession = async () => {
+    if (!confirm("Supprimer toutes les étiquettes de cette session ?")) return;
+    const snap = await getDocs(query(collection(db, "postits"), where("sessionId", "==", sessionId)));
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    alert("Étiquettes supprimées.");
+  };
+
+  // === UI ===
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-gradient-to-r from-rose-400 via-orange-300 to-purple-300/60 backdrop-blur border-b border-white/60">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">🚀</div>
-            <div>
-              <div className="text-lg font-extrabold leading-none">
-                AFOM Ultimate
-              </div>
-              <div className="text-[11px] text-white/80 -mt-0.5">
-                Interface de Travail
+    <div className="min-h-screen flex flex-col">
+      {/* HEADER — AFOM Ultimate */}
+      <header className="sticky top-0 z-40 shadow-sm">
+        <div className="bg-gradient-to-r from-rose-300 via-orange-200 to-fuchsia-300">
+          <div className="max-w-[1200px] mx-auto px-4 py-3 flex items-center justify-between">
+            {/* Branding */}
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🚀</span>
+              <div className="leading-tight">
+                <div className="text-[18px] font-extrabold text-gray-900">AFOM Ultimate</div>
+                <div className="text-[11px] text-gray-700">Interface de Travail</div>
               </div>
             </div>
-          </div>
 
-          <nav className="flex flex-wrap gap-2">
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white/90 hover:bg-white shadow"
-              onClick={() => navigate("work")}
-            >
-              Collecte
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white/90 hover:bg-white shadow"
-              onClick={() => navigate("analysis")}
-            >
-              Analyse
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white/90 hover:bg-white shadow"
-              onClick={() => navigate("matrix")}
-            >
-              Matrice
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white/90 hover:bg-white shadow"
-              onClick={() => setIsQrOpen(true)}
-            >
-              QR Code
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white/90 hover:bg-white shadow"
-              onClick={() => setShowMetaModal(true)}
-            >
-              Modifier Projet/Thème
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white/90 hover:bg-white shadow"
-              onClick={handleDeleteSession}
-            >
-              Supprimer
-            </button>
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white/90 hover:bg-white shadow"
-              onClick={onBackToPresentation}
-            >
-              Présentation
-            </button>
-          </nav>
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => goto("work")}
+                className="px-3 py-1.5 rounded-md bg-white/90 hover:bg-white text-gray-900 text-sm font-semibold border"
+              >
+                Collecte
+              </button>
+              <button
+                onClick={() => goto("analysis")}
+                className="px-3 py-1.5 rounded-md bg-white/90 hover:bg-white text-gray-900 text-sm font-semibold border"
+              >
+                Analyse
+              </button>
+              <button
+                onClick={() => goto("matrix")}
+                className="px-3 py-1.5 rounded-md bg-white/90 hover:bg-white text-gray-900 text-sm font-semibold border"
+              >
+                Matrice
+              </button>
+              <button
+                onClick={() => setQrOpen(true)}
+                className="px-3 py-1.5 rounded-md bg-white/90 hover:bg-white text-gray-900 text-sm font-semibold border"
+              >
+                QR Code
+              </button>
+              <button
+                onClick={() => setShowMetaModal(true)}
+                className="px-3 py-1.5 rounded-md bg-white/90 hover:bg-white text-gray-900 text-sm font-semibold border"
+              >
+                Modifier Projet/Thème
+              </button>
+              <button
+                onClick={wipeSession}
+                className="px-3 py-1.5 rounded-md bg-white/90 hover:bg-white text-red-600 text-sm font-semibold border"
+              >
+                Supprimer
+              </button>
+              <button
+                onClick={() => goto("presentation")}
+                className="px-3 py-1.5 rounded-md bg-white/90 hover:bg-white text-gray-900 text-sm font-semibold border"
+              >
+                Présentation
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Liseré d’infos Projet/Thème */}
+        <div className="bg-white/80 backdrop-blur border-b">
+          <div className="max-w-[1200px] mx-auto px-4 py-2 text-[12px] text-gray-700 flex items-center gap-6">
+            <div>
+              <span className="font-semibold">Projet :</span>{" "}
+              {meta?.projectName || "—"}
+            </div>
+            <div>
+              <span className="font-semibold">Thème :</span>{" "}
+              {meta?.themeName || "—"}
+            </div>
+          </div>
         </div>
       </header>
 
-      {/* Sous-entête : projet / thème */}
-      <div className="max-w-6xl mx-auto px-4 mt-3 text-[13px] text-gray-700">
-        <div>
-          <span className="font-semibold">Projet :</span>{" "}
-          {meta?.projectName || "—"}
-        </div>
-        <div>
-          <span className="font-semibold">Thème :</span>{" "}
-          {meta?.themeName || "—"}
-        </div>
-      </div>
-
-      {/* Grille 2×2 */}
-      <div className="max-w-6xl mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {(
-          [
-            ["acquis", QUADRANTS.acquis],
-            ["faiblesses", QUADRANTS.faiblesses],
-            ["opportunites", QUADRANTS.opportunites],
-            ["menaces", QUADRANTS.menaces],
-          ] as [QuadrantKey, any][]
-        ).map(([key, info]) => (
-          <div key={key} className="min-h-[36vh]">
-            <Quadrant
-              info={info as any /* passe l'objet tel quel */}
-              postIts={byQuadrant[key]}
-              quadrantKey={key}
-              isExpanded={expanded === key}
-              onToggleExpand={() =>
-                setExpanded((cur) => (cur === key ? null : key))
-              }
-            />
+      {/* CONTENU */}
+      <main className="flex-1">
+        <div className="max-w-[1200px] mx-auto px-4 py-6">
+          {/* Cadran 2×2 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {(
+              [
+                ["acquis", QUADRANTS.acquis],
+                ["faiblesses", QUADRANTS.faiblesses],
+                ["opportunites", QUADRANTS.opportunites],
+                ["menaces", QUADRANTS.menaces],
+              ] as [QuadrantKey, any][]
+            ).map(([key, info]) => (
+              <div key={key} className="min-h-[42vh]">
+                <Quadrant
+                  info={{
+                    title: info.title,
+                    subtitle: info.subtitle,
+                  }}
+                  postIts={byQuadrant[key]}
+                  quadrantKey={key}
+                  isExpanded={expanded === key}
+                  onToggleExpand={() =>
+                    setExpanded(expanded === key ? null : key)
+                  }
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* 5e panneau : Panier */}
-      <div className="max-w-6xl mx-auto px-4 pb-12">
-        <BinPanel />
-      </div>
+          {/* Panier */}
+          <div className="mt-10">
+            <BinPanel />
+          </div>
+        </div>
+      </main>
 
-      {/* Modal QR Code */}
+      {/* MODALS */}
+      {/* QR Code */}
       <QRCodeModal
-        isOpen={isQrOpen}
-        onClose={() => setIsQrOpen(false)}
+        isOpen={qrOpen}
+        onClose={() => setQrOpen(false)}
         sessionId={sessionId}
       />
 
-      {/* Modal Projet/Thème */}
+      {/* Projet / Thème */}
       {!showMetaModal ? null : (
         <div className="fixed inset-0 bg-black/30 z-[80] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
@@ -241,7 +247,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 ×
               </button>
             </div>
-
             <div className="p-4 space-y-3">
               <div>
                 <label className="text-sm font-semibold text-gray-600">
@@ -266,7 +271,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 />
               </div>
             </div>
-
             <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
               <button
                 onClick={() => setShowMetaModal(false)}
@@ -287,14 +291,13 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                         projectName: projectName.trim(),
                         themeName: themeName.trim(),
                         updatedAt: new Date(),
-                        createdAt: meta?.createdAt || new Date(),
                       } as BoardMeta,
                       { merge: true }
                     );
                     setMeta({
                       projectName: projectName.trim(),
                       themeName: themeName.trim(),
-                    });
+                    } as BoardMeta);
                     setShowMetaModal(false);
                   } catch (e) {
                     console.error(e);
