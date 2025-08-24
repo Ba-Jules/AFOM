@@ -177,41 +177,28 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
         </div>
       </div>
 
-      {/* Grille 2×2 visible */}
-      <div className="max-w-7xl mx-auto px-4 pb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {(
-            [
-              ["acquis", QUADRANTS.acquis],
-              ["faiblesses", QUADRANTS.faiblesses],
-              ["opportunites", QUADRANTS.opportunites],
-              ["menaces", QUADRANTS.menaces],
-            ] as [QuadrantKey, any][]
-          ).map(([key, info]) => {
-            const textColor = info.textColor ?? "text-gray-800";
-            const borderColor = info.borderColor ?? "border-gray-300";
-            const bgColor = info.bgColor ?? "bg-white";
-            return (
-              <div key={key} className="min-h-[38vh]">
-                <Quadrant
-                  info={{
-                    title: info.title,
-                    subtitle: info.subtitle,
-                    textColor,
-                    borderColor,
-                    bgColor,
-                  }}
-                  postIts={byQuadrant[key]}
-                  quadrantKey={key}
-                  isExpanded={expanded === key}
-                  onToggleExpand={() =>
-                    setExpanded(expanded === key ? null : key)
-                  }
-                />
-              </div>
-            );
-          })}
-        </div>
+{/* Grille 2×2 habituelle */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+  {(
+    [
+      ["acquis", QUADRANTS.acquis],
+      ["faiblesses", QUADRANTS.faiblesses],
+      ["opportunites", QUADRANTS.opportunites],
+      ["menaces", QUADRANTS.menaces],
+    ] as [QuadrantKey, any][]
+  ).map(([key, info]) => (
+    <div key={key} className="min-h-[38vh]"> {/* ← garde le cadran haut */}
+      <Quadrant
+        info={info}                         {/* on passe l’objet complet */}
+        postIts={byQuadrant[key]}
+        quadrantKey={key}
+        isExpanded={expanded === key}
+        onToggleExpand={() => setExpanded(expanded === key ? null : key)}
+      />
+    </div>
+  ))}
+</div>
+
 
         {/* Panier */}
         <div className="mt-8">
