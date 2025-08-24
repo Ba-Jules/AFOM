@@ -1,135 +1,120 @@
-// src/App.tsx
 import React, { useEffect, useState } from "react";
 import PresentationMode from "./components/PresentationMode";
 import WorkInterface from "./components/WorkInterface";
 import ParticipantInterface from "./components/ParticipantInterface";
 import AnalysisMode from "./components/AnalysisMode";
+import MatrixMode from "./components/MatrixMode"; // <- nouveau
 
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "./services/firebase";
-import type { PostIt } from "./types";
-
-type View = "presentation" | "work" | "analysis" | "participant";
-
-/** Lit la vue depuis l’URL (compat avec l’ancien mode=participant). */
-function resolveViewFromUrl(): View {
-  const url = new URL(window.location.href);
-  const v = (url.searchParams.get("v") || "").toLowerCase();
-  const mode = (url.searchParams.get("mode") || "").toLowerCase();
-
-  if (mode === "participant" || v === "participant") return "participant";
-  if (v === "analysis") return "analysis";
-  if (v === "drag2" || v === "work" || v === "collecte") return "work";
-  // v=formation ou rien -> slides
-  return "presentation";
-}
-
-/** Récupère ou crée un sessionId, et le persiste. */
-function resolveSessionId(): string {
-  const url = new URL(window.location.href);
-  const fromUrl = url.searchParams.get("session");
-  const fromStore = localStorage.getItem("sessionId");
-
-  if (fromUrl) {
-    localStorage.setItem("sessionId", fromUrl);
-    return fromUrl;
-  }
-  if (fromStore) return fromStore;
-
-  const gen =
-    "SESSION-" +
-    new Date().getFullYear() +
-    "-" +
-    String(Math.floor(Math.random() * 1000)).padStart(3, "0");
-  localStorage.setItem("sessionId", gen);
-  return gen;
-}
-
-/** Met à jour l’URL (sans reload) pour rester en phase avec la vue courante. */
-function pushUrl(next: Partial<{ v: string; session: string }>) {
-  const url = new URL(window.location.href);
-  if (next.v !== undefined) url.searchParams.set("v", next.v);
-  if (next.session !== undefined) url.searchParams.set("session", next.session);
-  window.history.replaceState(null, "", url.toString());
-}
+type View = "presentation" | "work" | "participant" | "analysis" | "matrix";
 
 const App: React.FC = () => {
-  const [view, setView] = useState<View>(() => resolveViewFromUrl());
-  const [sessionId, setSessionId] = useState<string>(() => resolveSessionId());
+  const [view, setView] = useState<View>("presentation");
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Flux de post-its pour l'AnalysisMode
-  const [analysisPostIts, setAnalysisPostIts] = useState<PostIt[]>([]);
-
-  // (Ré)initialise vue + session au montage
+  // Lis l’URL au démarrage
   useEffect(() => {
-    setView(resolveViewFromUrl());
-    setSessionId(resolveSessionId());
+    const url = new URL(window.location.href);
+    const v = (url.searchParams.get("v") || "").toLowerCase() as View;
+    const mode = url.searchParams.get("mode");
+    const s =
+      url.searchParams.get("session") ||
+      localStorage.getItem("sessionId") ||
+      null;
+
+    // Mode participant prioritaire si demandé explicitement
+    if (mode === "participant" && s) {
+      setSessionId(s);
+      setView("participant");
+      return;
+    }
+
+    // Route directe par ?v=
+    if (v === "work" || v === "analysis" || v === "matrix") {
+      if (s) {
+        setSessionId(s);
+        setView(v);
+        return;
+      }
+    }
+
+    // Sinon, on prépare une session par défaut et on affiche la présentation
+    const gen =
+      "SESSION-" +
+      new Date().getFullYear() +
+      "-" +
+      String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+    setSessionId(s || gen);
+    setView("presentation");
   }, []);
 
-  // Abonnement Firestore sur la session courante (sert à AnalysisMode)
-  useEffect(() => {
-    if (!sessionId) return;
-    const q = query(
-      collection(db, "postits"),
-      where("sessionId", "==", sessionId)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PostIt[];
-      setAnalysisPostIts(arr);
-    });
-    return () => unsub();
-  }, [sessionId]);
-
-  // Callbacks
   const handleLaunchSession = (newSessionId: string) => {
-    localStorage.setItem("sessionId", newSessionId);
     setSessionId(newSessionId);
+    // on “passe” en mode work
+    const { origin, pathname } = window.location;
+    const url = `${origin}${pathname}?v=work&session=${encodeURIComponent(
+      newSessionId
+    )}`;
+    window.history.replaceState({}, "", url);
     setView("work");
-    pushUrl({ v: "drag2", session: newSessionId });
   };
 
   const handleBackToPresentation = () => {
+    const { origin, pathname } = window.location;
+    window.history.replaceState({}, "", `${origin}${pathname}`);
     setView("presentation");
-    pushUrl({ v: "formation" });
   };
 
-  // Rendu
-  let content: React.ReactNode = null;
-
+  // Affichage
   switch (view) {
-    case "analysis":
-      content = <AnalysisMode postIts={analysisPostIts} />;
-      break;
+    case "presentation":
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 font-sans">
+          <PresentationMode
+            onLaunchSession={handleLaunchSession}
+            initialSessionId={sessionId || ""}
+          />
+        </div>
+      );
 
     case "work":
-      content = (
-        <WorkInterface
-          sessionId={sessionId}
-          onBackToPresentation={handleBackToPresentation}
-        />
+      return sessionId ? (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 font-sans">
+          <WorkInterface
+            sessionId={sessionId}
+            onBackToPresentation={handleBackToPresentation}
+          />
+        </div>
+      ) : (
+        <div>Loading…</div>
       );
-      break;
+
+    case "analysis":
+      return sessionId ? (
+        <div className="min-h-screen bg-gray-50">
+          <AnalysisMode sessionId={sessionId} />
+        </div>
+      ) : (
+        <div>Loading…</div>
+      );
+
+    case "matrix":
+      return sessionId ? (
+        <div className="min-h-screen bg-gray-50">
+          <MatrixMode sessionId={sessionId} />
+        </div>
+      ) : (
+        <div>Loading…</div>
+      );
 
     case "participant":
-      content = <ParticipantInterface sessionId={sessionId} />;
-      break;
-
-    case "presentation":
-    default:
-      content = (
-        <PresentationMode
-          onLaunchSession={handleLaunchSession}
-          initialSessionId={sessionId}
-        />
+      return sessionId ? (
+        <div className="min-h-screen bg-white">
+          <ParticipantInterface sessionId={sessionId} />
+        </div>
+      ) : (
+        <div>Invalid session ID.</div>
       );
-      break;
   }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 font-sans">
-      {content}
-    </div>
-  );
 };
 
 export default App;

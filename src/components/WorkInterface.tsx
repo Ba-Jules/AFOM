@@ -1,4 +1,3 @@
-// src/components/WorkInterface.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -29,20 +28,19 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
 
-  // Métadonnées Projet / Thème
+  // Meta Projet / Thème
   const [meta, setMeta] = useState<BoardMeta | null>(null);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
-  // Modale QR
+  // QR modal
   const [isQrOpen, setIsQrOpen] = useState(false);
 
-  // --- Écoute des Post-its de la session ---
+  // Écoute des post-its
   useEffect(() => {
     if (!sessionId) return;
     localStorage.setItem("sessionId", sessionId);
-
     const unsub = onSnapshot(
       query(collection(db, "postits"), where("sessionId", "==", sessionId)),
       (snap) => {
@@ -53,22 +51,18 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
     return () => unsub();
   }, [sessionId]);
 
-  // --- Charger/Créer les métadonnées Projet / Thème ---
+  // Charger/Créer meta Projet/Thème
   useEffect(() => {
     (async () => {
       if (!sessionId) return;
       const ref = fsDoc(db, "boards", sessionId);
       const s = await getDoc(ref);
-      if (s.exists()) {
-        const m = s.data() as BoardMeta;
-        setMeta(m);
-      } else {
-        setShowMetaModal(true);
-      }
+      if (s.exists()) setMeta(s.data() as BoardMeta);
+      else setShowMetaModal(true);
     })();
   }, [sessionId]);
 
-  // Répartition par quadrant (hors éléments du Panier)
+  // Groupement par quadrant (hors poubelle)
   const byQuadrant = useMemo(() => {
     const res: Record<QuadrantKey, PostIt[]> = {
       acquis: [],
@@ -83,14 +77,13 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
     return res;
   }, [postIts]);
 
-  // --- Actions Header ---
+  // Navigation header
   const gotoAnalysis = () => {
     const { origin, pathname } = window.location;
     window.location.href = `${origin}${pathname}?v=analysis&session=${encodeURIComponent(
       sessionId
     )}`;
   };
-
   const gotoMatrix = () => {
     const { origin, pathname } = window.location;
     window.location.href = `${origin}${pathname}?v=matrix&session=${encodeURIComponent(
@@ -98,7 +91,6 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
     )}`;
   };
 
-  // Vider la session courante (sans changer d’URL / QR)
   const clearSession = async () => {
     if (!confirm("Vider totalement ce tableau ?")) return;
     const snap = await getDocs(
@@ -110,55 +102,59 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
-      {/* Bandeau supérieur */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-white/60">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen">
+      {/* Bandeau principal AFOM */}
+      <div className="bg-gradient-to-r from-orange-400 via-pink-400 to-purple-400">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between text-white">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🚀</span>
+            <div>
+              <div className="text-2xl md:text-3xl font-black leading-tight">
+                AFOM Ultimate
+              </div>
+              <div className="text-sm opacity-90 -mt-0.5">
+                Interface de Travail
+              </div>
+            </div>
+          </div>
+
+          {/* Barre d’actions */}
           <div className="flex items-center gap-2">
-            <button
-              className="px-3 py-2 rounded-md bg-indigo-600 text-white font-semibold shadow-sm"
-              onClick={() => {/* Collecte = vue actuelle */}}
-              title="Collecte (vue actuelle)"
-            >
+            <button className="px-3 py-2 rounded-md bg-white/20 hover:bg-white/25 font-semibold">
               Collecte
             </button>
             <button
-              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              className="px-3 py-2 rounded-md bg-white text-gray-800 hover:bg-gray-50"
               onClick={gotoAnalysis}
-              title="Analyse (graphiques, IA)"
             >
               Analyse
             </button>
             <button
-              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              className="px-3 py-2 rounded-md bg-white text-gray-800 hover:bg-gray-50"
               onClick={gotoMatrix}
-              title="Matrice de confrontation"
             >
               Matrice
             </button>
-          </div>
-
-          <div className="flex items-center gap-2">
             <button
-              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              className="px-3 py-2 rounded-md bg-white text-gray-800 hover:bg-gray-50"
               onClick={() => setIsQrOpen(true)}
             >
               QR Code
             </button>
             <button
-              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              className="px-3 py-2 rounded-md bg-white text-gray-800 hover:bg-gray-50"
               onClick={() => setShowMetaModal(true)}
             >
               Modifier Projet/Thème
             </button>
             <button
-              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              className="px-3 py-2 rounded-md bg-white text-gray-800 hover:bg-gray-50"
               onClick={clearSession}
             >
               Supprimer
             </button>
             <button
-              className="px-3 py-2 rounded-md bg-white border hover:bg-gray-50"
+              className="px-3 py-2 rounded-md bg-white text-gray-800 hover:bg-gray-50"
               onClick={onBackToPresentation}
             >
               Présentation
@@ -167,8 +163,8 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
         </div>
       </div>
 
-      {/* Infos Projet/Thème */}
-      <div className="max-w-7xl mx-auto px-4 pt-4 pb-2 flex items-center justify-between">
+      {/* Infos projet/thème sous le bandeau */}
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <div className="text-sm text-gray-700">
           <div>
             <span className="font-semibold">Projet :</span>{" "}
@@ -181,7 +177,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
         </div>
       </div>
 
-      {/* Grille 2×2 classique */}
+      {/* Grille 2×2 visible */}
       <div className="max-w-7xl mx-auto px-4 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {(
@@ -192,12 +188,11 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
               ["menaces", QUADRANTS.menaces],
             ] as [QuadrantKey, any][]
           ).map(([key, info]) => {
-            // Valeurs de secours au cas où les couleurs n’existent pas dans QUADRANTS
             const textColor = info.textColor ?? "text-gray-800";
             const borderColor = info.borderColor ?? "border-gray-300";
             const bgColor = info.bgColor ?? "bg-white";
             return (
-              <div key={key} className="min-h-[40vh]">
+              <div key={key} className="min-h-[38vh]">
                 <Quadrant
                   info={{
                     title: info.title,
@@ -218,7 +213,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
           })}
         </div>
 
-        {/* 5e cadran : Panier */}
+        {/* Panier */}
         <div className="mt-8">
           <BinPanel />
         </div>
@@ -303,7 +298,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
         </div>
       )}
 
-      {/* Modale QR Code */}
+      {/* Modale QR */}
       <QRCodeModal
         isOpen={isQrOpen}
         onClose={() => setIsQrOpen(false)}
