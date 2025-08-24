@@ -63,7 +63,6 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
         const m = s.data() as BoardMeta;
         setMeta(m);
       } else {
-        // Première fois : on propose la saisie
         setShowMetaModal(true);
       }
     })();
@@ -110,7 +109,6 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
     await batch.commit();
   };
 
-  // --- Rendu ---
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
       {/* Bandeau supérieur */}
@@ -192,20 +190,32 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
               ["faiblesses", QUADRANTS.faiblesses],
               ["opportunites", QUADRANTS.opportunites],
               ["menaces", QUADRANTS.menaces],
-            ] as [QuadrantKey, { title: string; subtitle: string }][]
-          ).map(([key, info]) => (
-            <div key={key} className="min-h-[40vh]">
-              <Quadrant
-                info={{ title: info.title, subtitle: info.subtitle }}
-                postIts={byQuadrant[key]}
-                quadrantKey={key}
-                isExpanded={expanded === key}
-                onToggleExpand={() =>
-                  setExpanded(expanded === key ? null : key)
-                }
-              />
-            </div>
-          ))}
+            ] as [QuadrantKey, any][]
+          ).map(([key, info]) => {
+            // Valeurs de secours au cas où les couleurs n’existent pas dans QUADRANTS
+            const textColor = info.textColor ?? "text-gray-800";
+            const borderColor = info.borderColor ?? "border-gray-300";
+            const bgColor = info.bgColor ?? "bg-white";
+            return (
+              <div key={key} className="min-h-[40vh]">
+                <Quadrant
+                  info={{
+                    title: info.title,
+                    subtitle: info.subtitle,
+                    textColor,
+                    borderColor,
+                    bgColor,
+                  }}
+                  postIts={byQuadrant[key]}
+                  quadrantKey={key}
+                  isExpanded={expanded === key}
+                  onToggleExpand={() =>
+                    setExpanded(expanded === key ? null : key)
+                  }
+                />
+              </div>
+            );
+          })}
         </div>
 
         {/* 5e cadran : Panier */}
@@ -271,7 +281,6 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
                         projectName: projectName.trim(),
                         themeName: themeName.trim(),
                         updatedAt: new Date(),
-                        // createdAt : gardé si déjà présent
                       } as BoardMeta,
                       { merge: true }
                     );
@@ -294,7 +303,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
         </div>
       )}
 
-      {/* Modale QR Code (props corrigés) */}
+      {/* Modale QR Code */}
       <QRCodeModal
         isOpen={isQrOpen}
         onClose={() => setIsQrOpen(false)}
