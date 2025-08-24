@@ -116,9 +116,6 @@ function MatrixSlide() {
             V. prospective
           </div>
         </div>
-
-        {/* Axe du jugement (rouge vertical) - plus épais */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[160px] h-[480px] w-[48px] bg-[#d50000] border-6 border-black rounded-md" />
         
         {/* Pastille + en haut - remonté d'1cm */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[98px]">
