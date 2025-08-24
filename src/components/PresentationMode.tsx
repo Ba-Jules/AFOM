@@ -89,90 +89,90 @@ function MatrixSlide() {
         style={{ width: BASE_W, height: BASE_H, background: "#0a0a0a" }}
       >
         {/* Titre */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-8 text-white text-[48px] font-extrabold tracking-tight">
+        <div className="absolute left-1/2 -translate-x-1/2 top-4 text-white text-[48px] font-extrabold tracking-tight">
           Composantes de l'outil AFOM
         </div>
 
         {/* Étiquettes Interne / Externe - repositionnées plus haut */}
-        <div className="absolute top-[80px] left-[120px]">
+        <div className="absolute top-[70px] left-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Interne
           </div>
         </div>
-        <div className="absolute top-[80px] right-[120px]">
+        <div className="absolute top-[70px] right-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Externe
           </div>
         </div>
 
-        {/* Étiquettes V. rétrospective / V. prospective - repositionnées pour éviter chevauchement */}
-        <div className="absolute top-[120px] left-[240px]">
-          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
+        {/* Étiquettes V. rétrospective / V. prospective - repositionnées plus bas */}
+        <div className="absolute top-[110px] left-[200px]">
+          <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
             V. rétrospective
           </div>
         </div>
-        <div className="absolute top-[120px] right-[240px]">
-          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
+        <div className="absolute top-[110px] right-[200px]">
+          <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
             V. prospective
           </div>
         </div>
 
         {/* Axe du jugement (rouge vertical) - plus épais */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[180px] h-[520px] w-[48px] bg-[#d50000] border-6 border-black rounded-md" />
+        <div className="absolute left-1/2 -translate-x-1/2 top-[160px] h-[520px] w-[48px] bg-[#d50000] border-6 border-black rounded-md" />
         
         {/* Flèche verticale vers le haut intégrée */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[176px]">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[156px]">
           <div className="w-0 h-0 border-b-[20px] border-b-[#d50000] border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-4 border-black"></div>
         </div>
         
-        {/* Pastille + en haut */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[160px]">
+        {/* Pastille + en haut - déplacée plus haut pour éviter le O */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[135px]">
           <Pill sign="+" />
         </div>
         
         {/* Pastille - en bas */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[720px]">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[700px]">
           <Pill sign="-" />
         </div>
         
         {/* Label "Axe du jugement" vertical - mieux positionné */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[440px] -rotate-90">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[420px] -rotate-90">
           <div className="text-white font-black text-xl tracking-wider drop-shadow-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap">
             Axe du jugement
           </div>
         </div>
 
         {/* Axe du temps (jaune horizontal) - plus épais et visible */}
-        <div className="absolute left-[64px] right-[64px] top-[440px] h-[48px] bg-[#ffea00] border-6 border-black rounded-md" />
+        <div className="absolute left-[64px] right-[64px] top-[420px] h-[48px] bg-[#ffea00] border-6 border-black rounded-md" />
         
         {/* Flèche horizontale intégrée dans l'axe */}
-        <div className="absolute right-[60px] top-[464px] -translate-y-1/2">
+        <div className="absolute right-[60px] top-[444px] -translate-y-1/2">
           <div className="w-0 h-0 border-l-[20px] border-l-[#ffea00] border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent border-4 border-black"></div>
         </div>
         
-        {/* Label "Passé" directement sur l'axe à gauche */}
-        <div className="absolute left-[80px] top-[464px] -translate-y-1/2">
-          <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap">
+        {/* Label "Passé" directement sur l'axe à gauche - BIEN VISIBLE */}
+        <div className="absolute left-[90px] top-[444px] -translate-y-1/2">
+          <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Passé
           </div>
         </div>
         
         {/* Label "Axe du temps" au centre de l'axe */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[464px] -translate-y-1/2">
-          <div className="text-black font-black text-xl bg-[#ffea00] px-4 py-1 border-2 border-black rounded whitespace-nowrap">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[444px] -translate-y-1/2">
+          <div className="text-black font-black text-xl bg-[#ffea00] px-4 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du temps
           </div>
         </div>
         
-        {/* Label "Futur" directement sur l'axe à droite */}
-        <div className="absolute right-[80px] top-[464px] -translate-y-1/2">
-          <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap">
+        {/* Label "Futur" directement sur l'axe à droite - BIEN VISIBLE */}
+        <div className="absolute right-[90px] top-[444px] -translate-y-1/2">
+          <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Futur
           </div>
         </div>
 
-        {/* Grille 2×2 des quadrants AFOM */}
-        <div className="absolute left-[64px] right-[64px] top-[200px] bottom-[120px] grid grid-cols-2 grid-rows-2">
+        {/* Grille 2×2 des quadrants AFOM - ajustée */}
+        <div className="absolute left-[64px] right-[64px] top-[180px] bottom-[100px] grid grid-cols-2 grid-rows-2">
           {/* A - Acquis (haut gauche) */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
             <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
