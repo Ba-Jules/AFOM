@@ -89,69 +89,68 @@ function MatrixSlide() {
         style={{ width: BASE_W, height: BASE_H, background: "#0a0a0a" }}
       >
         {/* Titre */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-6 text-white text-[48px] font-extrabold tracking-tight">
+        <div className="absolute left-1/2 -translate-x-1/2 top-8 text-white text-[48px] font-extrabold tracking-tight">
           Composantes de l’outil AFOM
         </div>
 
-        {/* Bandeaux Interne / Externe */}
-        <div className="absolute top-[96px] left-[40px]">
+        {/* Rangée 1 : Interne / Externe */}
+        <div className="absolute top-[92px] left-[40px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Interne
           </div>
         </div>
-        <div className="absolute top-[96px] right-[40px]">
+        <div className="absolute top-[92px] right-[40px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Externe
           </div>
         </div>
 
-        {/* V. rétrospective / V. prospective */}
-        <div className="absolute top-[96px] left-1/2 -translate-x-[330px]">
-          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#ff8f00]">
+        {/* Rangée 2 : V. rétrospective / V. prospective (décalées vers le bas pour éviter tout recouvrement) */}
+        <div className="absolute top-[140px] left-1/2 -translate-x-[360px]">
+          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#ff8f00] whitespace-nowrap">
             V. rétrospective
           </div>
         </div>
-        <div className="absolute top-[96px] left-1/2 translate-x-[330px]">
+        <div className="absolute top-[140px] left-1/2 translate-x-[360px]">
           <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#ff8f00] whitespace-nowrap">
             V. prospective
           </div>
         </div>
 
-        {/* Axes + pastilles */}
-        {/* Axe du jugement (vertical, rouge) */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[160px] h-[520px] w-[36px] bg-[#d50000] border-4 border-black rounded-md" />
-        <div className="absolute left-1/2 -translate-x-1/2 top-[156px] -translate-y-1/2">
+        {/* Axe du jugement (rouge vertical) + pastilles */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[200px] h-[520px] w-[36px] bg-[#d50000] border-4 border-black rounded-md" />
+        <div className="absolute left-1/2 -translate-x-1/2 top-[195px] -translate-y-1/2">
           <Pill sign="+" />
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 top-[700px] -translate-y-1/2">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[720px] -translate-y-1/2">
           <Pill sign="-" />
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 top-[420px] -rotate-90">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[460px] -rotate-90">
           <div className="text-white font-extrabold text-2xl tracking-wider drop-shadow">
             Axe du jugement
           </div>
         </div>
 
-        {/* Axe du temps (horizontal, jaune) */}
-        <div className="absolute left-[64px] right-[64px] top-[420px] h-[40px] bg-[#ffea00] border-4 border-black rounded-md" />
-        <div className="absolute left-[64px] top-[420px] -translate-y-1/2">
+        {/* Axe du temps (jaune horizontal) — avec Passé / Futur visibles */}
+        <div className="absolute left-[64px] right-[64px] top={[470]} h-[40px] bg-[#ffea00] border-4 border-black rounded-md" />
+        <div className="absolute left-[64px] top-[470px] -translate-y-1/2">
           <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow">
             Passé
           </div>
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 top-[420px] -translate-y-[115%]">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[470px] -translate-y-[115%]">
           <div className="text-black font-extrabold text-2xl bg-[#ffea00] px-4 rounded">
             Axe du temps
           </div>
         </div>
-        <div className="absolute right-[64px] top-[420px] -translate-y-1/2">
+        <div className="absolute right-[64px] top-[470px] -translate-y-1/2">
           <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow">
             Futur
           </div>
         </div>
 
         {/* Grille 2×2 */}
-        <div className="absolute left-[64px] right-[64px] top-[180px] bottom-[140px] grid grid-cols-2 grid-rows-2 gap-[0px]">
+        <div className="absolute left-[64px] right-[64px] top-[220px] bottom-[140px] grid grid-cols-2 grid-rows-2">
           {/* A */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
             <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black">
@@ -177,9 +176,7 @@ function MatrixSlide() {
               O
             </div>
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">
-                O pour Opportunités
-              </div>
+              <div className="text-3xl font-extrabold mb-2">O pour Opportunités</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
                 Futur • Positif • Externe
               </div>
@@ -198,9 +195,7 @@ function MatrixSlide() {
               F
             </div>
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">
-                F pour Faiblesses
-              </div>
+              <div className="text-3xl font-extrabold mb-2">F pour Faiblesses</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
                 Passé • Négatif • Interne
               </div>
