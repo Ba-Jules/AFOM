@@ -1,3 +1,4 @@
+// src/services/geminiService.ts
 import { GoogleGenAI, Type } from "@google/genai";
 import {
   PostIt,
@@ -7,6 +8,7 @@ import {
   RecommendationSchema,
 } from "../types";
 
+// Exposé par Vite via secret GEMINI_API_KEY → VITE_GEMINI_API_KEY dans le workflow
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
 
 if (!API_KEY) {
@@ -17,7 +19,7 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-// On tente plusieurs modèles, du plus récent au plus compatible
+// On tente plusieurs modèles pour maximiser la compatibilité de compte
 const MODEL_CANDIDATES = [
   "gemini-2.5-flash",
   "gemini-1.5-flash",
@@ -40,6 +42,7 @@ export async function getAIAnalysis(
     };
   }
 
+  // Evite de solliciter l’IA avec trop peu de matière
   if (!Array.isArray(postIts) || postIts.length < 5) {
     return { insights: [], recommendations: [] };
   }
@@ -63,8 +66,8 @@ ${JSON.stringify(formatted, null, 2)}
       const res = await ai.models.generateContent({
         model,
         contents: prompt,
-        generationConfig: {
-          // JSON structuré
+        // ✅ Avec @google/genai utilisé ici, la clé attendue est "config"
+        config: {
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -84,6 +87,8 @@ ${JSON.stringify(formatted, null, 2)}
               },
             },
           },
+          systemInstruction:
+            "Tu es un stratège d'entreprise. Donne des réponses concises et actionnables, exactement 3 insights et 3 recommandations.",
           temperature: 0.4,
           maxOutputTokens: 800,
         },
@@ -91,6 +96,7 @@ ${JSON.stringify(formatted, null, 2)}
 
       const text = (res.text ?? "").trim();
       const parsed = JSON.parse(text);
+
       const insights: Insight[] = Array.isArray(parsed?.insights)
         ? parsed.insights
         : [];
@@ -114,9 +120,7 @@ ${JSON.stringify(formatted, null, 2)}
 
   for (const model of MODEL_CANDIDATES) {
     const r = await tryModel(model);
-    if (r.ok) {
-      return { insights: r.insights, recommendations: r.recommendations };
-    }
+    if (r.ok) return { insights: r.insights, recommendations: r.recommendations };
   }
 
   return {
