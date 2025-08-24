@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import QRCode from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react"; // ✅ v4: import nommé
 
 type Slide = {
   id: string;
@@ -172,42 +172,42 @@ const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }
         title: "Inviter les participants",
         subtitle: "Scannez ou partagez le lien pour contribuer en direct.",
         body: (
-            <div className="grid md:grid-cols-2 gap-6 mt-6 items-center">
-              <div className="rounded-xl bg-white/70 border p-4 flex flex-col items-center justify-center">
-                <QRCode value={participantUrl} size={184} includeMargin />
-                <div className="mt-3 text-xs text-gray-600 break-all text-center">{participantUrl}</div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    className="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
-                    onClick={() => window.open(participantUrl, "_blank")}
-                  >
-                    Ouvrir le lien participant
-                  </button>
-                  <button
-                    className="px-3 py-2 rounded-md border bg-white hover:bg-gray-50 text-sm"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(participantUrl);
-                      alert("Lien copié !");
-                    }}
-                  >
-                    Copier
-                  </button>
-                </div>
-              </div>
-              <div className="rounded-xl bg-white/70 border p-4">
-                <div className="font-semibold">ID de session</div>
-                <input
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
-                  className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                  placeholder="SESSION-AAAA-XYZ"
-                />
-                <p className="text-xs text-gray-600 mt-2">
-                  L’ID s’affiche aussi en haut à droite de l’interface de travail.
-                  Il est gardé pour toute la durée de l’atelier.
-                </p>
+          <div className="grid md:grid-cols-2 gap-6 mt-6 items-center">
+            <div className="rounded-xl bg-white/70 border p-4 flex flex-col items-center justify-center">
+              <QRCodeCanvas value={participantUrl} size={184} includeMargin />{/* ✅ */}
+              <div className="mt-3 text-xs text-gray-600 break-all text-center">{participantUrl}</div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  className="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
+                  onClick={() => window.open(participantUrl, "_blank")}
+                >
+                  Ouvrir le lien participant
+                </button>
+                <button
+                  className="px-3 py-2 rounded-md border bg-white hover:bg-gray-50 text-sm"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(participantUrl);
+                    alert("Lien copié !");
+                  }}
+                >
+                  Copier
+                </button>
               </div>
             </div>
+            <div className="rounded-xl bg-white/70 border p-4">
+              <div className="font-semibold">ID de session</div>
+              <input
+                value={sessionId}
+                onChange={(e) => setSessionId(e.target.value)}
+                className="mt-2 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                placeholder="SESSION-AAAA-XYZ"
+              />
+              <p className="text-xs text-gray-600 mt-2">
+                L’ID s’affiche aussi en haut à droite de l’interface de travail.
+                Il est gardé pour toute la durée de l’atelier.
+              </p>
+            </div>
+          </div>
         ),
       },
       {
@@ -300,7 +300,6 @@ const PresentationMode: React.FC<Props> = ({ onLaunchSession, initialSessionId }
           {s.color && (
             <div className={`mt-6 rounded-xl border-2 p-5 ${s.color}`}>
               <ul className="text-sm text-gray-700 leading-6">
-                {/* Le sous-titre porte déjà les éléments clés ; on garde une zone blanche pour illustrer/écrire en live si besoin */}
                 <li>
                   <span className="text-gray-600">
                     Positionnement : <b>Voir le slide “Axes & logique”</b> — Interne/Externe & Passé/Futur.
