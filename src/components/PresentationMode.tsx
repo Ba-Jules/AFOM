@@ -140,11 +140,6 @@ function MatrixSlide() {
         {/* Axe du temps (jaune horizontal) - plus épais et visible */}
         <div className="absolute left-[64px] right-[64px] top-[420px] h-[48px] bg-[#ffea00] border-6 border-black rounded-md" />
         
-        {/* Flèche horizontale intégrée dans l'axe */}
-        <div className="absolute right-[60px] top-[444px] -translate-y-1/2">
-          <div className="w-0 h-0 border-l-[20px] border-l-[#ffea00] border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent border-4 border-black"></div>
-        </div>
-        
         {/* Label "Passé" - VISIBLE sur l'axe */}
         <div className="absolute left-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
