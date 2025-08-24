@@ -32,6 +32,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
+  // Écoute de la session
   useEffect(() => {
     if (!sessionId) return;
     localStorage.setItem("sessionId", sessionId);
@@ -52,8 +53,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
       const ref = fsDoc(db, "boards", sessionId);
       const s = await getDoc(ref);
       if (s.exists()) {
-        const m = s.data() as BoardMeta;
-        setMeta(m);
+        setMeta(s.data() as BoardMeta);
       } else {
         setShowMetaModal(true);
       }
@@ -68,7 +68,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
       menaces: [],
     };
     for (const p of postIts) {
-      if ((p as any).status === "bin") continue; // le panier ne s'affiche pas dans les 4 cadrans
+      if ((p as any).status === "bin") continue;
       res[p.quadrant].push(p);
     }
     return res;
@@ -76,29 +76,30 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
-    return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(sessionId)}`;
+    return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(
+      sessionId
+    )}`;
   }, [sessionId]);
 
-  // Helpers de navigation (on garde la session dans l’URL)
+  // Navigation rapide en conservant la session
   const go = (view: "analysis" | "matrix" | "drag2") => {
     const { origin, pathname } = window.location;
-    const url = `${origin}${pathname}?v=${view}&session=${encodeURIComponent(sessionId)}`;
-    window.location.href = url;
+    window.location.href = `${origin}${pathname}?v=${view}&session=${encodeURIComponent(
+      sessionId
+    )}`;
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
-      {/* Bandeau principal (titre + actions globales) */}
+      {/* Bandeau principal */}
       <div className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 border-b border-white/60 shadow">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="text-sm text-gray-700">
             <div>
-              <span className="font-semibold">Projet :</span>{" "}
-              {meta?.projectName || "—"}
+              <span className="font-semibold">Projet :</span> {meta?.projectName || "—"}
             </div>
             <div>
-              <span className="font-semibold">Thème :</span>{" "}
-              {meta?.themeName || "—"}
+              <span className="font-semibold">Thème :</span> {meta?.themeName || "—"}
             </div>
           </div>
 
@@ -118,7 +119,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
           </div>
         </div>
 
-        {/* Toolbar (Conserve l’ordre et l’esthétique d’origine) */}
+        {/* Toolbar */}
         <div className="max-w-7xl mx-auto px-4 pb-3">
           <div className="flex flex-wrap gap-2">
             <button
@@ -145,7 +146,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
               🔗 QR Code
             </button>
 
-            {/* ✅ Nouveau libellé + route : Matrice de Confrontation */}
+            {/* Nouveau bouton */}
             <button
               onClick={() => go("matrix")}
               className="px-3 py-1.5 rounded-md bg-amber-500 text-white hover:bg-amber-600 text-sm shadow"
@@ -157,7 +158,7 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
         </div>
       </div>
 
-      {/* Grille 2×2 (mise en page d’origine) */}
+      {/* Board 2×2 */}
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(
@@ -173,6 +174,9 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
                 info={{
                   title: info.title,
                   subtitle: info.subtitle,
+                  textColor: info.textColor,
+                  borderColor: info.borderColor,
+                  bgColor: info.bgColor,
                 }}
                 postIts={byQuadrant[key]}
                 quadrantKey={key}
@@ -185,18 +189,17 @@ const WorkInterface: React.FC<Props> = ({ sessionId, onBackToPresentation }) => 
           ))}
         </div>
 
-        {/* 5e cadran : Panier (À discuter) */}
+        {/* Panier */}
         <div className="mt-6">
           <BinPanel />
         </div>
       </div>
 
-      {/* QR Code pour participants */}
+      {/* QR modal – prop 'url' uniquement */}
       {showQr && (
         <QRCodeModal
           onClose={() => setShowQr(false)}
-          participantUrl={participantUrl}
-          sessionId={sessionId}
+          url={participantUrl}
         />
       )}
 
