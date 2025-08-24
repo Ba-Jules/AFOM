@@ -117,46 +117,56 @@ function MatrixSlide() {
           </div>
         </div>
 
-        {/* Axe du jugement (rouge vertical) + pastilles + et - */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[180px] h-[520px] w-[36px] bg-[#d50000] border-4 border-black rounded-md" />
+        {/* Axe du jugement (rouge vertical) - plus épais */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[180px] h-[520px] w-[48px] bg-[#d50000] border-6 border-black rounded-md" />
+        
+        {/* Flèche verticale vers le haut intégrée */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[176px]">
+          <div className="w-0 h-0 border-b-[20px] border-b-[#d50000] border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-4 border-black"></div>
+        </div>
         
         {/* Pastille + en haut */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[170px] -translate-y-1/2">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[160px]">
           <Pill sign="+" />
         </div>
         
         {/* Pastille - en bas */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[710px] -translate-y-1/2">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[720px]">
           <Pill sign="-" />
         </div>
         
-        {/* Label "Axe du jugement" vertical */}
+        {/* Label "Axe du jugement" vertical - mieux positionné */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[440px] -rotate-90">
-          <div className="text-white font-extrabold text-2xl tracking-wider drop-shadow whitespace-nowrap">
+          <div className="text-white font-black text-xl tracking-wider drop-shadow-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap">
             Axe du jugement
           </div>
         </div>
 
-        {/* Axe du temps (jaune horizontal) */}
-        <div className="absolute left-[64px] right-[64px] top-[450px] h-[40px] bg-[#ffea00] border-4 border-black rounded-md" />
+        {/* Axe du temps (jaune horizontal) - plus épais et visible */}
+        <div className="absolute left-[64px] right-[64px] top-[440px] h-[48px] bg-[#ffea00] border-6 border-black rounded-md" />
         
-        {/* Label "Passé" à gauche */}
-        <div className="absolute left-[64px] top-[450px] -translate-y-1/2 -translate-x-[120px]">
-          <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow whitespace-nowrap">
+        {/* Flèche horizontale intégrée dans l'axe */}
+        <div className="absolute right-[60px] top-[464px] -translate-y-1/2">
+          <div className="w-0 h-0 border-l-[20px] border-l-[#ffea00] border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent border-4 border-black"></div>
+        </div>
+        
+        {/* Label "Passé" directement sur l'axe à gauche */}
+        <div className="absolute left-[80px] top-[464px] -translate-y-1/2">
+          <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap">
             Passé
           </div>
         </div>
         
-        {/* Label "Axe du temps" au centre, au-dessus */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[410px]">
-          <div className="text-black font-extrabold text-2xl bg-[#ffea00] px-4 py-1 rounded border-2 border-black whitespace-nowrap">
+        {/* Label "Axe du temps" au centre de l'axe */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[464px] -translate-y-1/2">
+          <div className="text-black font-black text-xl bg-[#ffea00] px-4 py-1 border-2 border-black rounded whitespace-nowrap">
             Axe du temps
           </div>
         </div>
         
-        {/* Label "Futur" à droite */}
-        <div className="absolute right-[64px] top-[450px] -translate-y-1/2 translate-x-[120px]">
-          <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow whitespace-nowrap">
+        {/* Label "Futur" directement sur l'axe à droite */}
+        <div className="absolute right-[80px] top-[464px] -translate-y-1/2">
+          <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap">
             Futur
           </div>
         </div>
@@ -243,7 +253,6 @@ function MatrixSlide() {
     </FitToScreen>
   );
 }
-
 /** ---- Composant principal ---------------------------------------------- */
 const PresentationMode: React.FC<Props> = ({
   onLaunchSession,
