@@ -90,70 +90,82 @@ function MatrixSlide() {
       >
         {/* Titre */}
         <div className="absolute left-1/2 -translate-x-1/2 top-8 text-white text-[48px] font-extrabold tracking-tight">
-          Composantes de l’outil AFOM
+          Composantes de l'outil AFOM
         </div>
 
-        {/* Rangée 1 : Interne / Externe */}
-        <div className="absolute top-[92px] left-[40px]">
+        {/* Étiquettes Interne / Externe - repositionnées plus haut */}
+        <div className="absolute top-[80px] left-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Interne
           </div>
         </div>
-        <div className="absolute top-[92px] right-[40px]">
+        <div className="absolute top-[80px] right-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Externe
           </div>
         </div>
 
-        {/* Rangée 2 : V. rétrospective / V. prospective (décalées vers le bas pour éviter tout recouvrement) */}
-        <div className="absolute top-[140px] left-1/2 -translate-x-[360px]">
-          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#ff8f00] whitespace-nowrap">
+        {/* Étiquettes V. rétrospective / V. prospective - repositionnées pour éviter chevauchement */}
+        <div className="absolute top-[120px] left-[240px]">
+          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
             V. rétrospective
           </div>
         </div>
-        <div className="absolute top-[140px] left-1/2 translate-x-[360px]">
-          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#ff8f00] whitespace-nowrap">
+        <div className="absolute top-[120px] right-[240px]">
+          <div className="px-6 py-2 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
             V. prospective
           </div>
         </div>
 
-        {/* Axe du jugement (rouge vertical) + pastilles */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[200px] h-[520px] w-[36px] bg-[#d50000] border-4 border-black rounded-md" />
-        <div className="absolute left-1/2 -translate-x-1/2 top-[195px] -translate-y-1/2">
+        {/* Axe du jugement (rouge vertical) + pastilles + et - */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[180px] h-[520px] w-[36px] bg-[#d50000] border-4 border-black rounded-md" />
+        
+        {/* Pastille + en haut */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[170px] -translate-y-1/2">
           <Pill sign="+" />
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 top-[720px] -translate-y-1/2">
+        
+        {/* Pastille - en bas */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[710px] -translate-y-1/2">
           <Pill sign="-" />
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 top-[460px] -rotate-90">
-          <div className="text-white font-extrabold text-2xl tracking-wider drop-shadow">
+        
+        {/* Label "Axe du jugement" vertical */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[440px] -rotate-90">
+          <div className="text-white font-extrabold text-2xl tracking-wider drop-shadow whitespace-nowrap">
             Axe du jugement
           </div>
         </div>
 
-        {/* Axe du temps (jaune horizontal) — avec Passé / Futur visibles */}
-        <div className="absolute left-[64px] right-[64px] top={[470]} h-[40px] bg-[#ffea00] border-4 border-black rounded-md" />
-        <div className="absolute left-[64px] top-[470px] -translate-y-1/2">
-          <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow">
+        {/* Axe du temps (jaune horizontal) */}
+        <div className="absolute left-[64px] right-[64px] top-[450px] h-[40px] bg-[#ffea00] border-4 border-black rounded-md" />
+        
+        {/* Label "Passé" à gauche */}
+        <div className="absolute left-[64px] top-[450px] -translate-y-1/2 -translate-x-[120px]">
+          <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow whitespace-nowrap">
             Passé
           </div>
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 top-[470px] -translate-y-[115%]">
-          <div className="text-black font-extrabold text-2xl bg-[#ffea00] px-4 rounded">
+        
+        {/* Label "Axe du temps" au centre, au-dessus */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[410px]">
+          <div className="text-black font-extrabold text-2xl bg-[#ffea00] px-4 py-1 rounded border-2 border-black whitespace-nowrap">
             Axe du temps
           </div>
         </div>
-        <div className="absolute right-[64px] top-[470px] -translate-y-1/2">
-          <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow">
+        
+        {/* Label "Futur" à droite */}
+        <div className="absolute right-[64px] top-[450px] -translate-y-1/2 translate-x-[120px]">
+          <div className="px-5 py-2 rounded-xl bg-[#ffea00] border-4 border-black text-black font-black text-2xl shadow whitespace-nowrap">
             Futur
           </div>
         </div>
 
-        {/* Grille 2×2 */}
-        <div className="absolute left-[64px] right-[64px] top-[220px] bottom-[140px] grid grid-cols-2 grid-rows-2">
-          {/* A */}
+        {/* Grille 2×2 des quadrants AFOM */}
+        <div className="absolute left-[64px] right-[64px] top-[200px] bottom-[120px] grid grid-cols-2 grid-rows-2">
+          {/* A - Acquis (haut gauche) */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black">
+            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
               A
             </div>
             <div className="text-white">
@@ -165,14 +177,14 @@ function MatrixSlide() {
                 <li>• Forces / Succès</li>
                 <li>• Réalisations désirées</li>
                 <li>• Aspects positifs</li>
-                <li>• Ce qu’on a aimé</li>
+                <li>• Ce qu'on a aimé</li>
               </ul>
             </div>
           </div>
 
-          {/* O */}
+          {/* O - Opportunités (haut droit) */}
           <div className="relative border-[6px] border-[#004d40] bg-[#2ec4b6] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black">
+            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
               O
             </div>
             <div className="text-white">
@@ -184,14 +196,14 @@ function MatrixSlide() {
                 <li>• Potentialités</li>
                 <li>• Ressources exploitables</li>
                 <li>• Atouts</li>
-                <li>• Ce qu’on peut valoriser</li>
+                <li>• Ce qu'on peut valoriser</li>
               </ul>
             </div>
           </div>
 
-          {/* F */}
+          {/* F - Faiblesses (bas gauche) */}
           <div className="relative border-[6px] border-[#b71c1c] bg-[#ef5350] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black">
+            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
               F
             </div>
             <div className="text-white">
@@ -203,14 +215,14 @@ function MatrixSlide() {
                 <li>• Échecs</li>
                 <li>• Aspects négatifs</li>
                 <li>• Problèmes rencontrés</li>
-                <li>• Ce qu’on n’a pas aimé</li>
+                <li>• Ce qu'on n'a pas aimé</li>
               </ul>
             </div>
           </div>
 
-          {/* M */}
+          {/* M - Menaces (bas droit) */}
           <div className="relative border-[6px] border-[#e65100] bg-[#ff8a65] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black">
+            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
               M
             </div>
             <div className="text-white">
