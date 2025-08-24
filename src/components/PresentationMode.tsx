@@ -88,8 +88,8 @@ function MatrixSlide() {
         className="relative rounded-[24px] shadow-2xl overflow-hidden"
         style={{ width: BASE_W, height: BASE_H, background: "#0a0a0a" }}
       >
-        {/* Titre - remonté de 2cm et sur une ligne */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[-20px] text-white text-[48px] font-extrabold tracking-tight whitespace-nowrap">
+        {/* Titre - descendu de 0.5cm */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[-1px] text-white text-[48px] font-extrabold tracking-tight whitespace-nowrap">
           Composantes de l'outil AFOM
         </div>
 
@@ -135,8 +135,8 @@ function MatrixSlide() {
           <Pill sign="-" />
         </div>
         
-        {/* Label "Axe du jugement" - POSÉ sur l'axe vertical */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[340px] -rotate-90 z-10">
+        {/* Label "Axe du jugement" - remonté d'1cm sur l'axe vertical */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[302px] -rotate-90 z-10">
           <div className="text-white font-black text-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du jugement
           </div>
@@ -157,8 +157,8 @@ function MatrixSlide() {
           </div>
         </div>
         
-        {/* Label "Axe du temps" - POSÉ sur l'axe horizontal */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[420px] z-10">
+        {/* Label "Axe du temps" - positionné pile au milieu entre Passé et Futur */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-lg bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du temps
           </div>
