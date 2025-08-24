@@ -118,7 +118,7 @@ function MatrixSlide() {
         </div>
 
         {/* Axe du jugement (rouge vertical) - plus épais */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[160px] h-[520px] w-[48px] bg-[#d50000] border-6 border-black rounded-md" />
+        <div className="absolute left-1/2 -translate-x-1/2 top-[160px] h-[480px] w-[48px] bg-[#d50000] border-6 border-black rounded-md" />
         
         {/* Flèche verticale vers le haut intégrée */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[156px]">
@@ -173,11 +173,8 @@ function MatrixSlide() {
 
         {/* Grille 2×2 des quadrants AFOM - ajustée */}
         <div className="absolute left-[64px] right-[64px] top-[180px] bottom-[100px] grid grid-cols-2 grid-rows-2">
-          {/* A - Acquis (haut gauche) */}
+          {/* A - Acquis (haut gauche) - sans cercle A */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
-              A
-            </div>
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">A pour Acquis</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
@@ -192,11 +189,8 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* O - Opportunités (haut droit) */}
+          {/* O - Opportunités (haut droit) - sans cercle O */}
           <div className="relative border-[6px] border-[#004d40] bg-[#2ec4b6] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
-              O
-            </div>
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">O pour Opportunités</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
@@ -211,11 +205,8 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* F - Faiblesses (bas gauche) */}
+          {/* F - Faiblesses (bas gauche) - sans cercle F */}
           <div className="relative border-[6px] border-[#b71c1c] bg-[#ef5350] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
-              F
-            </div>
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">F pour Faiblesses</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
@@ -230,11 +221,8 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* M - Menaces (bas droit) */}
+          {/* M - Menaces (bas droit) - sans cercle M */}
           <div className="relative border-[6px] border-[#e65100] bg-[#ff8a65] p-8">
-            <div className="absolute -top-4 -left-4 w-11 h-11 rounded-full bg-white text-black border-2 border-black flex items-center justify-center font-black text-2xl">
-              M
-            </div>
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">M pour Menaces</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
