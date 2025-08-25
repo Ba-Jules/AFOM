@@ -270,19 +270,21 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 </div>
               </div>
 
-              <Quadrant
-                info={{
-                  title: info.title,
-                  subtitle: info.subtitle,
-                  ...PALETTE[key],
-                }}
-                postIts={byQuadrant[key]}
-                quadrantKey={key}
-                isExpanded={expanded === key}
-                onToggleExpand={() =>
-                  setExpanded(expanded === key ? null : key)
-                }
-              />
+              {/* après : on passe l’objet complet issu de QUADRANTS */}
+<Quadrant
+  info={{
+    title: info.title,
+    subtitle: info.subtitle,
+    textColor: info.textColor,
+    borderColor: info.borderColor,
+    bgColor: info.bgColor,
+  }}
+  postIts={byQuadrant[key]}
+  quadrantKey={key}
+  isExpanded={expanded === key}
+  onToggleExpand={() => setExpanded(expanded === key ? null : key)}
+/>
+
             </section>
           ))}
         </div>
