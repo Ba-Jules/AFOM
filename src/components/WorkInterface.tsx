@@ -227,10 +227,11 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {(
             [
-              ["acquis", QUADRANTS.acquis],
-              ["faiblesses", QUADRANTS.faiblesses],
+              // ✅ Ordre corrigé : Acquis (HG), Opportunités (HD), Faiblesses (BG), Menaces (BD)
+              ["acquis",       QUADRANTS.acquis],
               ["opportunites", QUADRANTS.opportunites],
-              ["menaces", QUADRANTS.menaces],
+              ["faiblesses",   QUADRANTS.faiblesses],
+              ["menaces",      QUADRANTS.menaces],
             ] as [QuadrantKey, any][]
           ).map(([key, info]) => (
             <section key={key} className="min-h-[36vh]">
