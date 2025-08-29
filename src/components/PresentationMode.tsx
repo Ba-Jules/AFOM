@@ -237,8 +237,7 @@ const PresentationMode: React.FC<Props> = ({
     if (sessionId) localStorage.setItem("sessionId", sessionId);
   }, [sessionId]);
 
-  // Meta (Projet/Thème) — non affiché sur les slides, juste pour préremplir le formulaire
-  const [meta, setMeta] = useState<BoardMeta | null>(null);
+  // Meta (Projet/Thème) – formulaire sur slide 1
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
@@ -249,7 +248,6 @@ const PresentationMode: React.FC<Props> = ({
         const snap = await getDoc(fsDoc(db, "boards", sessionId));
         if (snap.exists()) {
           const m = snap.data() as BoardMeta;
-          setMeta(m);
           setProjectName(m.projectName || "");
           setThemeName(m.themeName || "");
         }
@@ -443,7 +441,7 @@ const PresentationMode: React.FC<Props> = ({
     [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName]
   );
 
-  /* Navigation */
+  /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
   const [index, setIndex] = useState(0);
   const clamp = useCallback(
     (i: number) => Math.max(0, Math.min(slides.length - 1, i)),
@@ -452,9 +450,18 @@ const PresentationMode: React.FC<Props> = ({
   const next = useCallback(() => setIndex((i) => clamp(i + 1)), [clamp]);
   const prev = useCallback(() => setIndex((i) => clamp(i - 1)), [clamp]);
 
+  // Ignore les raccourcis si on tape dans un champ
+  const isTypingTarget = (el: EventTarget | null) => {
+    const t = el as HTMLElement | null;
+    if (!t) return false;
+    const tag = t.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t as any).isContentEditable;
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === " ") {
+      if (isTypingTarget(e.target)) return;
+      if (e.key === "ArrowRight") {
         e.preventDefault();
         if (index < slides.length - 1) next();
       }

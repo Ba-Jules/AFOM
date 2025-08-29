@@ -12,6 +12,16 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
     const [loadingAI, setLoadingAI] = useState(false);
 
+    // ---- Récup sessionId pour le bouton Retour ----
+    const sessionId = useMemo(() => {
+        const qs = new URLSearchParams(window.location.search);
+        return qs.get("session") || localStorage.getItem("sessionId") || "";
+    }, []);
+    const goBack = () => {
+        const { origin, pathname } = window.location;
+        window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}`;
+    };
+
     const processData = (rawData: PostIt[]): Omit<AnalysisData, 'insights' | 'recommendations'> => {
         const metrics: AnalysisMetrics = {
             totalContributions: rawData.length,
@@ -60,10 +70,9 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
              if (!timelineMap[timeKey]) {
                 timelineMap[timeKey] = { time: timeKey, acquis: 0, faiblesses: 0, opportunites: 0, menaces: 0 };
              }
-             timelineMap[timeKey][p.quadrant]++;
+             (timelineMap[timeKey] as any)[p.quadrant]++;
         });
         const timeline = Object.values(timelineMap);
-
 
         return { metrics, quadrants, contributors, timeline };
     };
@@ -79,8 +88,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
                     setAnalysisData(prev => prev ? { ...prev, insights, recommendations } : null);
                     setLoadingAI(false);
                 });
-            }, 1000); // Debounce AI analysis
-            
+            }, 500); // petit debounce
             return () => clearTimeout(timer);
         } else {
             setAnalysisData(null);
@@ -92,53 +100,75 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
         if (!analysisData) return [];
         return Object.entries(analysisData.quadrants).map(([key, value]) => ({
             name: QUADRANT_INFO[key as QuadrantKey].title,
-            value: value.count,
+            value: (value as QuadrantAnalysis).count,
             color: QUADRANT_INFO[key as QuadrantKey].color,
         }));
     }, [analysisData]);
 
     if (!analysisData) {
-        return <div className="p-8 text-center text-gray-500">Commencez à ajouter des post-its pour voir l'analyse.</div>;
+        return (
+            <div className="min-h-screen bg-gray-50">
+                <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
+                    <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+                        <button onClick={goBack} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
+                        <div className="text-sm font-semibold text-gray-600">Analyse</div>
+                        <div />
+                    </div>
+                </header>
+                <div className="p-8 text-center text-gray-500">Commencez à ajouter des post-its pour voir l'analyse.</div>
+            </div>
+        );
     }
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 space-y-8">
-            <MetricGrid metrics={analysisData.metrics} />
+        <div className="min-h-screen bg-gray-50">
+            {/* Header avec Retour */}
+            <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b">
+                <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
+                    <button onClick={goBack} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
+                    <div className="text-sm font-semibold text-gray-600">Analyse</div>
+                    <div />
+                </div>
+            </header>
 
-            <div className="grid lg:grid-cols-2 gap-8">
-                <ChartCard title="Répartition AFOM">
-                     <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                                {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-                 <ChartCard title="Timeline des Contributions">
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={analysisData.timeline}>
-                            <XAxis dataKey="time" />
-                            <YAxis />
-                            <Tooltip />
-                            <Legend />
-                            <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} />
-                            <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} />
-                            <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} />
-                            <Bar dataKey="menaces" stackId="a" fill={QUADRANT_INFO.menaces.color} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-            </div>
-            
-            <div className="grid lg:grid-cols-5 gap-8">
-                <div className="lg:col-span-3"><InsightsList insights={analysisData.insights} loading={loadingAI} /></div>
-                <div className="lg:col-span-2"><ContributorsList contributors={analysisData.contributors} /></div>
-            </div>
+            <div className="p-4 sm:p-8 space-y-8">
+                <MetricGrid metrics={analysisData.metrics} />
 
-            <RecommendationsList recommendations={analysisData.recommendations} loading={loadingAI} />
+                <div className="grid lg:grid-cols-2 gap-8">
+                    <ChartCard title="Répartition AFOM">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                                <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                                    {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={(entry as any).color} />)}
+                                </Pie>
+                                <Tooltip />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </ChartCard>
+                    <ChartCard title="Timeline des Contributions">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={analysisData.timeline}>
+                                <XAxis dataKey="time" />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} />
+                                <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} />
+                                <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} />
+                                <Bar dataKey="menaces" stackId="a" fill={QUADRANT_INFO.menaces.color} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </ChartCard>
+                </div>
+                
+                <div className="grid lg:grid-cols-5 gap-8">
+                    <div className="lg:col-span-3"><InsightsList insights={analysisData.insights} loading={loadingAI} /></div>
+                    <div className="lg:col-span-2"><ContributorsList contributors={analysisData.contributors} /></div>
+                </div>
+
+                <RecommendationsList recommendations={analysisData.recommendations} loading={loadingAI} />
+            </div>
         </div>
     );
 };
@@ -189,7 +219,7 @@ const RecommendationsList: React.FC<{ recommendations: Recommendation[], loading
           !recommendations.length ? <div className="text-center p-4 text-gray-500">Pas assez de données pour les recommandations IA.</div> :
         <div className="space-y-4">
             {recommendations.map((rec, i) => {
-                const styles = PRIORITY_STYLES[rec.priority] || { bg: 'bg-gray-100', color: 'text-gray-800', icon: '💡', borderColor: 'border-gray-500' };
+                const styles = (PRIORITY_STYLES as any)[rec.priority] || { bg: 'bg-gray-100', color: 'text-gray-800', icon: '💡', borderColor: 'border-gray-500' };
                 return (
                     <div key={i} className={`p-4 rounded-lg border-l-4 ${styles.bg} ${styles.borderColor}`}>
                         <h4 className={`font-bold ${styles.color}`}>
@@ -222,6 +252,5 @@ const ContributorsList: React.FC<{ contributors: Contributor[] }> = ({ contribut
         </div>
     </div>
 )};
-
 
 export default AnalysisMode;
