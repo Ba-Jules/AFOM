@@ -29,25 +29,20 @@ type MatrixDoc = {
   sessionId: string;
   selection: Selection;
   selectionSource?: SelectionSource;
-  /** Marks encodés "r,c" */
-  marks: string[];
-  /** Orientations stratégiques (éditables) */
+  marks: string[]; // "r,c"
   orientations?: string[];
   orientationsSource?: SelectionSource;
   updatedAt?: any;
 };
 
-interface Props {
-  sessionId: string;
-}
+interface Props { sessionId: string; }
 
-/* ---------------------- Utilitaires de texte ----------------------- */
+/* ---------------------- Utils texte ----------------------- */
 const STOPWORDS = new Set([
   "le","la","les","de","des","du","un","une","et","en","au","aux","pour","par","dans",
   "sur","avec","sans","à","d'","l'","que","qui","ce","cet","cette","ces","on","nous",
   "vous","ils","elles","se","son","sa","ses"
 ]);
-
 function tokens(s: string): string[] {
   return (s || "")
     .toLowerCase()
@@ -56,15 +51,11 @@ function tokens(s: string): string[] {
     .split(/\s+/)
     .filter(t => t && !STOPWORDS.has(t));
 }
-
 function similar(a: string, b: string): boolean {
-  const A = new Set(tokens(a));
-  const B = new Set(tokens(b));
-  let inter = 0;
+  const A = new Set(tokens(a)); const B = new Set(tokens(b)); let inter = 0;
   A.forEach(t => { if (B.has(t)) inter++; });
-  return inter >= 1; // au moins 1 mot en commun
+  return inter >= 1;
 }
-
 function uniqKeepOrder(list: string[]): string[] {
   const seen = new Set<string>(); const out: string[] = [];
   for (const s of list) {
@@ -74,11 +65,7 @@ function uniqKeepOrder(list: string[]): string[] {
   }
   return out;
 }
-
-/** Sélection par défaut = 4 premiers (ordre de tri existant) */
-function pickFirst4(items: string[]): string[] {
-  return items.slice(0, 4);
-}
+function pickFirst4(items: string[]): string[] { return items.slice(0, 4); }
 
 const enc = (r: number, c: number) => `${r},${c}`;
 const dec = (s: string): [number, number] => {
@@ -89,7 +76,7 @@ const dec = (s: string): [number, number] => {
 /* --------------------------- Composant ------------------------------ */
 
 export default function MatrixMode({ sessionId }: Props) {
-  /* ====== 1) Charger les post-its (temps réel) ====== */
+  // 1) Post-its
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   useEffect(() => {
     const q = query(collection(db, "postits"), where("sessionId", "==", sessionId));
@@ -103,7 +90,7 @@ export default function MatrixMode({ sessionId }: Props) {
     return () => unsub();
   }, [sessionId]);
 
-  /* ====== 2) Listes par quadrant ====== */
+  // 2) Listes par quadrant
   const allLists = useMemo(() => {
     const A = uniqKeepOrder(postIts.filter(p => p.quadrant === "acquis").map(p => p.content || "").filter(Boolean));
     const F = uniqKeepOrder(postIts.filter(p => p.quadrant === "faiblesses").map(p => p.content || "").filter(Boolean));
@@ -112,7 +99,7 @@ export default function MatrixMode({ sessionId }: Props) {
     return { A, F, O, M };
   }, [postIts]);
 
-  /* ====== 3) Sélection 4×4 (persistée) ====== */
+  // 3) Sélection 4×4
   const [Acols, setAcols] = useState<string[]>([]);
   const [Fcols, setFcols] = useState<string[]>([]);
   const [Orows, setOrows] = useState<string[]>([]);
@@ -122,15 +109,15 @@ export default function MatrixMode({ sessionId }: Props) {
   const colCount = Acols.length + Fcols.length;
   const rowCount = Orows.length + Mrows.length;
 
-  /* ====== 4) Marques (croix) ====== */
+  // 4) Cells/marks
   const [cells, setCells] = useState<Cell[][]>([]);
   const [marks, setMarks] = useState<Set<string>>(new Set());
 
-  /* ====== 5) Orientations stratégiques ====== */
+  // 5) Orientations
   const [orientations, setOrientations] = useState<string[]>([]);
   const [orientationsSource, setOrientationsSource] = useState<SelectionSource>("auto");
 
-  /* ====== 6) Firestore ====== */
+  // 6) Firestore
   const docRef = React.useMemo(() => fsDoc(db, "confrontations", sessionId), [sessionId]);
   const [loadingDoc, setLoadingDoc] = useState(true);
   const [saving, setSaving] = useState<"idle"|"saving"|"saved">("idle");
@@ -154,7 +141,6 @@ export default function MatrixMode({ sessionId }: Props) {
         setOrientationsSource(data.orientationsSource ?? "auto");
         setLoadingDoc(false);
       } else {
-        // Création initiale
         const initialSel: Selection = {
           acquis: pickFirst4(allLists.A),
           faiblesses: pickFirst4(allLists.F),
@@ -176,7 +162,7 @@ export default function MatrixMode({ sessionId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docRef, sessionId, allLists.A.length, allLists.F.length, allLists.O.length, allLists.M.length]);
 
-  /* ====== 7) Cells à partir des marks ====== */
+  // 7) Cells depuis marks
   useEffect(() => {
     const next = Array.from({ length: rowCount }, () => Array(colCount).fill(false) as boolean[]);
     for (const m of marks) {
@@ -186,7 +172,7 @@ export default function MatrixMode({ sessionId }: Props) {
     setCells(next);
   }, [rowCount, colCount, marks]);
 
-  /* ====== 8) Sauvegarde ====== */
+  // 8) Save
   const currentSelection = useMemo<Selection>(() => ({
     acquis: Acols, faiblesses: Fcols, opportunites: Orows, menaces: Mrows
   }), [Acols, Fcols, Orows, Mrows]);
@@ -238,7 +224,7 @@ export default function MatrixMode({ sessionId }: Props) {
     }
   };
 
-  /* ====== 9) Actions matrice ====== */
+  // 9) Actions matrice
   function toggle(r: number, c: number) {
     setCells(prev => {
       const n = prev.map(row => [...row]);
@@ -247,7 +233,6 @@ export default function MatrixMode({ sessionId }: Props) {
       return n;
     });
   }
-
   function autoFill() {
     const next = cells.map(row => [...row]);
     for (let r = 0; r < Orows.length; r++) {
@@ -264,13 +249,11 @@ export default function MatrixMode({ sessionId }: Props) {
     setCells(next);
     saveMatrix(currentSelection, next, selectionSource);
   }
-
   function clearAll() {
     const empty = Array.from({ length: rowCount }, () => Array(colCount).fill(false));
     setCells(empty);
     saveMatrix(currentSelection, empty, selectionSource);
   }
-
   async function proposeIASelection() {
     if (iaLoading) return;
     setIaLoading(true);
@@ -288,7 +271,7 @@ export default function MatrixMode({ sessionId }: Props) {
         menaces: (iaSel.selection?.menaces ?? pickFirst4(allLists.M)).slice(0, 4),
       };
 
-      // Remap des cases existantes par libellé
+      // Remap cases existantes
       const prevRows = [...Orows, ...Mrows];
       const prevCols = [...Acols, ...Fcols];
       const newRows = [...nextSel.opportunites, ...nextSel.menaces];
@@ -317,7 +300,7 @@ export default function MatrixMode({ sessionId }: Props) {
     }
   }
 
-  /* ====== 10) Calculs totaux & compteurs ====== */
+  // 10) Totaux
   const rowMarkCounts = useMemo(() => cells.map(row => row.reduce((a,b) => a + (b ? 1 : 0), 0)), [cells]);
   const colMarkCounts = useMemo(() => {
     const totals = Array(colCount).fill(0);
@@ -356,7 +339,7 @@ export default function MatrixMode({ sessionId }: Props) {
     return `${sign} ${val}`.replace("−", "-");
   };
 
-  /* ====== 11) Résumé synthétique ====== */
+  // 11) Résumé
   const summary = useMemo(() => {
     const rowsAll = [...Orows, ...Mrows];
     const colsAll = [...Acols, ...Fcols];
@@ -388,13 +371,13 @@ export default function MatrixMode({ sessionId }: Props) {
     return { opps, threats, leverCols, weakCols };
   }, [Acols, Fcols, Orows, Mrows, rowTotals, colTotals]);
 
-  /* ====== 12) ORIENTATIONS — génération auto ====== */
+  // 12) Orientations auto
   function generateAutoOrientations() {
     const items: { text: string; score: number }[] = [];
     const add = (text: string, score: number) => {
       const key = text.trim();
-      const i = items.findIndex(x => x.text === key);
-      if (i >= 0) { items[i].score = Math.max(items[i].score, score); }
+      const found = items.findIndex(x => x.text === key);
+      if (found >= 0) items[found].score = Math.max(items[found].score, score);
       else items.push({ text: key, score });
     };
 
@@ -403,32 +386,31 @@ export default function MatrixMode({ sessionId }: Props) {
     for (let r = 0; r < rows.length; r++) {
       const isOpp = r < Orows.length;
       for (let c = 0; c < cols.length; c++) {
-        if (!cells[r]?.[c]) continue; // on se base sur les croisements marqués
+        if (!cells[r]?.[c]) continue;
         const isA = c < Acols.length;
         const row = rows[r], col = cols[c];
-        const weight = rowMarkCounts[r] + colMarkCounts[c]; // importance locale
+        const weight = rowMarkCounts[r] + colMarkCounts[c];
 
-        if (isOpp && isA) add(`Capitaliser «${col}» pour saisir «${row}».`, 10 + weight);          // S–O
-        if (isOpp && !isA) add(`Corriger «${col}» pour exploiter «${row}».`, 8 + weight);           // W–O
-        if (!isOpp && isA) add(`Mobiliser «${col}» pour contrer «${row}».`, 8 + weight);            // S–T
-        if (!isOpp && !isA) add(`Réduire «${col}» pour se prémunir de «${row}».`, 9 + weight);      // W–T
+        if (isOpp && isA) add(`Capitaliser «${col}» pour saisir «${row}».`, 10 + weight);
+        if (isOpp && !isA) add(`Corriger «${col}» pour exploiter «${row}».`, 8 + weight);
+        if (!isOpp && isA) add(`Mobiliser «${col}» pour contrer «${row}».`, 8 + weight);
+        if (!isOpp && !isA) add(`Réduire «${col}» pour se prémunir de «${row}».`, 9 + weight);
       }
     }
 
-    // Fallback si aucune croix : combiner les “meilleurs” totaux
     if (items.length === 0) {
-      const bestO = Orows.map((t, i) => ({ t, i, s: rowTotals[i] })).sort((a,b)=>b.s-a.s)[0];
-      const bestM = Mrows.map((t, i) => ({ t, i: Orows.length+i, s: rowTotals[Orows.length+i] })).sort((a,b)=>a.s-b.s)[0];
-      const bestA = Acols.map((t, i) => ({ t, i, s: colTotals[i] })).sort((a,b)=>b.s-a.s)[0];
-      const bestF = Fcols.map((t, i) => ({ t, i: Acols.length+i, s: colTotals[Acols.length+i] })).sort((a,b)=>b.s-a.s)[0];
-      if (bestA && bestO) add(`Capitaliser «${bestA.t}» pour saisir «${bestO.t}».`, 5);
-      if (bestF && bestO) add(`Corriger «${bestF.t}» pour exploiter «${bestO.t}».`, 4);
-      if (bestA && bestM) add(`Mobiliser «${bestA.t}» pour contrer «${bestM.t}».`, 4);
-      if (bestF && bestM) add(`Réduire «${bestF.t}» pour se prémunir de «${bestM.t}».`, 5);
+      const bestO = Orows.map((t, i) => ({ t, s: rowTotals[i] })).sort((a,b)=>b.s-a.s)[0];
+      const bestM = Mrows.map((t, i) => ({ t, s: rowTotals[Orows.length+i] })).sort((a,b)=>a.s-b.s)[0];
+      const bestA = Acols.map((t, i) => ({ t, s: colTotals[i] })).sort((a,b)=>b.s-a.s)[0];
+      const bestF = Fcols.map((t, i) => ({ t, s: colTotals[Acols.length+i] })).sort((a,b)=>b.s-a.s)[0];
+      if (bestA && bestO) items.push({ text: `Capitaliser «${bestA.t}» pour saisir «${bestO.t}».`, score: 5 });
+      if (bestF && bestO) items.push({ text: `Corriger «${bestF.t}» pour exploiter «${bestO.t}».`, score: 4 });
+      if (bestA && bestM) items.push({ text: `Mobiliser «${bestA.t}» pour contrer «${bestM.t}».`, score: 4 });
+      if (bestF && bestM) items.push({ text: `Réduire «${bestF.t}» pour se prémunir de «${bestM.t}».`, score: 5 });
     }
 
     items.sort((a, b) => b.score - a.score);
-    const out = items.map(x => x.text).slice(0, 10); // max 10 propositions
+    const out = items.map(x => x.text).slice(0, 10);
     setOrientations(out);
     saveOrientations(out, "auto");
   }
@@ -443,7 +425,6 @@ export default function MatrixMode({ sessionId }: Props) {
       });
       const list: string[] = Array.isArray(resp.orientations) ? resp.orientations : [];
       if (list.length === 0) {
-        // fallback: auto
         generateAutoOrientations();
       } else {
         setOrientations(list);
@@ -457,7 +438,7 @@ export default function MatrixMode({ sessionId }: Props) {
     }
   }
 
-  /* ====== 13) Export ====== */
+  // 13) Export
   const exportCSV = () => {
     const rowsLabels = [...Orows, ...Mrows];
     const colsLabels = [...Acols, ...Fcols];
@@ -465,14 +446,12 @@ export default function MatrixMode({ sessionId }: Props) {
     const header = ["", ...colsLabels, "Total"];
     const lines: string[][] = [header];
 
-    // Lignes O
     for (let r = 0; r < Orows.length; r++) {
       const line = [rowsLabels[r]];
       for (let c = 0; c < colsLabels.length; c++) line.push(cells[r]?.[c] ? "1" : "0");
       line.push(String(rowTotals[r]));
       lines.push(line);
     }
-    // Lignes M
     for (let r2 = 0; r2 < Mrows.length; r2++) {
       const r = Orows.length + r2;
       const line = [rowsLabels[r]];
@@ -480,11 +459,9 @@ export default function MatrixMode({ sessionId }: Props) {
       line.push(String(rowTotals[r]));
       lines.push(line);
     }
-    // Totaux colonnes
     const footer = ["Total", ...colTotals.map(String), ""];
     lines.push(footer);
 
-    // Orientations
     lines.push([]);
     lines.push(["Orientations stratégiques"]);
     orientations.forEach((o, i) => lines.push([String(i + 1), o]));
@@ -501,21 +478,17 @@ export default function MatrixMode({ sessionId }: Props) {
     a.click();
     URL.revokeObjectURL(url);
   };
+  const printPDF = () => { window.print(); };
 
-  const printPDF = () => {
-    window.print();
-  };
-
-  /* ====== 14) Navigation ====== */
+  // 14) Nav
   const gotoWork = () => {
     const { origin, pathname } = window.location;
     window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}`;
   };
 
-  /* ====== 15) Rendu ====== */
+  // 15) UI
   return (
     <div className="p-6">
-      {/* Styles d’impression */}
       <style>{`
         @media print {
           @page { size: A4 landscape; margin: 10mm; }
@@ -529,13 +502,7 @@ export default function MatrixMode({ sessionId }: Props) {
 
       <div className="mb-4 flex items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <button
-            onClick={gotoWork}
-            className="no-print px-3 py-2 rounded-md border bg-white hover:bg-gray-50"
-            title="Retour à l’interface modérateur"
-          >
-            ← Retour
-          </button>
+          <button onClick={gotoWork} className="no-print px-3 py-2 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
           <div>
             <h1 className="text-2xl font-extrabold">Matrice de confrontation</h1>
             <div className="text-sm text-gray-500">
@@ -553,7 +520,7 @@ export default function MatrixMode({ sessionId }: Props) {
         </div>
 
         <div className="no-print flex flex-wrap gap-2">
-          <button onClick={() => proposeIASelection()} className="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60" disabled={loadingDoc || iaLoading} title="IA : 4 étiquettes par quadrant">
+          <button onClick={proposeIASelection} className="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60" disabled={loadingDoc || iaLoading}>
             {iaLoading ? "IA…" : "Proposer une sélection IA"}
           </button>
           <button onClick={autoFill} className="px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700" disabled={loadingDoc}>
@@ -571,7 +538,7 @@ export default function MatrixMode({ sessionId }: Props) {
         </div>
       </div>
 
-      {/* ---------- Tableau principal ---------- */}
+      {/* Tableau */}
       <div className="overflow-auto rounded-xl border bg-white shadow print-card">
         <table className="min-w-[980px] w-full border-collapse">
           <thead>
@@ -607,13 +574,10 @@ export default function MatrixMode({ sessionId }: Props) {
                 <td className="border p-2 text-center font-bold">{fmt(rowTotals[r])}</td>
               </tr>
             ))}
-
-            {/* séparateur Menaces */}
             <tr>
               <th className="bg-yellow-50 border p-2 text-left font-bold">Menaces</th>
               {[...Array(colCount + 1)].map((_, i) => <td key={i} className="border p-2 bg-yellow-50"></td>)}
             </tr>
-
             {Mrows.map((label, r2) => {
               const r = Orows.length + r2;
               return (
@@ -648,7 +612,7 @@ export default function MatrixMode({ sessionId }: Props) {
         </table>
       </div>
 
-      {/* ---------- Résumé synthétique ---------- */}
+      {/* Résumé */}
       <div className="mt-4 rounded-xl border bg-white shadow p-4 print-card">
         <h3 className="font-bold mb-2">Résumé synthétique</h3>
         <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -656,52 +620,39 @@ export default function MatrixMode({ sessionId }: Props) {
             <div className="font-semibold mb-1">Leviers (Acquis les plus porteurs)</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.leverCols.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.leverCols.map((x, i) => (
-                <li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>
-              ))}
+              {summary.leverCols.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
             </ul>
           </div>
           <div>
             <div className="font-semibold mb-1">Faiblesses majeures</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.weakCols.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.weakCols.map((x, i) => (
-                <li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>
-              ))}
+              {summary.weakCols.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
             </ul>
           </div>
           <div>
             <div className="font-semibold mb-1">Opportunités prioritaires</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.opps.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.opps.map((x, i) => (
-                <li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>
-              ))}
+              {summary.opps.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
             </ul>
           </div>
           <div>
             <div className="font-semibold mb-1">Menaces critiques</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.threats.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.threats.map((x, i) => (
-                <li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>
-              ))}
+              {summary.threats.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
             </ul>
           </div>
         </div>
-        <p className="text-xs text-gray-500 mt-3">
-          Les orientations ci-dessous sont déduites des croisements A/F × O/M (méthodo AFOM). Vous pouvez les modifier avant export. :contentReference[oaicite:1]{index=1}
-        </p>
       </div>
 
-      {/* ---------- Orientations stratégiques (éditables) ---------- */}
+      {/* Orientations stratégiques */}
       <div className="mt-4 rounded-xl border bg-white shadow p-4 print-card">
         <div className="flex items-center justify-between">
           <h3 className="font-bold">Orientations stratégiques</h3>
           <div className="no-print flex gap-2">
-            <button onClick={generateAutoOrientations} className="px-3 py-1.5 rounded-md border hover:bg-gray-50">
-              Générer (auto)
-            </button>
+            <button onClick={generateAutoOrientations} className="px-3 py-1.5 rounded-md border hover:bg-gray-50">Générer (auto)</button>
             <button onClick={proposeIAOrientations} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60" disabled={iaOrientLoading}>
               {iaOrientLoading ? "IA…" : "Proposer via IA"}
             </button>
@@ -715,9 +666,7 @@ export default function MatrixMode({ sessionId }: Props) {
         </div>
 
         {orientations.length === 0 && (
-          <p className="text-sm text-gray-500 mt-2">
-            Aucune orientation enregistrée pour l’instant. Utilisez “Générer (auto)” ou “Proposer via IA”, puis modifiez la liste.
-          </p>
+          <p className="text-sm text-gray-500 mt-2">Aucune orientation enregistrée. Utilisez “Générer (auto)” ou “Proposer via IA”, puis modifiez la liste.</p>
         )}
 
         <ul className="mt-3 space-y-2">
@@ -727,9 +676,7 @@ export default function MatrixMode({ sessionId }: Props) {
               <input
                 value={o}
                 onChange={(e) => {
-                  const next = [...orientations];
-                  next[i] = e.target.value;
-                  setOrientations(next);
+                  const next = [...orientations]; next[i] = e.target.value; setOrientations(next);
                 }}
                 onBlur={() => saveOrientations(orientations, "manual")}
                 className="flex-1 rounded-md border px-3 py-2 text-sm"
