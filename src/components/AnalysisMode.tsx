@@ -1,18 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PostIt, AnalysisData, Contributor, Insight, Recommendation, AnalysisMetrics, QuadrantAnalysis, QuadrantKey } from '../types';
 import { getAIAnalysis } from '../services/geminiService';
+import * as geminiAny from '../services/geminiService'; // pour appeler proposeCentralProblem si dispo
 import { BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { QUADRANT_INFO, PRIORITY_STYLES } from '../constants';
+import { doc as fsDoc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 interface AnalysisModeProps {
   postIts: PostIt[];
 }
 
+type CentralProblem = {
+  text: string;
+  source: 'manual' | 'ai_full' | 'ai_fm';
+  rationale?: string;
+  updatedAt?: any;
+};
+
 const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
 
-  // ---- Récup sessionId pour le bouton Retour ----
+  // ---- Session / navigation ----
   const sessionId = useMemo(() => {
     const qs = new URLSearchParams(window.location.search);
     return qs.get("session") || localStorage.getItem("sessionId") || "";
@@ -22,7 +32,85 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}`;
   };
 
-  // ---- Helpers export ----
+  // ---- Central Problem (Firestore) ----
+  const [central, setCentral] = useState<CentralProblem>({ text: '', source: 'manual' });
+  const [savingCentral, setSavingCentral] = useState(false);
+  const [aiRunningCentral, setAiRunningCentral] = useState<'full' | 'fm' | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      if (!sessionId) return;
+      try {
+        const ref = fsDoc(db, 'confrontations', sessionId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const d = snap.data() as any;
+          if (d.centralProblem) {
+            setCentral({
+              text: d.centralProblem.text || '',
+              source: d.centralProblem.source || 'manual',
+              rationale: d.centralProblem.rationale || '',
+              updatedAt: d.centralProblem.updatedAt
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Load centralProblem failed', e);
+      }
+    })();
+  }, [sessionId]);
+
+  const saveCentral = async (next: CentralProblem) => {
+    setSavingCentral(true);
+    try {
+      await setDoc(
+        fsDoc(db, 'confrontations', sessionId),
+        { centralProblem: { ...next, updatedAt: new Date() } },
+        { merge: true }
+      );
+      setCentral(next);
+    } catch (e) {
+      console.error(e);
+      alert("Impossible d'enregistrer le problème central.");
+    } finally {
+      setSavingCentral(false);
+    }
+  };
+
+  const askAIForCentral = async (mode: 'full' | 'fm') => {
+    if (!postIts.length) {
+      alert("Pas de données AFOM.");
+      return;
+    }
+    try {
+      setAiRunningCentral(mode);
+      // Appel indirect : si la fonction n'existe pas encore dans geminiService, on capture proprement.
+      const fn = (geminiAny as any).proposeCentralProblem;
+      if (typeof fn !== 'function') {
+        alert("La génération IA n'est pas disponible dans ce build. (proposeCentralProblem manquant)");
+        return;
+      }
+      const input = mode === 'full' ? postIts : postIts.filter(p => p.quadrant === 'faiblesses' || p.quadrant === 'menaces');
+      const result = await fn(input, { mode });
+      const next: CentralProblem = {
+        text: (result?.problem || result?.text || '').slice(0, 400),
+        rationale: result?.rationale || '',
+        source: mode === 'full' ? 'ai_full' : 'ai_fm'
+      };
+      if (!next.text) {
+        alert("L'IA n'a pas renvoyé de problème central exploitable.");
+        return;
+      }
+      await saveCentral(next);
+    } catch (e) {
+      console.error(e);
+      alert("Échec de la génération IA du problème central.");
+    } finally {
+      setAiRunningCentral(null);
+    }
+  };
+
+  // ---- Exports ----
   const download = (filename: string, mime: string, data: string | Blob) => {
     const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -39,8 +127,12 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     const esc = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
     const lines: string[] = [];
 
-    // Métriques
     lines.push('Section,Sous-section,Clé,Valeur');
+    // Central Problem
+    lines.push(`Problème central,,Texte,${esc(central.text || '')}`);
+    lines.push(`Problème central,,Source,${esc(central.source || '')}`);
+
+    // Métriques
     lines.push(`Métriques,,Contributions,${d.metrics.totalContributions}`);
     lines.push(`Métriques,,Participants,${d.metrics.uniqueParticipants}`);
     lines.push(`Métriques,,Durée (min),${d.metrics.sessionDuration}`);
@@ -87,18 +179,14 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     if (!analysisData) return;
     download(`analysis_${sessionId || 'session'}.csv`, 'text/csv;charset=utf-8', toCSV(analysisData));
   };
-
   const exportJSON = () => {
     if (!analysisData) return;
-    const json = JSON.stringify({ sessionId, analysis: analysisData }, null, 2);
+    const json = JSON.stringify({ sessionId, centralProblem: central, analysis: analysisData }, null, 2);
     download(`analysis_${sessionId || 'session'}.json`, 'application/json', json);
   };
+  const exportPDF = () => window.print();
 
-  const exportPDF = () => {
-    // Impression : masque header/boutons via CSS ci-dessous
-    window.print();
-  };
-
+  // ---- Traitement des données de base ----
   const processData = (rawData: PostIt[]): Omit<AnalysisData, 'insights' | 'recommendations'> => {
     const metrics: AnalysisMetrics = {
       totalContributions: rawData.length,
@@ -201,7 +289,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   return (
     <div className="min-h-screen bg-gray-50">
       <PrintStyles />
-      {/* Header avec Retour + Exports */}
+      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -217,6 +305,57 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       </header>
 
       <div className="p-4 sm:p-8 space-y-8 print:p-0">
+        {/* ---- Problème central ---- */}
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-black text-gray-800">🎯 Problème central</h3>
+            <div className="text-xs text-gray-500">
+              Source : <span className="font-bold">{central.source}</span>
+            </div>
+          </div>
+          <textarea
+            value={central.text}
+            onChange={(e) => setCentral({ ...central, text: e.target.value, source: 'manual' })}
+            placeholder="Saisissez ou générez le problème central…"
+            className="w-full min-h-[110px] rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+          {central.rationale ? (
+            <div className="mt-2 text-xs text-gray-600">
+              <span className="font-semibold">Justification IA :</span> {central.rationale}
+            </div>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => askAIForCentral('full')}
+              disabled={!!aiRunningCentral}
+              className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+            >
+              {aiRunningCentral === 'full' ? 'Génération…' : 'Proposer (IA – AFOM complet)'}
+            </button>
+            <button
+              onClick={() => askAIForCentral('fm')}
+              disabled={!!aiRunningCentral}
+              className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+            >
+              {aiRunningCentral === 'fm' ? 'Génération…' : 'Proposer (IA – Faiblesses + Menaces)'}
+            </button>
+            <button
+              onClick={() => saveCentral({ ...central, source: 'manual' })}
+              disabled={savingCentral}
+              className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              {savingCentral ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+            <button
+              onClick={() => saveCentral({ text: '', source: 'manual' })}
+              className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+            >
+              Effacer
+            </button>
+          </div>
+        </div>
+
+        {/* ---- Métriques / Graphs ---- */}
         <MetricGrid metrics={analysisData.metrics} />
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -258,7 +397,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   );
 };
 
-/** Styles d’impression (masque header/boutons, marges propres) */
+/** Styles impression */
 const PrintStyles: React.FC = () => (
   <style>{`
     @media print {
