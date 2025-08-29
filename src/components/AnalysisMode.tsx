@@ -302,7 +302,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       setLoadingAI(true);
       const timer = setTimeout(() => {
         getAIAnalysis(postIts).then(({ insights, recommendations }) => {
-          // ✅ Correction : pas de typage explicite sur `prev` (il est AnalysisData | null)
+          // ✅ Correction définitive : on ne typage PAS `prev`
           setAnalysisData((prev) => (prev ? { ...prev, insights, recommendations } : prev));
           setLoadingAI(false);
         });
