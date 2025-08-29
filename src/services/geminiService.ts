@@ -1,8 +1,8 @@
 // src/services/geminiService.ts
-// SDK historique Google Gemini
+// SDK historique Google Gemini (on ne casse rien côté UI)
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-/** Types */
+/** Types simples internes */
 type QuadrantKey = "acquis" | "faiblesses" | "opportunites" | "menaces";
 type Selection = Record<QuadrantKey, string[]>;
 
@@ -24,7 +24,6 @@ function getModel() {
 export async function proposeMatrixSelection(
   lists: Selection
 ): Promise<{ selection: Selection }> {
-  // Fallback robuste si pas de clé : on renvoie les 4 premiers par quadrant
   const fallback = {
     selection: {
       acquis: lists.acquis.slice(0, 4),
@@ -78,30 +77,29 @@ export async function proposeMatrixSelection(
   }
 }
 
-/* -------------------- 2) Orientations stratégiques -------------------- */
+/* -------------------- 2) Orientations stratégiques depuis la Matrice -------------------- */
 export async function proposeOrientations(args: {
   acquis: string[];
   faiblesses: string[];
   opportunites: string[];
   menaces: string[];
-  /** Liste des marks "r,c" cochés dans la matrice */
-  marks: string[];
+  marks: string[]; // "r,c"
 }): Promise<{ orientations: string[] }> {
   const model = getModel();
-  if (!model) return { orientations: [] }; // le front fera le fallback "auto"
+  if (!model) return { orientations: [] }; // le front gère le fallback auto
 
   try {
     const prompt = [
       "Tu es un expert en stratégie utilisant une matrice AFOM (SWOT) et une matrice de confrontation.",
       "Les sélections 4×4 par quadrant sont données ci-dessous, ainsi que la liste des croisements cochés (marks) sous forme d’indices (r,c).",
       "Rédige 6 à 10 orientations stratégiques concises, chacune sur une ligne (impératif, concret).",
-      "Exemples de formulations:",
+      "Exemples:",
       "- Capitaliser «A» pour saisir «O».",
       "- Corriger «F» pour exploiter «O».",
       "- Mobiliser «A» pour contrer «M».",
       "- Réduire «F» pour se prémunir de «M».",
-      "Utiliser STRICTEMENT les libellés fournis, ne pas inventer de nouveaux termes.",
-      "Répondre UNIQUEMENT en JSON: { \"orientations\": string[] }",
+      "Utilise STRICTEMENT les libellés fournis.",
+      "Réponds UNIQUEMENT en JSON: { \"orientations\": string[] }",
       "",
       `ACQUIS: ${JSON.stringify(args.acquis)}`,
       `FAIBLESSES: ${JSON.stringify(args.faiblesses)}`,
@@ -124,35 +122,56 @@ export async function proposeOrientations(args: {
   }
 }
 
-/* -------------------- 3) Analyse IA (compatibilité AnalysisMode) -------------------- */
+/* -------------------- 3) Analyse IA (compat AnalysisMode) -------------------- */
 /**
- * Renvoie { insights[], recommendations[] } à partir des 4 listes AFOM complètes.
- * - Conserve responseMimeType: "application/json"
- * - Fallback gracieux si absence de clé → tableaux vides
+ * Surcharges compatibles :
+ * - getAIAnalysis({ acquis, faiblesses, opportunites, menaces })
+ * - getAIAnalysis(postIts: PostItLike[])  // ← pour AnalysisMode existant
+ *
+ * Retourne des objets au bon format pour AnalysisMode :
+ *   insights: { title, content }[]
+ *   recommendations: { title, content, priority }[]
  */
-export async function getAIAnalysis(input: {
+type AFOMLists = {
   acquis: string[];
   faiblesses: string[];
   opportunites: string[];
   menaces: string[];
-}): Promise<{ insights: string[]; recommendations: string[] }> {
+};
+
+type PostItLike = { quadrant: string; content?: string; status?: string };
+
+export function getAIAnalysis(input: AFOMLists): Promise<{ insights: any[]; recommendations: any[] }>;
+export function getAIAnalysis(input: PostItLike[]): Promise<{ insights: any[]; recommendations: any[] }>;
+export async function getAIAnalysis(
+  input: AFOMLists | PostItLike[]
+): Promise<{ insights: any[]; recommendations: any[] }> {
+  const lists: AFOMLists = Array.isArray(input)
+    ? groupFromPostIts(input as PostItLike[])
+    : (input as AFOMLists);
+
   const model = getModel();
-  if (!model) return { insights: [], recommendations: [] };
+  if (!model) {
+    return {
+      insights: [],
+      recommendations: [],
+    };
+  }
 
   try {
     const prompt = [
       "Analyse AFOM (SWOT) — produis des insights synthétiques et des recommandations actionnables.",
       "Réponds UNIQUEMENT en JSON: { \"insights\": string[], \"recommendations\": string[] }",
       "",
-      `ACQUIS: ${JSON.stringify(input.acquis)}`,
-      `FAIBLESSES: ${JSON.stringify(input.faiblesses)}`,
-      `OPPORTUNITES: ${JSON.stringify(input.opportunites)}`,
-      `MENACES: ${JSON.stringify(input.menaces)}`,
+      `ACQUIS: ${JSON.stringify(lists.acquis)}`,
+      `FAIBLESSES: ${JSON.stringify(lists.faiblesses)}`,
+      `OPPORTUNITES: ${JSON.stringify(lists.opportunites)}`,
+      `MENACES: ${JSON.stringify(lists.menaces)}`,
       "",
       "Consignes:",
       "- Insights: constats transverses (max 8, une phrase chacun).",
       "- Recommandations: actions concrètes (max 8, impératif, mesurables).",
-      "- Ne pas créer de nouveaux intitulés techniques, rester simple.",
+      "- Ne pas inventer de nouveaux sigles; rester clair et court.",
     ].join("\n");
 
     const result = await model.generateContent(prompt);
@@ -160,13 +179,51 @@ export async function getAIAnalysis(input: {
     const cleaned = text.trim().replace(/^```json\s*|\s*```$/g, "");
     const parsed = JSON.parse(cleaned);
 
-    const ensureArr = (v: any) => (Array.isArray(v) ? v.map(String) : []);
-    return {
-      insights: ensureArr(parsed?.insights).slice(0, 12),
-      recommendations: ensureArr(parsed?.recommendations).slice(0, 12),
-    };
+    const strArr = (v: any) => (Array.isArray(v) ? v.map((x) => String(x)) : []);
+
+    // Normalisation → objets attendus par AnalysisMode
+    const insightsText = strArr(parsed?.insights).slice(0, 12);
+    const recsText = strArr(parsed?.recommendations).slice(0, 12);
+
+    const insights = insightsText.map((t: string, i: number) => ({
+      title: `Insight ${i + 1}`,
+      content: t,
+    }));
+
+    const recommendations = recsText.map((t: string) => ({
+      title: t.replace(/^[\[\(]?(haute|élevée|moyenne|basse|high|medium|low)[\]\)]?\s*:/i, "").trim().slice(0, 80) || "Recommandation",
+      content: t,
+      // Heuristique simple : on infère la priorité à partir de mots-clés, sinon "Moyenne".
+      priority: inferPriority(t),
+    }));
+
+    return { insights, recommendations };
   } catch (e) {
     console.error("Gemini analysis error:", e);
     return { insights: [], recommendations: [] };
   }
+}
+
+/* -------------------- Helpers -------------------- */
+function groupFromPostIts(items: PostItLike[]): AFOMLists {
+  const A: string[] = [], F: string[] = [], O: string[] = [], M: string[] = [];
+  for (const it of items) {
+    if (it.status === "bin") continue;
+    const txt = (it.content || "").trim();
+    if (!txt) continue;
+    if (it.quadrant === "acquis") A.push(txt);
+    else if (it.quadrant === "faiblesses") F.push(txt);
+    else if (it.quadrant === "opportunites") O.push(txt);
+    else if (it.quadrant === "menaces") M.push(txt);
+  }
+  return { acquis: A, faiblesses: F, opportunites: O, menaces: M };
+}
+
+function inferPriority(text: string): string {
+  const t = text.toLowerCase();
+  if (/\b(urgent|critique|immédiat|immediate|critical|urgent|prioritaire|high)\b/.test(t)) return "High";
+  if (/\b(moyen|medium|normal|planifier|next)\b/.test(t)) return "Medium";
+  if (/\b(faible|low|optionnel|later)\b/.test(t)) return "Low";
+  // fallback
+  return "Medium";
 }
