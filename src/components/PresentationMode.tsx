@@ -17,7 +17,8 @@ interface Props {
   initialSessionId: string;
 }
 
-/** ---- Helpers UI ------------------------------------------------------- */
+/* ---------------- UI helpers ---------------- */
+
 function Dot({ active }: { active: boolean }) {
   return (
     <span
@@ -48,10 +49,10 @@ function MetaBar({ meta }: { meta: BoardMeta | null }) {
   );
 }
 
-/** Un conteneur “scalable” qui fait tenir le contenu dans l’écran sans scroll */
+/** Conteneur qui scale le contenu pour tenir dans l’écran */
 function FitToScreen({
   children,
-  bottomReserve = 96, // réserve pour la barre de navigation
+  bottomReserve = 96,
 }: {
   children: React.ReactNode;
   bottomReserve?: number;
@@ -62,7 +63,6 @@ function FitToScreen({
     const vw = window.innerWidth;
     const vh = window.innerHeight - bottomReserve;
     const s = Math.min((vw - 24) / BASE_W, (vh - 24) / BASE_H);
-    // bornes “safe” : pas minuscule, pas trop gros
     setScale(Math.max(0.6, Math.min(1.15, s)));
   }, [bottomReserve]);
 
@@ -89,7 +89,6 @@ function FitToScreen({
   );
 }
 
-/** Pastille + ou – bien visible */
 function Pill({ sign }: { sign: "+" | "-" }) {
   return (
     <div className="w-14 h-14 rounded-full bg-white text-black shadow-xl border-2 border-black flex items-center justify-center">
@@ -98,7 +97,8 @@ function Pill({ sign }: { sign: "+" | "-" }) {
   );
 }
 
-/** ---- Slide 2 : “La logique des deux axes” (fidèle au schéma) --------- */
+/* ------------ Slide “logique des deux axes” ------------------ */
+
 function MatrixSlide() {
   return (
     <FitToScreen>
@@ -111,7 +111,7 @@ function MatrixSlide() {
           Composantes de l'outil AFOM
         </div>
 
-        {/* Étiquettes Interne / Externe */}
+        {/* Interne / Externe */}
         <div className="absolute top-[70px] left-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Interne
@@ -123,7 +123,7 @@ function MatrixSlide() {
           </div>
         </div>
 
-        {/* Étiquettes vision rétrospective / vision prospective (texte complet) */}
+        {/* vision rétrospective / vision prospective */}
         <div className="absolute top-[110px] left-[200px]">
           <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
             vision rétrospective
@@ -139,12 +139,11 @@ function MatrixSlide() {
         <div className="absolute left-1/2 -translate-x-1/2 top-[98px]">
           <Pill sign="+" />
         </div>
-        <div className="absolute left-1/2 -translate-x-1/2 top={[738] + 'px'} />
         <div className="absolute left-1/2 -translate-x-1/2 top-[738px]">
           <Pill sign="-" />
         </div>
 
-        {/* Label "Axe du jugement" */}
+        {/* Axe du jugement (vertical) */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[302px] -rotate-90 z-10">
           <div className="text-white font-black text-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du jugement
@@ -169,9 +168,9 @@ function MatrixSlide() {
           </div>
         </div>
 
-        {/* Grille 2×2 AFOM */}
+        {/* Grille 2×2 */}
         <div className="absolute left-[64px] right-[64px] top-[180px] bottom-[100px] grid grid-cols-2 grid-rows-2">
-          {/* A - Acquis (haut gauche) */}
+          {/* A - Acquis */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">A pour Acquis</div>
@@ -187,7 +186,7 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* O - Opportunités (haut droit) */}
+          {/* O - Opportunités */}
           <div className="relative border-[6px] border-[#004d40] bg-[#2ec4b6] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">O pour Opportunités</div>
@@ -203,7 +202,7 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* F - Faiblesses (bas gauche) */}
+          {/* F - Faiblesses */}
           <div className="relative border-[6px] border-[#b71c1c] bg-[#ef5350] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">F pour Faiblesses</div>
@@ -219,7 +218,7 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* M - Menaces (bas droit) */}
+          {/* M - Menaces */}
           <div className="relative border-[6px] border-[#e65100] bg-[#ff8a65] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">M pour Menaces</div>
@@ -240,12 +239,12 @@ function MatrixSlide() {
   );
 }
 
-/** ---- Composant principal ---------------------------------------------- */
+/* ---------------- Composant principal ---------------- */
+
 const PresentationMode: React.FC<Props> = ({
   onLaunchSession,
   initialSessionId,
 }) => {
-  // Session
   const [sessionId, setSessionId] = useState<string>(initialSessionId || "");
   useEffect(() => {
     if (initialSessionId) setSessionId(initialSessionId);
@@ -281,7 +280,6 @@ const PresentationMode: React.FC<Props> = ({
     )}`;
   }, [sessionId]);
 
-  /** Slides */
   const slides: Slide[] = useMemo(
     () => [
       {
@@ -458,7 +456,7 @@ const PresentationMode: React.FC<Props> = ({
     [participantUrl, sessionId, onLaunchSession]
   );
 
-  /** Navigation (bottom-centered) */
+  /* Navigation */
   const [index, setIndex] = useState(0);
   const clamp = useCallback(
     (i: number) => Math.max(0, Math.min(slides.length - 1, i)),
@@ -491,10 +489,9 @@ const PresentationMode: React.FC<Props> = ({
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
       <MetaBar meta={meta} />
-      {/* SLIDE */}
       {current.render()}
 
-      {/* NAVIGATION BAS */}
+      {/* Barre de nav bas */}
       <div className="fixed bottom-0 left-0 right-0 pb-4">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between bg-white/80 backdrop-blur-xl border rounded-2xl shadow-lg px-4 py-2">
