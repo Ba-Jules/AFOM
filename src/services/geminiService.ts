@@ -1,136 +1,122 @@
 // src/services/geminiService.ts
-import { GoogleGenAI, Type } from "@google/genai";
-import {
-  PostIt,
-  Insight,
-  Recommendation,
-  InsightSchema,
-  RecommendationSchema,
-} from "../types";
+import { GoogleGenerativeAI } from "@google/genai";
 
-// Exposé par Vite via secret GEMINI_API_KEY → VITE_GEMINI_API_KEY dans le workflow
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+/**
+ * Respect strict: responseMimeType = "application/json"
+ */
 
-if (!API_KEY) {
-  console.error(
-    "[Gemini] VITE_GEMINI_API_KEY manquante. Ajoute le secret GEMINI_API_KEY et exporte-le au build en VITE_GEMINI_API_KEY."
-  );
+type QuadrantKey = "acquis" | "faiblesses" | "opportunites" | "menaces";
+type Selection = Record<QuadrantKey, string[]>;
+
+export async function proposeMatrixSelection(lists: Selection): Promise<{ selection: Selection }> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+
+  // Fallback robuste si pas de clé : on renvoie les 4 premiers par quadrant
+  const fallback = {
+    selection: {
+      acquis: lists.acquis.slice(0, 4),
+      faiblesses: lists.faiblesses.slice(0, 4),
+      opportunites: lists.opportunites.slice(0, 4),
+      menaces: lists.menaces.slice(0, 4),
+    },
+  };
+
+  if (!apiKey) return fallback;
+
+  try {
+    const genai = new GoogleGenerativeAI(apiKey);
+    const model = genai.getGenerativeModel({
+      model: "gemini-1.5-pro",
+      generationConfig: { responseMimeType: "application/json" },
+    });
+
+    const prompt = [
+      "Tu es un expert AFOM (SWOT).",
+      "À partir des listes ci-dessous, choisis STRICTEMENT 4 étiquettes par quadrant (ou moins si indisponible).",
+      "Renvoie uniquement un JSON: { \"selection\": { \"acquis\":[], \"faiblesses\":[], \"opportunites\":[], \"menaces\":[] } }",
+      "",
+      `ACQUIS: ${JSON.stringify(lists.acquis)}`,
+      `FAIBLESSES: ${JSON.stringify(lists.faiblesses)}`,
+      `OPPORTUNITES: ${JSON.stringify(lists.opportunites)}`,
+      `MENACES: ${JSON.stringify(lists.menaces)}`,
+      "",
+      "Contraintes:",
+      "- Choisir dans les listes fournies uniquement (pas de nouveaux libellés).",
+      "- Critères: représentativité, impact stratégique, non-redondance, clarté.",
+    ].join("\n");
+
+    const result = await model.generateContent(prompt);
+    const text = result.response?.text?.();
+    if (!text) return fallback;
+
+    const cleaned = text.trim().replace(/^```json\s*|\s*```$/g, "");
+    const parsed = JSON.parse(cleaned);
+    const s = parsed?.selection;
+    if (!s) return fallback;
+
+    const ensureArray = (v: any) => Array.isArray(v) ? v.slice(0, 4).map(String) : [];
+    return {
+      selection: {
+        acquis: ensureArray(s.acquis),
+        faiblesses: ensureArray(s.faiblesses),
+        opportunites: ensureArray(s.opportunites),
+        menaces: ensureArray(s.menaces),
+      },
+    };
+  } catch (e) {
+    console.error("Gemini selection error:", e);
+    return fallback;
+  }
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+/** IA pour proposer des orientations stratégiques depuis la matrice */
+export async function proposeOrientations(args: {
+  acquis: string[];
+  faiblesses: string[];
+  opportunites: string[];
+  menaces: string[];
+  /** Liste de marks "r,c" sur la matrice (croisements cochés) */
+  marks: string[];
+}): Promise<{ orientations: string[] }> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+  if (!apiKey) return { orientations: [] }; // on laisse le front faire l'auto-fallback
 
-// On tente plusieurs modèles pour maximiser la compatibilité de compte
-const MODEL_CANDIDATES = [
-  "gemini-2.5-flash",
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-latest",
-];
+  try {
+    const genai = new GoogleGenerativeAI(apiKey);
+    const model = genai.getGenerativeModel({
+      model: "gemini-1.5-pro",
+      generationConfig: { responseMimeType: "application/json" },
+    });
 
-export async function getAIAnalysis(
-  postIts: PostIt[]
-): Promise<{ insights: Insight[]; recommendations: Recommendation[] }> {
-  if (!API_KEY) {
-    return {
-      insights: [
-        {
-          title: "Configuration manquante",
-          content:
-            "La clé VITE_GEMINI_API_KEY n’est pas injectée au build. Vérifie le secret GEMINI_API_KEY et le workflow.",
-        },
-      ],
-      recommendations: [],
-    };
+    const prompt = [
+      "Tu es un expert en stratégie utilisant une matrice AFOM (SWOT) et une matrice de confrontation.",
+      "Les sélections 4×4 par quadrant sont données ci-dessous, ainsi que la liste des croisements cochés (marks) sous forme d’indices (r,c).",
+      "Rédige 6 à 10 orientations stratégiques concises, chacune sur une ligne (impératif, concret).",
+      "Exemples de formulations:",
+      "- Capitaliser «A» pour saisir «O».",
+      "- Corriger «F» pour exploiter «O».",
+      "- Mobiliser «A» pour contrer «M».",
+      "- Réduire «F» pour se prémunir de «M».",
+      "Utiliser STRICTEMENT les libellés fournis, ne pas inventer de nouveaux termes.",
+      "Répondre UNIQUEMENT en JSON: { \"orientations\": string[] }",
+      "",
+      `ACQUIS: ${JSON.stringify(args.acquis)}`,
+      `FAIBLESSES: ${JSON.stringify(args.faiblesses)}`,
+      `OPPORTUNITES: ${JSON.stringify(args.opportunites)}`,
+      `MENACES: ${JSON.stringify(args.menaces)}`,
+      `MARKS (r,c): ${JSON.stringify(args.marks)}`,
+    ].join("\n");
+
+    const result = await model.generateContent(prompt);
+    const text = result.response?.text?.();
+    if (!text) return { orientations: [] };
+
+    const cleaned = text.trim().replace(/^```json\s*|\s*```$/g, "");
+    const parsed = JSON.parse(cleaned);
+    const arr = Array.isArray(parsed?.orientations) ? parsed.orientations.map(String) : [];
+    return { orientations: arr.slice(0, 12) };
+  } catch (e) {
+    console.error("Gemini orientations error:", e);
+    return { orientations: [] };
   }
-
-  // Evite de solliciter l’IA avec trop peu de matière
-  if (!Array.isArray(postIts) || postIts.length < 5) {
-    return { insights: [], recommendations: [] };
-  }
-
-  const formatted = postIts.map((p) => ({
-    quadrant: p.quadrant,
-    author: p.author,
-    content: p.content,
-  }));
-
-  const prompt = `
-Analyse AFOM (SWOT) issue d'un atelier collaboratif.
-Retourne STRICTEMENT 3 "insights" (title, content) et 3 "recommendations" (title, content, priority parmi URGENT/HIGH/MEDIUM/LOW).
-
-Données:
-${JSON.stringify(formatted, null, 2)}
-`.trim();
-
-  async function tryModel(model: string) {
-    try {
-      const res = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        // ✅ Avec @google/genai utilisé ici, la clé attendue est "config"
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            required: ["insights", "recommendations"],
-            properties: {
-              insights: {
-                type: Type.ARRAY,
-                items: InsightSchema,
-                description:
-                  "3 insights stratégiques (chaque item: {title, content}).",
-              },
-              recommendations: {
-                type: Type.ARRAY,
-                items: RecommendationSchema,
-                description:
-                  "3 recommandations actionnables (chaque item: {title, content, priority}).",
-              },
-            },
-          },
-          systemInstruction:
-            "Tu es un stratège d'entreprise. Donne des réponses concises et actionnables, exactement 3 insights et 3 recommandations.",
-          temperature: 0.4,
-          maxOutputTokens: 800,
-        },
-      });
-
-      const text = (res.text ?? "").trim();
-      const parsed = JSON.parse(text);
-
-      const insights: Insight[] = Array.isArray(parsed?.insights)
-        ? parsed.insights
-        : [];
-      const recommendations: Recommendation[] = Array.isArray(
-        parsed?.recommendations
-      )
-        ? parsed.recommendations
-        : [];
-
-      if (insights.length && recommendations.length) {
-        return { ok: true as const, insights, recommendations };
-      }
-      return { ok: false as const, error: "Réponse vide ou incomplète" };
-    } catch (err: any) {
-      const status = err?.status ?? err?.response?.status;
-      const body = err?.response?.data ?? err?.message ?? String(err);
-      console.error(`[Gemini] Échec sur ${model}`, { status, body });
-      return { ok: false as const, error: body };
-    }
-  }
-
-  for (const model of MODEL_CANDIDATES) {
-    const r = await tryModel(model);
-    if (r.ok) return { insights: r.insights, recommendations: r.recommendations };
-  }
-
-  return {
-    insights: [
-      {
-        title: "AI Analysis Error",
-        content:
-          "Impossible de générer l’analyse (clé/domaine/quota/modèle). Ouvre la console : les logs [Gemini] donnent le détail.",
-      },
-    ],
-    recommendations: [],
-  };
 }

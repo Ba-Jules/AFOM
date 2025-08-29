@@ -1,13 +1,17 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
   collection,
   doc as fsDoc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   where,
   writeBatch,
+  updateDoc,
+  setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import PostItComponent from "./PostIt";
@@ -19,7 +23,7 @@ interface QuadrantProps {
     subtitle: string;
     textColor: string;   // ex: "text-emerald-700"
     borderColor: string; // ex: "border-emerald-400"
-    bgColor: string;     // ex: "bg-emerald-50" (utilisé pour le fond du cadran)
+    bgColor: string;     // ex: "bg-emerald-50"
   };
   postIts: PostIt[];
   quadrantKey: QuadrantKey;
@@ -56,7 +60,7 @@ function computeTargetIndex(
   return positions.length;
 }
 
-/* ---------- Firestore ops ---------- */
+/* ---------- Firestore ops (réordonnancement) ---------- */
 async function reorderWithinSameQuadrant(postItId: string, targetIndex: number) {
   const curSnap = await getDoc(fsDoc(db, "postits", postItId));
   if (!curSnap.exists()) return;
@@ -161,7 +165,7 @@ async function moveOrReorder(
   }
 }
 
-/* ---------- helpers: création animateur ---------- */
+/* ---------- helpers session/contenu ---------- */
 function resolveBoardIdFromContext(postIts: PostIt[]): string | null {
   if (postIts.length > 0) return postIts[0].sessionId;
   const url = new URL(window.location.href);
@@ -226,6 +230,95 @@ const Quadrant: React.FC<QuadrantProps> = ({
     [postIts]
   );
 
+  /* ---------- Abonnement à la sélection Matrice (pour badges ⭐) ---------- */
+  const [matrixSelection, setMatrixSelection] = useState<Record<QuadrantKey, string[]>>({
+    acquis: [],
+    faiblesses: [],
+    opportunites: [],
+    menaces: [],
+  });
+
+  useEffect(() => {
+    const sid = resolveBoardIdFromContext(postIts);
+    if (!sid) return;
+    const ref = fsDoc(db, "confrontations", sid);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) {
+        setMatrixSelection({ acquis: [], faiblesses: [], opportunites: [], menaces: [] });
+        return;
+      }
+      const data = snap.data() as any;
+      const sel = data?.selection || {};
+      setMatrixSelection({
+        acquis: Array.isArray(sel.acquis) ? sel.acquis : [],
+        faiblesses: Array.isArray(sel.faiblesses) ? sel.faiblesses : [],
+        opportunites: Array.isArray(sel.opportunites) ? sel.opportunites : [],
+        menaces: Array.isArray(sel.menaces) ? sel.menaces : [],
+      });
+    });
+    return () => unsub();
+  }, [postIts]);
+
+  const isSelectedForMatrix = (c?: string | null) => {
+    if (!c) return false;
+    const arr = matrixSelection[quadrantKey] || [];
+    return arr.includes(c);
+  };
+
+  /* ---------- Toggle tag/détag via ⭐ ---------- */
+  async function toggleMatrixTag(label: string) {
+    const sid = resolveBoardIdFromContext(postIts);
+    if (!sid) {
+      alert("Session introuvable.");
+      return;
+    }
+    const ref = fsDoc(db, "confrontations", sid);
+    const snap = await getDoc(ref);
+
+    // structure sûre
+    const selection = {
+      acquis: [] as string[],
+      faiblesses: [] as string[],
+      opportunites: [] as string[],
+      menaces: [] as string[],
+      ...(snap.exists() ? (snap.data() as any).selection : {}),
+    };
+
+    const cur = Array.isArray(selection[quadrantKey]) ? [...selection[quadrantKey]] : [];
+
+    if (cur.includes(label)) {
+      // DÉTAG
+      const next = cur.filter((x) => x !== label);
+      const nextSel = { ...selection, [quadrantKey]: next };
+      const payload = {
+        sessionId: sid,
+        selection: nextSel,
+        selectionSource: "manual",
+        updatedAt: serverTimestamp(),
+      };
+      if (snap.exists()) await updateDoc(ref, payload);
+      else await setDoc(ref, { marks: [], ...payload });
+      return;
+    } else {
+      // TAG — limite 4
+      if (cur.length >= 4) {
+        alert("Vous avez déjà 4 éléments sélectionnés dans ce quadrant.");
+        return;
+      }
+      const next = [...cur, label];
+      const nextSel = { ...selection, [quadrantKey]: next };
+      const payload = {
+        sessionId: sid,
+        selection: nextSel,
+        selectionSource: "manual",
+        updatedAt: serverTimestamp(),
+      };
+      if (snap.exists()) await updateDoc(ref, payload);
+      else await setDoc(ref, { marks: [], ...payload });
+      return;
+    }
+  }
+
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -285,7 +378,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
     await reorderByDelta(postItId, rowDelta * cols);
   };
 
-  /* ---------- HEADER (identique) ---------- */
+  /* ---------- HEADER ---------- */
   const Header = (
     <div className={`px-3 py-2 sticky top-[76px] bg-white/80 backdrop-blur-sm z-10 border-b ${info.borderColor} rounded-t-2xl flex items-center justify-between`}>
       <div className="flex items-baseline gap-3">
@@ -327,7 +420,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
       className={[
         "m-1 rounded-2xl border-2 shadow-[0_6px_30px_rgba(0,0,0,0.08)] transition-colors duration-200",
         info.borderColor,
-        info.bgColor,            // ← fond doux par quadrant
+        info.bgColor,
         isDragOver ? "ring-2 ring-indigo-300" : "",
       ].join(" ")}
     >
@@ -345,25 +438,42 @@ const Quadrant: React.FC<QuadrantProps> = ({
           </div>
         )}
 
-        {ordered.map((p) => (
-          <div
-            key={p.id}
-            data-note-id={p.id}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData("postItId", p.id);
-              e.dataTransfer.setData("postitId", p.id);
-              e.dataTransfer.setData("text/plain", p.id);
-              e.dataTransfer.effectAllowed = "move";
-            }}
-          >
-            <PostItComponent
-              data={p}
-              onMoveStep={(d) => reorderByDelta(p.id, d)}   // ← / →
-              onMoveRow={(r) => reorderByRows(p.id, r)}     // ↑ / ↓
-            />
-          </div>
-        ))}
+        {ordered.map((p) => {
+          const selected = isSelectedForMatrix(p.content);
+          return (
+            <div
+              key={p.id}
+              data-note-id={p.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("postItId", p.id);
+                e.dataTransfer.setData("postitId", p.id);
+                e.dataTransfer.setData("text/plain", p.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              className="relative"
+            >
+              {/* Bouton étoile (toggle tag/détag) */}
+              <button
+                onClick={() => p.content && toggleMatrixTag(p.content)}
+                className={`absolute -top-2 -right-2 z-10 inline-flex items-center justify-center w-7 h-7 rounded-full shadow ring-1 text-sm font-bold transition
+                  ${selected
+                    ? "bg-amber-300 text-amber-900 ring-amber-400 hover:bg-amber-400"
+                    : "bg-white text-gray-400 ring-gray-300 hover:bg-gray-50 hover:text-gray-600"}`}
+                title={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
+                aria-label={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
+              >
+                {selected ? "★" : "☆"}
+              </button>
+
+              <PostItComponent
+                data={p}
+                onMoveStep={(d) => reorderByDelta(p.id, d)}   // ← / →
+                onMoveRow={(r) => reorderByRows(p.id, r)}     // ↑ / ↓
+              />
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -396,25 +506,42 @@ const Quadrant: React.FC<QuadrantProps> = ({
         onDrop={handleDrop}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
       >
-        {ordered.map((p) => (
-          <div
-            key={p.id}
-            data-note-id={p.id}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData("postItId", p.id);
-              e.dataTransfer.setData("postitId", p.id);
-              e.dataTransfer.setData("text/plain", p.id);
-              e.dataTransfer.effectAllowed = "move";
-            }}
-          >
-            <PostItComponent
-              data={p}
-              onMoveStep={(d) => reorderByDelta(p.id, d)}
-              onMoveRow={(r) => reorderByRows(p.id, r)}
-            />
-          </div>
-        ))}
+        {ordered.map((p) => {
+          const selected = isSelectedForMatrix(p.content);
+          return (
+            <div
+              key={p.id}
+              data-note-id={p.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("postItId", p.id);
+                e.dataTransfer.setData("postitId", p.id);
+                e.dataTransfer.setData("text/plain", p.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              className="relative"
+            >
+              {/* Bouton étoile (toggle) */}
+              <button
+                onClick={() => p.content && toggleMatrixTag(p.content)}
+                className={`absolute -top-2 -right-2 z-10 inline-flex items-center justify-center w-7 h-7 rounded-full shadow ring-1 text-sm font-bold transition
+                  ${selected
+                    ? "bg-amber-300 text-amber-900 ring-amber-400 hover:bg-amber-400"
+                    : "bg-white text-gray-400 ring-gray-300 hover:bg-gray-50 hover:text-gray-600"}`}
+                title={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
+                aria-label={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
+              >
+                {selected ? "★" : "☆"}
+              </button>
+
+              <PostItComponent
+                data={p}
+                onMoveStep={(d) => reorderByDelta(p.id, d)}
+                onMoveRow={(r) => reorderByRows(p.id, r)}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -425,7 +552,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <h4 className="font-bold">Nouvelle étiquette — {info.title}</h4>
-        <button onClick={() => setShowAdd(false)} className="p-2 rounded hover:bg-gray-100" aria-label="Fermer">×</button>
+          <button onClick={() => setShowAdd(false)} className="p-2 rounded hover:bg-gray-100" aria-label="Fermer">×</button>
         </div>
 
         <div className="p-4 space-y-3">
