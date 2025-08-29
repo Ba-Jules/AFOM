@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   collection,
   query,
@@ -13,16 +13,15 @@ import {
 import { db } from "../services/firebase";
 import { PostIt, QuadrantKey } from "../types";
 
-/** Couleurs figées par quadrant d’ORIGINE
- *  - Premier (Acquis / Faiblesses) = plus clair
- *  - Second (Opportunités / Menaces) = plus foncé
- */
+/** Couleurs figées par quadrant d’ORIGINE */
 const ORIGIN_BG: Record<QuadrantKey, string> = {
   acquis:       "bg-green-100  border-green-500",
   opportunites: "bg-emerald-200 border-emerald-700",
   faiblesses:   "bg-red-100    border-red-500",
   menaces:      "bg-red-200    border-red-700",
 };
+
+const MAX_LEN = 50;
 
 // Fallback si aucun handler de réordonnancement fourni
 async function bumpOrder(postItId: string, delta: number) {
@@ -94,9 +93,11 @@ const PostItComponent: React.FC<PostItProps> = ({ data, onMoveStep, onMoveRow })
     setIsEditing(true);
   };
 
+  const charsLeft = useMemo(() => Math.max(0, MAX_LEN - (content?.length || 0)), [content]);
+
   const onEditSave = async () => {
     const a = author.trim() || "Anonyme";
-    const c = content.trim();
+    const c = (content || "").trim().slice(0, MAX_LEN);
     if (!c) { alert("Le contenu ne peut pas être vide."); return; }
     try {
       await updateDoc(fsDoc(db, "postits", data.id), { author: a, content: c });
@@ -113,7 +114,7 @@ const PostItComponent: React.FC<PostItProps> = ({ data, onMoveStep, onMoveRow })
         className={`group relative overflow-visible rounded-lg p-3 md:p-3.5 shadow-sm border ${color} select-none`}
         title={`Origine: ${origin}`}
       >
-        {/* Mini chevrons edge (ils ne chevauchent plus le contenu) */}
+        {/* Mini chevrons edge */}
         <button
           className="absolute -left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/95 border text-gray-700 shadow-sm opacity-0 group-hover:opacity-100 hover:bg-gray-100"
           title="Gauche (←)"
@@ -143,30 +144,33 @@ const PostItComponent: React.FC<PostItProps> = ({ data, onMoveStep, onMoveRow })
           ▼
         </button>
 
-        {/* Actions visibles : éditer / supprimer (bas droite), plus petites */}
-        <div className="absolute right-1 bottom-1 flex gap-1 z-10">
-          <button
-            title="Éditer"
-            onClick={onEditOpen}
-            className="w-6 h-6 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-[12px]"
-            aria-label="Éditer"
-          >
-            ✎
-          </button>
-          <button
-            title="Supprimer"
-            onClick={onDelete}
-            className="w-6 h-6 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-[12px]"
-            aria-label="Supprimer"
-          >
-            🗑
-          </button>
-        </div>
+        {/* Conteneur homogène (mobile) */}
+        <div className="min-h-[84px] sm:min-h-[92px] md:min-h-[100px] flex flex-col">
+          {/* Actions visibles : éditer / supprimer */}
+          <div className="absolute right-1 bottom-1 flex gap-1 z-10">
+            <button
+              title="Éditer"
+              onClick={onEditOpen}
+              className="w-6 h-6 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-[12px]"
+              aria-label="Éditer"
+            >
+              ✎
+            </button>
+            <button
+              title="Supprimer"
+              onClick={onDelete}
+              className="w-6 h-6 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 text-[12px]"
+              aria-label="Supprimer"
+            >
+              🗑
+            </button>
+          </div>
 
-        {/* Contenu */}
-        <div className="text-sm text-gray-600 mb-1">par {data.author}</div>
-        <div className="text-[15px] sm:text-base md:text-lg leading-snug font-semibold tracking-[0.005em] whitespace-pre-wrap">
-          {data.content}
+          {/* Contenu */}
+          <div className="text-[12px] text-gray-600 mb-1">par {data.author}</div>
+          <div className="text-[15px] sm:text-base md:text-lg leading-snug font-semibold tracking-[0.005em] whitespace-pre-wrap break-words">
+            {data.content}
+          </div>
         </div>
       </div>
 
@@ -197,13 +201,19 @@ const PostItComponent: React.FC<PostItProps> = ({ data, onMoveStep, onMoveRow })
                 />
               </div>
               <div>
-                <label className="text-sm font-semibold text-gray-600">Contenu</label>
+                <label className="text-sm font-semibold text-gray-600">
+                  Contenu <span className="text-gray-400">(max {MAX_LEN} caractères)</span>
+                </label>
                 <textarea
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={(e) => setContent(e.target.value.slice(0, MAX_LEN))}
+                  maxLength={MAX_LEN}
                   className="mt-1 w-full rounded-lg border px-3 py-2 h-32 resize-y outline-none focus:ring-2 focus:ring-indigo-400"
                   placeholder="Saisir l'idée…"
                 />
+                <div className={`mt-1 text-xs ${charsLeft === 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                  {MAX_LEN - (content?.length || 0)}/{MAX_LEN} caractères utilisés
+                </div>
               </div>
             </div>
 
