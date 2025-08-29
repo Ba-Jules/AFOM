@@ -11,7 +11,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { PostIt } from "../types";
+import { PostIt, QuadrantKey } from "../types";
 import { proposeMatrixSelection, proposeOrientations } from "../services/geminiService";
 
 type Cell = boolean;
@@ -90,7 +90,7 @@ export default function MatrixMode({ sessionId }: Props) {
     return () => unsub();
   }, [sessionId]);
 
-  // 2) Listes par quadrant
+  // 2) Listes par quadrant (libellés)
   const allLists = useMemo(() => {
     const A = uniqKeepOrder(postIts.filter(p => p.quadrant === "acquis").map(p => p.content || "").filter(Boolean));
     const F = uniqKeepOrder(postIts.filter(p => p.quadrant === "faiblesses").map(p => p.content || "").filter(Boolean));
@@ -99,7 +99,7 @@ export default function MatrixMode({ sessionId }: Props) {
     return { A, F, O, M };
   }, [postIts]);
 
-  // 3) Sélection 4×4
+  // 3) Sélection 4×4 (stockée en libellés)
   const [Acols, setAcols] = useState<string[]>([]);
   const [Fcols, setFcols] = useState<string[]>([]);
   const [Orows, setOrows] = useState<string[]>([]);
@@ -254,24 +254,27 @@ export default function MatrixMode({ sessionId }: Props) {
     setCells(empty);
     saveMatrix(currentSelection, empty, selectionSource);
   }
+
+  /** IA sélection (on garde la logique, on n'affecte que l'UI) */
   async function proposeIASelection() {
     if (iaLoading) return;
     setIaLoading(true);
     try {
-      const iaSel = await proposeMatrixSelection({
-        acquis: allLists.A,
-        faiblesses: allLists.F,
-        opportunites: allLists.O,
-        menaces: allLists.M,
-      });
+      const iaSel = await proposeMatrixSelection(postIts, { perQuadrant: 4 });
+      const byId: Record<string, string> = {};
+      for (const p of postIts) byId[p.id] = p.content || "";
+
+      const mapIdsToLabels = (ids: string[] | undefined, fallback: string[]) => {
+        const labels = (ids || []).map((id) => byId[id]).filter(Boolean);
+        return (labels.length ? labels : fallback).slice(0, 4);
+        };
       const nextSel: Selection = {
-        acquis: (iaSel.selection?.acquis ?? pickFirst4(allLists.A)).slice(0, 4),
-        faiblesses: (iaSel.selection?.faiblesses ?? pickFirst4(allLists.F)).slice(0, 4),
-        opportunites: (iaSel.selection?.opportunites ?? pickFirst4(allLists.O)).slice(0, 4),
-        menaces: (iaSel.selection?.menaces ?? pickFirst4(allLists.M)).slice(0, 4),
+        acquis: mapIdsToLabels(iaSel.selection?.acquis, pickFirst4(allLists.A)),
+        faiblesses: mapIdsToLabels(iaSel.selection?.faiblesses, pickFirst4(allLists.F)),
+        opportunites: mapIdsToLabels(iaSel.selection?.opportunites, pickFirst4(allLists.O)),
+        menaces: mapIdsToLabels(iaSel.selection?.menaces, pickFirst4(allLists.M)),
       };
 
-      // Remap cases existantes
       const prevRows = [...Orows, ...Mrows];
       const prevCols = [...Acols, ...Fcols];
       const newRows = [...nextSel.opportunites, ...nextSel.menaces];
@@ -538,16 +541,32 @@ export default function MatrixMode({ sessionId }: Props) {
         </div>
       </div>
 
+      {/* Légende axe du temps, style slide 2 : rétro (A/F) à gauche, prospectif (O/M) à droite */}
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <div className="rounded-lg border bg-green-50 border-green-200 px-3 py-2">
+          <div className="text-xs font-bold text-green-800">Vision rétrospective (Passé)</div>
+          <div className="text-[11px] text-green-700">Acquis & Faiblesses</div>
+        </div>
+        <div className="rounded-lg border bg-amber-50 border-amber-200 px-3 py-2 text-right">
+          <div className="text-xs font-bold text-amber-800">Vision prospective (Futur)</div>
+          <div className="text-[11px] text-amber-700">Opportunités & Menaces</div>
+        </div>
+      </div>
+
       {/* Tableau */}
       <div className="overflow-auto rounded-xl border bg-white shadow print-card">
         <table className="min-w-[980px] w-full border-collapse">
           <thead>
+            {/* Bandeau rétrospective au-dessus des colonnes A+F */}
             <tr>
-              <th className="w-60"></th>
-              <th colSpan={Acols.length} className="bg-green-100 border p-2 text-left font-black">Acquis</th>
-              <th colSpan={Fcols.length} className="bg-red-100 border p-2 text-left font-black">Faiblesses</th>
-              <th className="bg-gray-50 border p-2 text-left font-black">Total</th>
+              <th className="w-60 bg-white border"></th>
+              <th colSpan={Acols.length + Fcols.length} className="bg-gradient-to-r from-green-100 via-green-50 to-red-100 border p-2 text-center font-black text-gray-700">
+                Vision rétrospective (Passé) — Acquis & Faiblesses
+              </th>
+              <th className="bg-white border p-2 text-left font-black">Total</th>
             </tr>
+
+            {/* Rangée d'en-tête classique : A | F */}
             <tr>
               <th className="bg-yellow-50 border p-2 text-left font-bold">Opportunités</th>
               {Acols.map((t, i) => <th key={"A"+i} className="bg-green-50 border p-2 text-sm">{t}</th>)}
@@ -557,6 +576,13 @@ export default function MatrixMode({ sessionId }: Props) {
           </thead>
 
           <tbody>
+            {/* Bandeau prospectif au-dessus des lignes O+M */}
+            <tr>
+              <td colSpan={colCount + 2} className="bg-gradient-to-r from-amber-50 via-amber-50 to-amber-100 border-t p-2 text-right font-bold text-amber-800">
+                Vision prospective (Futur) — Opportunités & Menaces
+              </td>
+            </tr>
+
             {Orows.map((label, r) => (
               <tr key={"O"+r}>
                 <td className="border p-2 align-top text-sm">{label}</td>
