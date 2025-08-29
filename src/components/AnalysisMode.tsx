@@ -1,8 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { PostIt, AnalysisData, Contributor, Insight, Recommendation, AnalysisMetrics, QuadrantAnalysis, QuadrantKey } from '../types';
+import {
+  PostIt,
+  AnalysisData,
+  Contributor,
+  Insight,
+  Recommendation,
+  AnalysisMetrics,
+  QuadrantAnalysis,
+  QuadrantKey,
+} from '../types';
 import { getAIAnalysis } from '../services/geminiService';
-import * as geminiAny from '../services/geminiService'; // pour appeler proposeCentralProblem si dispo
-import { BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import * as geminiAny from '../services/geminiService';
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 import { QUADRANT_INFO, PRIORITY_STYLES } from '../constants';
 import { doc as fsDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -25,14 +45,14 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   // ---- Session / navigation ----
   const sessionId = useMemo(() => {
     const qs = new URLSearchParams(window.location.search);
-    return qs.get("session") || localStorage.getItem("sessionId") || "";
+    return qs.get('session') || localStorage.getItem('sessionId') || '';
   }, []);
   const goBack = () => {
     const { origin, pathname } = window.location;
     window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}`;
   };
 
-  // ---- Central Problem (Firestore) ----
+  // ---- Problème central (Firestore) ----
   const [central, setCentral] = useState<CentralProblem>({ text: '', source: 'manual' });
   const [savingCentral, setSavingCentral] = useState(false);
   const [aiRunningCentral, setAiRunningCentral] = useState<'full' | 'fm' | null>(null);
@@ -50,7 +70,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
               text: d.centralProblem.text || '',
               source: d.centralProblem.source || 'manual',
               rationale: d.centralProblem.rationale || '',
-              updatedAt: d.centralProblem.updatedAt
+              updatedAt: d.centralProblem.updatedAt,
             });
           }
         }
@@ -79,23 +99,25 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
 
   const askAIForCentral = async (mode: 'full' | 'fm') => {
     if (!postIts.length) {
-      alert("Pas de données AFOM.");
+      alert('Pas de données AFOM.');
       return;
     }
     try {
       setAiRunningCentral(mode);
-      // Appel indirect : si la fonction n'existe pas encore dans geminiService, on capture proprement.
       const fn = (geminiAny as any).proposeCentralProblem;
       if (typeof fn !== 'function') {
-        alert("La génération IA n'est pas disponible dans ce build. (proposeCentralProblem manquant)");
+        alert("La génération IA n'est pas disponible dans ce build.");
         return;
       }
-      const input = mode === 'full' ? postIts : postIts.filter(p => p.quadrant === 'faiblesses' || p.quadrant === 'menaces');
+      const input =
+        mode === 'full'
+          ? postIts
+          : postIts.filter((p) => p.quadrant === 'faiblesses' || p.quadrant === 'menaces');
       const result = await fn(input, { mode });
       const next: CentralProblem = {
         text: (result?.problem || result?.text || '').slice(0, 400),
         rationale: result?.rationale || '',
-        source: mode === 'full' ? 'ai_full' : 'ai_fm'
+        source: mode === 'full' ? 'ai_full' : 'ai_fm',
       };
       if (!next.text) {
         alert("L'IA n'a pas renvoyé de problème central exploitable.");
@@ -104,7 +126,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       await saveCentral(next);
     } catch (e) {
       console.error(e);
-      alert("Échec de la génération IA du problème central.");
+      alert('Échec de la génération IA du problème central.');
     } finally {
       setAiRunningCentral(null);
     }
@@ -128,7 +150,8 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     const lines: string[] = [];
 
     lines.push('Section,Sous-section,Clé,Valeur');
-    // Central Problem
+
+    // Problème central
     lines.push(`Problème central,,Texte,${esc(central.text || '')}`);
     lines.push(`Problème central,,Source,${esc(central.source || '')}`);
 
@@ -139,22 +162,22 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     lines.push(`Métriques,,Engagement,${d.metrics.engagementScore}`);
 
     // Quadrants
-    (Object.keys(d.quadrants) as QuadrantKey[]).forEach(k => {
+    (Object.keys(d.quadrants) as QuadrantKey[]).forEach((k) => {
       const q = d.quadrants[k];
       lines.push(`Quadrants,${k},Count,${q.count}`);
       lines.push(`Quadrants,${k},WordCount,${q.wordCount}`);
     });
 
     // Timeline
-    d.timeline.forEach(t => {
+    d.timeline.forEach((t) => {
       lines.push(`Timeline,${t.time},acquis,${(t as any).acquis}`);
       lines.push(`Timeline,${t.time},faiblesses,${(t as any).faiblesses}`);
       lines.push(`Timeline,${t.time},opportunites,${(t as any).opportunites}`);
       lines.push(`Timeline,${t.time},menaces,${(t as any).menaces}`);
     });
 
-    // Contributors
-    d.contributors.forEach(c => {
+    // Contributeurs
+    d.contributors.forEach((c) => {
       lines.push(`Contributeurs,${esc(c.name)},Count,${c.count}`);
       lines.push(`Contributeurs,${esc(c.name)},TotalWords,${c.totalWords}`);
     });
@@ -165,7 +188,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       lines.push(`Insights,${idx + 1},Contenu,${esc(i.content)}`);
     });
 
-    // Recommendations
+    // Recommandations
     d.recommendations.forEach((r, idx) => {
       lines.push(`Recommandations,${idx + 1},Titre,${esc(r.title)}`);
       lines.push(`Recommandations,${idx + 1},Contenu,${esc(r.content)}`);
@@ -181,22 +204,30 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   };
   const exportJSON = () => {
     if (!analysisData) return;
-    const json = JSON.stringify({ sessionId, centralProblem: central, analysis: analysisData }, null, 2);
+    const json = JSON.stringify(
+      { sessionId, centralProblem: central, analysis: analysisData },
+      null,
+      2
+    );
     download(`analysis_${sessionId || 'session'}.json`, 'application/json', json);
   };
   const exportPDF = () => window.print();
 
   // ---- Traitement des données de base ----
-  const processData = (rawData: PostIt[]): Omit<AnalysisData, 'insights' | 'recommendations'> => {
+  const processData = (
+    rawData: PostIt[]
+  ): Omit<AnalysisData, 'insights' | 'recommendations'> => {
     const metrics: AnalysisMetrics = {
       totalContributions: rawData.length,
-      uniqueParticipants: new Set(rawData.map(p => p.author)).size,
+      uniqueParticipants: new Set(rawData.map((p) => p.author)).size,
       sessionDuration: 0,
       engagementScore: 0,
     };
 
     if (rawData.length > 0) {
-      const timestamps = rawData.filter(p => p.timestamp).map(p => (p.timestamp as any).seconds * 1000);
+      const timestamps = rawData
+        .filter((p) => p.timestamp)
+        .map((p) => (p.timestamp as any).seconds * 1000);
       if (timestamps.length > 0) {
         const minTs = Math.min(...timestamps);
         const maxTs = Math.max(...timestamps);
@@ -205,13 +236,16 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     }
 
     metrics.engagementScore = Math.round(
-      (metrics.totalContributions * 0.3 + metrics.uniqueParticipants * 0.4 + Math.min(metrics.sessionDuration, 120) * 0.3) * 0.83
+      (metrics.totalContributions * 0.3 +
+        metrics.uniqueParticipants * 0.4 +
+        Math.min(metrics.sessionDuration, 120) * 0.3) *
+        0.83
     );
 
     const quadrantKeys: QuadrantKey[] = ['acquis', 'faiblesses', 'opportunites', 'menaces'];
     const quadrants: Record<QuadrantKey, QuadrantAnalysis> = {} as any;
-    quadrantKeys.forEach(key => {
-      const items = rawData.filter(p => p.quadrant === key);
+    quadrantKeys.forEach((key) => {
+      const items = rawData.filter((p) => p.quadrant === key);
       quadrants[key] = {
         count: items.length,
         wordCount: items.reduce((sum, item) => sum + item.content.split(' ').length, 0),
@@ -219,24 +253,42 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     });
 
     const contributorMap: Record<string, Contributor> = {};
-    rawData.forEach(p => {
+    rawData.forEach((p) => {
       if (!contributorMap[p.author]) {
         contributorMap[p.author] = { name: p.author, count: 0, totalWords: 0 };
       }
       contributorMap[p.author].count++;
       contributorMap[p.author].totalWords += p.content.split(' ').length;
     });
-    const contributors = Object.values(contributorMap).sort((a, b) => b.count - a.count).slice(0, 5);
+    const contributors = Object.values(contributorMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
 
-    const timelineMap: Record<string, { time: string; acquis: number; faiblesses: number; opportunites: number; menaces: number }> = {};
-    rawData.filter(p => p.timestamp).forEach(p => {
-      const date = (p.timestamp as any).toDate ? (p.timestamp as any).toDate() : new Date((p.timestamp as any).seconds * 1000);
-      const timeKey = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      if (!timelineMap[timeKey]) {
-        timelineMap[timeKey] = { time: timeKey, acquis: 0, faiblesses: 0, opportunites: 0, menaces: 0 };
-      }
-      (timelineMap[timeKey] as any)[p.quadrant]++;
-    });
+    const timelineMap: Record<
+      string,
+      { time: string; acquis: number; faiblesses: number; opportunites: number; menaces: number }
+    > = {};
+    rawData
+      .filter((p) => p.timestamp)
+      .forEach((p) => {
+        const date = (p.timestamp as any).toDate
+          ? (p.timestamp as any).toDate()
+          : new Date((p.timestamp as any).seconds * 1000);
+        const timeKey = date.toLocaleTimeString('fr-FR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        if (!timelineMap[timeKey]) {
+          timelineMap[timeKey] = {
+            time: timeKey,
+            acquis: 0,
+            faiblesses: 0,
+            opportunites: 0,
+            menaces: 0,
+          };
+        }
+        (timelineMap[timeKey] as any)[p.quadrant]++;
+      });
     const timeline = Object.values(timelineMap);
 
     return { metrics, quadrants, contributors, timeline };
@@ -250,7 +302,8 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       setLoadingAI(true);
       const timer = setTimeout(() => {
         getAIAnalysis(postIts).then(({ insights, recommendations }) => {
-          setAnalysisData(prev => prev ? { ...prev, insights, recommendations } : null);
+          // ✅ Correction : pas de typage explicite sur `prev` (il est AnalysisData | null)
+          setAnalysisData((prev) => (prev ? { ...prev, insights, recommendations } : prev));
           setLoadingAI(false);
         });
       }, 500);
@@ -276,12 +329,19 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
         <PrintStyles />
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
           <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
-            <button onClick={goBack} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
+            <button
+              onClick={goBack}
+              className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+            >
+              ← Retour
+            </button>
             <div className="text-sm font-semibold text-gray-600">Analyse</div>
             <div />
           </div>
         </header>
-        <div className="p-8 text-center text-gray-500">Commencez à ajouter des post-its pour voir l'analyse.</div>
+        <div className="p-8 text-center text-gray-500">
+          Commencez à ajouter des post-its pour voir l'analyse.
+        </div>
       </div>
     );
   }
@@ -293,13 +353,33 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <button onClick={goBack} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
+            <button
+              onClick={goBack}
+              className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+            >
+              ← Retour
+            </button>
             <div className="text-sm font-semibold text-gray-600">Analyse</div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={exportCSV} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">Exporter CSV</button>
-            <button onClick={exportJSON} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">Exporter JSON</button>
-            <button onClick={exportPDF} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Exporter PDF</button>
+            <button
+              onClick={exportCSV}
+              className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+            >
+              Exporter CSV
+            </button>
+            <button
+              onClick={exportJSON}
+              className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+            >
+              Exporter JSON
+            </button>
+            <button
+              onClick={exportPDF}
+              className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              Exporter PDF
+            </button>
           </div>
         </div>
       </header>
@@ -362,8 +442,18 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
           <ChartCard title="Répartition AFOM">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                  {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={(entry as any).color} />)}
+                <Pie
+                  data={doughnutData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label
+                >
+                  {doughnutData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={(entry as any).color} />
+                  ))}
                 </Pie>
                 <Tooltip />
                 <Legend />
@@ -387,8 +477,12 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
         </div>
 
         <div className="grid lg:grid-cols-5 gap-8">
-          <div className="lg:col-span-3"><InsightsList insights={analysisData.insights} loading={loadingAI} /></div>
-          <div className="lg:col-span-2"><ContributorsList contributors={analysisData.contributors} /></div>
+          <div className="lg:col-span-3">
+            <InsightsList insights={analysisData.insights} loading={loadingAI} />
+          </div>
+          <div className="lg:col-span-2">
+            <ContributorsList contributors={analysisData.contributors} />
+          </div>
         </div>
 
         <RecommendationsList recommendations={analysisData.recommendations} loading={loadingAI} />
@@ -408,7 +502,7 @@ const PrintStyles: React.FC = () => (
   `}</style>
 );
 
-const MetricGrid: React.FC<{metrics: AnalysisMetrics}> = ({metrics}) => (
+const MetricGrid: React.FC<{ metrics: AnalysisMetrics }> = ({ metrics }) => (
   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
     <MetricCard label="Contributions" value={metrics.totalContributions} />
     <MetricCard label="Participants" value={metrics.uniqueParticipants} />
@@ -424,18 +518,27 @@ const MetricCard: React.FC<{ label: string; value: number }> = ({ label, value }
   </div>
 );
 
-const ChartCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+const ChartCard: React.FC<{ title: string; children: React.ReactNode }> = ({
+  title,
+  children,
+}) => (
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
     <h3 className="text-lg font-black text-gray-700 mb-4">{title}</h3>
     {children}
   </div>
 );
 
-const InsightsList: React.FC<{ insights: Insight[], loading: boolean }> = ({ insights, loading }) => (
+const InsightsList: React.FC<{ insights: Insight[]; loading: boolean }> = ({
+  insights,
+  loading,
+}) => (
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-full">
     <h3 className="text-lg font-black text-gray-700 mb-4">🧠 Insights Stratégiques (IA)</h3>
-    {loading ? <div className="text-center p-4">Analyse par IA en cours...</div> : 
-      !insights.length ? <div className="text-center p-4 text-gray-500">Pas assez de données pour l'analyse IA.</div> :
+    {loading ? (
+      <div className="text-center p-4">Analyse par IA en cours...</div>
+    ) : !insights.length ? (
+      <div className="text-center p-4 text-gray-500">Pas assez de données pour l'analyse IA.</div>
+    ) : (
       <div className="space-y-4">
         {insights.map((insight, i) => (
           <div key={i} className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
@@ -443,29 +546,48 @@ const InsightsList: React.FC<{ insights: Insight[], loading: boolean }> = ({ ins
             <p className="text-sm text-blue-700">{insight.content}</p>
           </div>
         ))}
-      </div>}
+      </div>
+    )}
   </div>
 );
 
-const RecommendationsList: React.FC<{ recommendations: Recommendation[], loading: boolean }> = ({ recommendations, loading }) => (
+const RecommendationsList: React.FC<{
+  recommendations: Recommendation[];
+  loading: boolean;
+}> = ({ recommendations, loading }) => (
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
     <h3 className="text-lg font-black text-gray-700 mb-4">🎯 Recommandations Stratégiques (IA)</h3>
-    {loading ? <div className="text-center p-4">Génération des recommandations par IA...</div> : 
-      !recommendations.length ? <div className="text-center p-4 text-gray-500">Pas assez de données pour les recommandations IA.</div> :
+    {loading ? (
+      <div className="text-center p-4">Génération des recommandations par IA...</div>
+    ) : !recommendations.length ? (
+      <div className="text-center p-4 text-gray-500">Pas assez de données pour les recommandations IA.</div>
+    ) : (
       <div className="space-y-4">
         {recommendations.map((rec, i) => {
-          const styles = (PRIORITY_STYLES as any)[rec.priority] || { bg: 'bg-gray-100', color: 'text-gray-800', icon: '💡', borderColor: 'border-gray-500' };
+          const styles =
+            (PRIORITY_STYLES as any)[rec.priority] || {
+              bg: 'bg-gray-100',
+              color: 'text-gray-800',
+              icon: '💡',
+              borderColor: 'border-gray-500',
+            };
           return (
-            <div key={i} className={`p-4 rounded-lg border-l-4 ${styles.bg} ${styles.borderColor}`}>
+            <div
+              key={i}
+              className={`p-4 rounded-lg border-l-4 ${styles.bg} ${styles.borderColor}`}
+            >
               <h4 className={`font-bold ${styles.color}`}>
                 {styles.icon} {rec.title}
-                <span className={`ml-2 text-xs font-bold px-2 py-0.5 rounded-full ${styles.bg}`}>{rec.priority}</span>
+                <span className={`ml-2 text-xs font-bold px-2 py-0.5 rounded-full ${styles.bg}`}>
+                  {rec.priority}
+                </span>
               </h4>
               <p className="text-sm text-gray-700">{rec.content}</p>
             </div>
           );
         })}
-      </div>}
+      </div>
+    )}
   </div>
 );
 
@@ -478,7 +600,9 @@ const ContributorsList: React.FC<{ contributors: Contributor[] }> = ({ contribut
         {contributors.map((c, i) => (
           <div key={i} className="bg-white/20 p-3 rounded-lg flex justify-between items-center">
             <div>
-              <div className="font-bold">{medals[i]} {c.name}</div>
+              <div className="font-bold">
+                {medals[i]} {c.name}
+              </div>
               <div className="text-xs opacity-80">{c.totalWords} mots</div>
             </div>
             <div className="text-lg font-black">{c.count}</div>
