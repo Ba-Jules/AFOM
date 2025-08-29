@@ -220,8 +220,23 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
 
       setLoadingAI(true);
       const timer = setTimeout(() => {
-        getAIAnalysis(postIts).then(({ insights, recommendations }) => {
-          // ✅ AUCUN typage de `prev` — et retour explicitement AnalysisData | null
+        getAIAnalysis(postIts).then((res) => {
+          // 🛠 Normalisation stricte vers nos types locaux pour éviter le conflit de modules
+          const insights: Insight[] = Array.isArray((res as any)?.insights)
+            ? (res as any).insights.map((i: any) => ({
+                title: String(i.title ?? ''),
+                content: String(i.content ?? ''),
+              })) as Insight[]
+            : [];
+          const recommendations: Recommendation[] = Array.isArray((res as any)?.recommendations)
+            ? (res as any).recommendations.map((r: any) => ({
+                title: String(r.title ?? ''),
+                content: String(r.content ?? ''),
+                // on garde la valeur si connue sinon "moyenne" par défaut
+                priority: (r.priority as any) ?? 'moyenne',
+              })) as Recommendation[]
+            : [];
+
           setAnalysisData((prev) => {
             if (!prev) return prev; // null
             const updated: AnalysisData = { ...prev, insights, recommendations };
@@ -320,8 +335,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
                 <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                   {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={(entry as any).color} />)}
                 </Pie>
-                <Tooltip />
-                <Legend />
+                <Tooltip /><Legend />
               </PieChart>
             </ResponsiveContainer>
           </ChartCard>
