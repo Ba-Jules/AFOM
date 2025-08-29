@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import { QRCodeCanvas } from "qrcode.react";
-import { doc as fsDoc, getDoc } from "firebase/firestore";
+import { doc as fsDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { BoardMeta } from "../types";
 
@@ -17,7 +17,7 @@ interface Props {
   initialSessionId: string;
 }
 
-/* ---------------- UI helpers ---------------- */
+/* ---------------- Helpers UI ---------------- */
 
 function Dot({ active }: { active: boolean }) {
   return (
@@ -32,22 +32,6 @@ function Dot({ active }: { active: boolean }) {
 
 const BASE_W = 1280;
 const BASE_H = 820;
-
-/** Bandeau Projet/Thème (lecture seule) */
-function MetaBar({ meta }: { meta: BoardMeta | null }) {
-  if (!meta?.projectName && !meta?.themeName) return null;
-  return (
-    <div className="fixed top-3 left-1/2 -translate-x-1/2 z-30">
-      <div className="px-4 py-2 rounded-lg bg-white/90 border shadow backdrop-blur text-sm md:text-base">
-        <span className="font-extrabold text-gray-900">Projet :</span>{" "}
-        <span className="font-semibold text-gray-800">{meta?.projectName || "—"}</span>
-        <span className="mx-3 text-gray-300">•</span>
-        <span className="font-extrabold text-gray-900">Thème :</span>{" "}
-        <span className="font-semibold text-gray-800">{meta?.themeName || "—"}</span>
-      </div>
-    </div>
-  );
-}
 
 /** Conteneur qui scale le contenu pour tenir dans l’écran */
 function FitToScreen({
@@ -253,18 +237,49 @@ const PresentationMode: React.FC<Props> = ({
     if (sessionId) localStorage.setItem("sessionId", sessionId);
   }, [sessionId]);
 
+  // Meta (Projet/Thème) — non affiché sur les slides, juste pour préremplir le formulaire
   const [meta, setMeta] = useState<BoardMeta | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [themeName, setThemeName] = useState("");
+
   useEffect(() => {
     (async () => {
       if (!sessionId) return;
       try {
         const snap = await getDoc(fsDoc(db, "boards", sessionId));
-        if (snap.exists()) setMeta(snap.data() as BoardMeta);
+        if (snap.exists()) {
+          const m = snap.data() as BoardMeta;
+          setMeta(m);
+          setProjectName(m.projectName || "");
+          setThemeName(m.themeName || "");
+        }
       } catch (e) {
         console.error(e);
       }
     })();
   }, [sessionId]);
+
+  const saveMeta = useCallback(async () => {
+    if (!sessionId) {
+      alert("Définis d’abord un ID de session (slide Lancement).");
+      return;
+    }
+    if (!projectName.trim() || !themeName.trim()) {
+      alert("Renseigne le Projet et le Thème.");
+      return;
+    }
+    try {
+      await setDoc(
+        fsDoc(db, "boards", sessionId),
+        { projectName: projectName.trim(), themeName: themeName.trim(), updatedAt: new Date() } as BoardMeta,
+        { merge: true }
+      );
+      alert("Projet & Thème enregistrés.");
+    } catch (e) {
+      console.error(e);
+      alert("Impossible d’enregistrer Projet/Thème.");
+    }
+  }, [sessionId, projectName, themeName]);
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
@@ -290,21 +305,58 @@ const PresentationMode: React.FC<Props> = ({
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900" />
               <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_20%_20%,#ffffff33_0,transparent_35%),radial-gradient(circle_at_80%_30%,#ffffff22_0,transparent_40%)]" />
               <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-8">
-                <div className="inline-flex px-5 py-2 rounded-full bg-amber-500 text-white font-black shadow-2xl mb-6">
-                  outil de diagnostic rapide pouvant conduire à des décisions éclairées
-                </div>
-                <h1 className="text-7xl font-black bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent leading-tight drop-shadow">
+                <h1 className="text-6xl md:text-7xl font-black bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent leading-tight drop-shadow">
                   AFOM
                 </h1>
-                <p className="mt-6 text-2xl text-white/90 max-w-3xl">
-                  L’outil qui transforme vos{" "}
-                  <span className="font-black">ateliers stratégiques</span> en{" "}
-                  <span className="font-black">décisions concrètes</span>.
+                <p className="mt-6 text-2xl text-white/90 max-w-3xl font-semibold">
+                  Outil de diagnostic rapide pouvant conduire à des décisions éclairées
                 </p>
-                <p className="text-white/80 mt-2">
-                  Acquis • Faiblesses • Opportunités • Menaces — Collaboration
-                  temps réel + IA intégrée
-                </p>
+
+                {/* Formulaire Projet / Thème */}
+                <div className="mt-10 w-full max-w-2xl bg-white/90 rounded-2xl border shadow p-4 text-left">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700">
+                        Projet
+                      </label>
+                      <input
+                        value={projectName}
+                        onChange={(e) => setProjectName(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                        placeholder="Ex : Transformation 2025"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700">
+                        Thème
+                      </label>
+                      <input
+                        value={themeName}
+                        onChange={(e) => setThemeName(e.target.value)}
+                        className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+                        placeholder="Ex : Offre digitale PME"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 mt-3">
+                    <button
+                      onClick={saveMeta}
+                      className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      Enregistrer
+                    </button>
+                    <button
+                      onClick={goModerator}
+                      className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50"
+                      title="Aller à l’interface modérateur"
+                    >
+                      Aller au modérateur →
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-1">
+                    ID de session actuel : <span className="font-mono">{sessionId || "—"}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </FitToScreen>
@@ -313,60 +365,6 @@ const PresentationMode: React.FC<Props> = ({
       {
         id: "framework",
         render: () => <MatrixSlide />,
-      },
-      {
-        id: "methodology",
-        render: () => (
-          <FitToScreen>
-            <div className="w-full h-full px-10 py-8">
-              <h2 className="text-5xl font-black text-gray-800 text-center mb-6">
-                Workflow <span className="text-purple-600">révolutionnaire</span>
-              </h2>
-              <div className="grid grid-cols-2 gap-10">
-                <div className="space-y-4">
-                  {[
-                    ["01", "Lancement Session", "Le modérateur partage le QR code"],
-                    ["02", "Connexion Participants", "Scan → interface mobile optimisée"],
-                    ["03", "Collecte Temps Réel", "Post-its synchronisés instantanément"],
-                    ["04", "Organisation Dynamique", "Drag & drop + hiérarchisation"],
-                    ["05", "Analyse IA", "Insights + recommandations actionnables"],
-                    ["06", "Export", "Rapport PDF + données Excel"],
-                  ].map(([step, title, desc]) => (
-                    <div key={step} className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black flex items-center justify-center shadow">
-                        {step}
-                      </div>
-                      <div>
-                        <div className="font-black text-gray-900">{title}</div>
-                        <div className="text-gray-600 text-sm">{desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-3">
-                  <div className="bg-white/60 rounded-xl p-4 border shadow-sm">
-                    <div className="font-black">🧠 IA Stratégique</div>
-                    <div className="text-sm text-gray-600">
-                      Détection des déséquilibres, insights prédictifs, recommandations.
-                    </div>
-                  </div>
-                  <div className="bg-white/60 rounded-xl p-4 border shadow-sm">
-                    <div className="font-black">⚡ Temps réel</div>
-                    <div className="text-sm text-gray-600">
-                      Firebase : modifications instantanées, participation globale.
-                    </div>
-                  </div>
-                  <div className="bg-white/60 rounded-xl p-4 border shadow-sm">
-                    <div className="font-black">📊 Analytics</div>
-                    <div className="text-sm text-gray-600">
-                      Métriques d’engagement, timeline, scores.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </FitToScreen>
-        ),
       },
       {
         id: "launch",
@@ -436,24 +434,13 @@ const PresentationMode: React.FC<Props> = ({
                     🔄 Nouveau ID
                   </button>
                 </div>
-
-                <div className="mt-4">
-                  <button
-                    onClick={() =>
-                      window.scrollTo({ top: 0, behavior: "smooth" })
-                    }
-                    className="w-full py-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50"
-                  >
-                    📖 Revoir formation (remonter en haut)
-                  </button>
-                </div>
               </div>
             </div>
           </FitToScreen>
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession]
+    [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName]
   );
 
   /* Navigation */
@@ -469,36 +456,37 @@ const PresentationMode: React.FC<Props> = ({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" || e.key === " ") {
         e.preventDefault();
-        next();
+        if (index < slides.length - 1) next();
       }
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        prev();
+        if (index > 0) prev();
       }
-      if (e.key === "Enter") {
+      if (e.key === "Enter" && index === slides.length - 1) {
         e.preventDefault();
         onLaunchSession(sessionId || "");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, prev, onLaunchSession, sessionId]);
+  }, [next, prev, onLaunchSession, sessionId, index, slides.length]);
 
   const current = slides[index];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <MetaBar meta={meta} />
       {current.render()}
 
-      {/* Barre de nav bas */}
+      {/* Barre de nav bas (conditions demandées) */}
       <div className="fixed bottom-0 left-0 right-0 pb-4">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between bg-white/80 backdrop-blur-xl border rounded-2xl shadow-lg px-4 py-2">
+            {/* Précédent : caché sur la première slide */}
             <button
               onClick={prev}
-              className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
+              className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50 disabled:opacity-40"
               disabled={index === 0}
+              style={{ visibility: index === 0 ? "hidden" : "visible" }}
             >
               ← Précédent
             </button>
@@ -510,17 +498,21 @@ const PresentationMode: React.FC<Props> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Retour modérateur : caché sur la première slide */}
               <button
                 onClick={goModerator}
                 className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
                 title="Retour à l’interface modérateur"
+                style={{ visibility: index === 0 ? "hidden" : "visible" }}
               >
                 ← Retour modérateur
               </button>
+              {/* Suivant : caché sur la dernière slide */}
               <button
                 onClick={next}
-                className="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                className="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
                 disabled={index === slides.length - 1}
+                style={{ visibility: index === slides.length - 1 ? "hidden" : "visible" }}
               >
                 Suivant →
               </button>

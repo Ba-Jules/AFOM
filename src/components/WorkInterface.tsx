@@ -1,4 +1,3 @@
-// src/components/WorkInterface.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   addDoc,
@@ -22,10 +21,7 @@ import QRCodeModal from "./QRCodeModal";
 import { PostIt, QuadrantKey, BoardMeta } from "../types";
 import { QUADRANTS } from "../constants";
 
-/* ------------------------------------------------------------------ */
-/* Palette attendue par <Quadrant info={...}>                          */
-/* -> évite l'erreur "textColor/borderColor/bgColor manquants"         */
-/* ------------------------------------------------------------------ */
+/* Palette minimale pour Quadrant */
 const PALETTE: Record<
   QuadrantKey,
   { textColor: string; borderColor: string; bgColor: string }
@@ -52,35 +48,25 @@ const PALETTE: Record<
   },
 };
 
-/* ------------------------------------------------------------------ */
-/* Props                                                               */
-/* ------------------------------------------------------------------ */
 interface WorkInterfaceProps {
   sessionId: string;
   onBackToPresentation: () => void;
 }
 
-/* ------------------------------------------------------------------ */
-/* Composant                                                           */
-/* ------------------------------------------------------------------ */
 const WorkInterface: React.FC<WorkInterfaceProps> = ({
   sessionId,
   onBackToPresentation,
 }) => {
-  /* --------------------- State : Post-its & Vue -------------------- */
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
 
-  /* --------------------- State : Projet/Thème ---------------------- */
   const [meta, setMeta] = useState<BoardMeta | null>(null);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
-  /* --------------------- State : QR modal -------------------------- */
   const [showQR, setShowQR] = useState(false);
 
-  /* --------------------- Participant URL --------------------------- */
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
     return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(
@@ -88,7 +74,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     )}`;
   }, [sessionId]);
 
-  /* --------------------- Écoute Firestore -------------------------- */
   useEffect(() => {
     localStorage.setItem("sessionId", sessionId);
     const unsub = onSnapshot(
@@ -101,7 +86,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     return () => unsub();
   }, [sessionId]);
 
-  /* --------------------- Charger/Créer meta Projet/Thème ----------- */
   useEffect(() => {
     (async () => {
       const ref = fsDoc(db, "boards", sessionId);
@@ -114,7 +98,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     })();
   }, [sessionId]);
 
-  /* --------------------- Groupement par quadrant ------------------- */
   const byQuadrant = useMemo(() => {
     const res: Record<QuadrantKey, PostIt[]> = {
       acquis: [],
@@ -129,8 +112,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     return res;
   }, [postIts]);
 
-  /* --------------------- Actions header ---------------------------- */
-  const goto = (v: "work" | "analysis" | "matrix" | "presentation") => {
+  const goto = (v: "analysis" | "matrix" | "presentation") => {
     const { origin, pathname } = window.location;
     if (v === "presentation") {
       window.location.href = `${origin}${pathname}`;
@@ -151,7 +133,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     alert("Session vidée.");
   };
 
-  /* --------------------- Création rapide d’un post-it -------------- */
   const addPostIt = async (quadrant: QuadrantKey) => {
     await addDoc(collection(db, "postits"), {
       sessionId,
@@ -165,10 +146,9 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     } as any);
   };
 
-  /* --------------------- Rendu ------------------------------------- */
   return (
     <div className="min-h-screen">
-      {/* ======= Header / Bannière ======= */}
+      {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-gradient-to-r from-rose-200 via-violet-200 to-fuchsia-200/80 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -182,12 +162,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
           </div>
 
           <nav className="flex items-center gap-2">
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
-              onClick={() => goto("work")}
-            >
-              Collecte
-            </button>
+            {/* Bouton Collecte supprimé */}
             <button
               className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
               onClick={() => goto("analysis")}
@@ -206,12 +181,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             >
               QR Code
             </button>
-            <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
-              onClick={() => setShowMetaModal(true)}
-            >
-              Modifier Projet/Thème
-            </button>
+            {/* Bouton "Modifier Projet/Thème" supprimé (il y a le bouton 'Modifier' dans le bloc) */}
             <button
               className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
               onClick={clearSession}
@@ -228,7 +198,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         </div>
       </header>
 
-      {/* ======= Sous-bandeau Projet/Thème (PLUS LISIBLE) ======= */}
+      {/* Sous-bandeau Projet/Thème */}
       <div className="mx-auto max-w-7xl px-4 pt-3">
         <div className="rounded-lg border bg-white shadow-sm px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-1">
@@ -252,7 +222,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         </div>
       </div>
 
-      {/* ======= Grille 2×2 ======= */}
+      {/* Grille 2×2 */}
       <main className="mx-auto max-w-7xl px-4 pb-24 pt-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {(
@@ -264,11 +234,8 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             ] as [QuadrantKey, any][]
           ).map(([key, info]) => (
             <section key={key} className="min-h-[36vh]">
-              {/* petite barre de titre + + bouton créa animé */}
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
-                  {/* le vrai titre est rendu par <Quadrant>, on garde juste un espace pour l’action rapide */}
-                </div>
+                <div className="text-sm font-semibold text-gray-600 uppercase tracking-wide" />
                 <div className="flex items-center gap-2">
                   <button
                     title="Créer une étiquette"
@@ -280,7 +247,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 </div>
               </div>
 
-              {/* après : on passe l’objet complet issu de QUADRANTS */}
               <Quadrant
                 info={{
                   title: info.title,
@@ -298,13 +264,13 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
           ))}
         </div>
 
-        {/* ======= 5e cadran : Panier ======= */}
+        {/* Panier */}
         <div className="mt-8">
           <BinPanel />
         </div>
       </main>
 
-      {/* ======= Bouton flottant QR permanent ======= */}
+      {/* Bouton flottant QR */}
       <button
         onClick={() => setShowQR(true)}
         title="Afficher le QR code participant"
@@ -314,14 +280,14 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         QR
       </button>
 
-      {/* ======= QR Code ======= */}
+      {/* QR Modal */}
       <QRCodeModal
         isOpen={showQR}
         onClose={() => setShowQR(false)}
         sessionId={sessionId}
       />
 
-      {/* ======= Modal Projet/Thème ======= */}
+      {/* Modal Projet/Thème */}
       {!showMetaModal ? null : (
         <div className="fixed inset-0 bg-black/30 z-[80] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
