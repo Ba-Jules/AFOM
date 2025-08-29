@@ -228,16 +228,26 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         </div>
       </header>
 
-      {/* ======= Sous-bandeau Projet/Thème ======= */}
+      {/* ======= Sous-bandeau Projet/Thème (PLUS LISIBLE) ======= */}
       <div className="mx-auto max-w-7xl px-4 pt-3">
-        <div className="text-xs text-gray-700">
-          <div>
-            <span className="font-semibold">Projet :</span>{" "}
-            {meta?.projectName || "—"}
-          </div>
-          <div>
-            <span className="font-semibold">Thème :</span>{" "}
-            {meta?.themeName || "—"}
+        <div className="rounded-lg border bg-white shadow-sm px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-1">
+            <div className="text-[15px] md:text-lg">
+              <span className="font-extrabold text-gray-800">Projet :</span>{" "}
+              <span className="font-semibold text-gray-700">{meta?.projectName || "—"}</span>
+            </div>
+            <div className="text-[15px] md:text-lg">
+              <span className="font-extrabold text-gray-800">Thème :</span>{" "}
+              <span className="font-semibold text-gray-700">{meta?.themeName || "—"}</span>
+            </div>
+            <div className="ml-auto">
+              <button
+                className="text-sm px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
+                onClick={() => setShowMetaModal(true)}
+              >
+                Modifier
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -271,20 +281,19 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
               </div>
 
               {/* après : on passe l’objet complet issu de QUADRANTS */}
-<Quadrant
-  info={{
-    title: info.title,
-    subtitle: info.subtitle,
-    textColor: info.textColor,
-    borderColor: info.borderColor,
-    bgColor: info.bgColor,
-  }}
-  postIts={byQuadrant[key]}
-  quadrantKey={key}
-  isExpanded={expanded === key}
-  onToggleExpand={() => setExpanded(expanded === key ? null : key)}
-/>
-
+              <Quadrant
+                info={{
+                  title: info.title,
+                  subtitle: info.subtitle,
+                  textColor: info.textColor,
+                  borderColor: info.borderColor,
+                  bgColor: info.bgColor,
+                }}
+                postIts={byQuadrant[key]}
+                quadrantKey={key}
+                isExpanded={expanded === key}
+                onToggleExpand={() => setExpanded(expanded === key ? null : key)}
+              />
             </section>
           ))}
         </div>
@@ -294,6 +303,16 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
           <BinPanel />
         </div>
       </main>
+
+      {/* ======= Bouton flottant QR permanent ======= */}
+      <button
+        onClick={() => setShowQR(true)}
+        title="Afficher le QR code participant"
+        className="fixed bottom-6 right-6 z-[90] h-12 w-12 rounded-full shadow-lg border bg-white hover:bg-gray-50 text-[18px] font-bold"
+        aria-label="QR code"
+      >
+        QR
+      </button>
 
       {/* ======= QR Code ======= */}
       <QRCodeModal
@@ -361,7 +380,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                         projectName: projectName.trim(),
                         themeName: themeName.trim(),
                         updatedAt: new Date(),
-                        // si le doc existe déjà, on conserve createdAt
                       } as BoardMeta,
                       { merge: true }
                     );

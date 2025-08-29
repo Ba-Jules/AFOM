@@ -3,10 +3,12 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import { doc as fsDoc, getDoc } from "firebase/firestore";
+import { db } from "../services/firebase";
+import { BoardMeta } from "../types";
 
 type Slide = { id: string; render: () => React.ReactNode };
 
@@ -29,6 +31,22 @@ function Dot({ active }: { active: boolean }) {
 
 const BASE_W = 1280;
 const BASE_H = 820;
+
+/** Bandeau Projet/Thème (lecture seule) */
+function MetaBar({ meta }: { meta: BoardMeta | null }) {
+  if (!meta?.projectName && !meta?.themeName) return null;
+  return (
+    <div className="fixed top-3 left-1/2 -translate-x-1/2 z-30">
+      <div className="px-4 py-2 rounded-lg bg-white/90 border shadow backdrop-blur text-sm md:text-base">
+        <span className="font-extrabold text-gray-900">Projet :</span>{" "}
+        <span className="font-semibold text-gray-800">{meta?.projectName || "—"}</span>
+        <span className="mx-3 text-gray-300">•</span>
+        <span className="font-extrabold text-gray-900">Thème :</span>{" "}
+        <span className="font-semibold text-gray-800">{meta?.themeName || "—"}</span>
+      </div>
+    </div>
+  );
+}
 
 /** Un conteneur “scalable” qui fait tenir le contenu dans l’écran sans scroll */
 function FitToScreen({
@@ -88,12 +106,12 @@ function MatrixSlide() {
         className="relative rounded-[24px] shadow-2xl overflow-hidden"
         style={{ width: BASE_W, height: BASE_H, background: "#0a0a0a" }}
       >
-        {/* Titre - descendu de 0.5cm */}
+        {/* Titre */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[-1px] text-white text-[48px] font-extrabold tracking-tight whitespace-nowrap">
           Composantes de l'outil AFOM
         </div>
 
-        {/* Étiquettes Interne / Externe - repositionnées plus haut */}
+        {/* Étiquettes Interne / Externe */}
         <div className="absolute top-[70px] left-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
             Interne
@@ -105,63 +123,55 @@ function MatrixSlide() {
           </div>
         </div>
 
-        {/* Étiquettes V. rétrospective / V. prospective - repositionnées plus bas */}
+        {/* Étiquettes vision rétrospective / vision prospective (texte complet) */}
         <div className="absolute top-[110px] left-[200px]">
           <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
-            V. rétrospective
+            vision rétrospective
           </div>
         </div>
         <div className="absolute top-[110px] right-[200px]">
           <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
-            V. prospective
+            vision prospective
           </div>
         </div>
-        
-        {/* Pastille + en haut - remonté d'1cm */}
+
+        {/* Pastilles + / - */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[98px]">
           <Pill sign="+" />
         </div>
-        
-        {/* Pastille - en bas - descendu d'1cm */}
+        <div className="absolute left-1/2 -translate-x-1/2 top={[738] + 'px'} />
         <div className="absolute left-1/2 -translate-x-1/2 top-[738px]">
           <Pill sign="-" />
         </div>
 
-        
-        {/* Label "Axe du jugement" - remonté d'1cm sur l'axe vertical */}
+        {/* Label "Axe du jugement" */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[302px] -rotate-90 z-10">
           <div className="text-white font-black text-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du jugement
           </div>
         </div>
 
-        {/* Axe du temps (jaune horizontal) - plus épais et visible */}
+        {/* Axe du temps */}
         <div className="absolute left-[64px] right-[64px] top-[420px] h-[48px] bg-[#ffea00] border-6 border-black rounded-md" />
-        
-        {/* Label "Passé" - VISIBLE sur l'axe */}
         <div className="absolute left-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Passé
           </div>
         </div>
-        
-        {/* Label "Axe du temps" - positionné pile au milieu entre Passé et Futur */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-lg bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Axe du temps
           </div>
         </div>
-        
-        {/* Label "Futur" - VISIBLE sur l'axe */}
         <div className="absolute right-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
             Futur
           </div>
         </div>
 
-        {/* Grille 2×2 des quadrants AFOM - ajustée */}
+        {/* Grille 2×2 AFOM */}
         <div className="absolute left-[64px] right-[64px] top-[180px] bottom-[100px] grid grid-cols-2 grid-rows-2">
-          {/* A - Acquis (haut gauche) - sans cercle A */}
+          {/* A - Acquis (haut gauche) */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">A pour Acquis</div>
@@ -177,7 +187,7 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* O - Opportunités (haut droit) - sans cercle O */}
+          {/* O - Opportunités (haut droit) */}
           <div className="relative border-[6px] border-[#004d40] bg-[#2ec4b6] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">O pour Opportunités</div>
@@ -193,7 +203,7 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* F - Faiblesses (bas gauche) - sans cercle F */}
+          {/* F - Faiblesses (bas gauche) */}
           <div className="relative border-[6px] border-[#b71c1c] bg-[#ef5350] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">F pour Faiblesses</div>
@@ -209,7 +219,7 @@ function MatrixSlide() {
             </div>
           </div>
 
-          {/* M - Menaces (bas droit) - sans cercle M */}
+          {/* M - Menaces (bas droit) */}
           <div className="relative border-[6px] border-[#e65100] bg-[#ff8a65] p-8">
             <div className="text-white">
               <div className="text-3xl font-extrabold mb-2">M pour Menaces</div>
@@ -229,6 +239,7 @@ function MatrixSlide() {
     </FitToScreen>
   );
 }
+
 /** ---- Composant principal ---------------------------------------------- */
 const PresentationMode: React.FC<Props> = ({
   onLaunchSession,
@@ -243,9 +254,29 @@ const PresentationMode: React.FC<Props> = ({
     if (sessionId) localStorage.setItem("sessionId", sessionId);
   }, [sessionId]);
 
+  const [meta, setMeta] = useState<BoardMeta | null>(null);
+  useEffect(() => {
+    (async () => {
+      if (!sessionId) return;
+      try {
+        const snap = await getDoc(fsDoc(db, "boards", sessionId));
+        if (snap.exists()) setMeta(snap.data() as BoardMeta);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [sessionId]);
+
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
     return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(
+      sessionId || ""
+    )}`;
+  }, [sessionId]);
+
+  const goModerator = useCallback(() => {
+    const { origin, pathname } = window.location;
+    window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(
       sessionId || ""
     )}`;
   }, [sessionId]);
@@ -262,7 +293,7 @@ const PresentationMode: React.FC<Props> = ({
               <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_20%_20%,#ffffff33_0,transparent_35%),radial-gradient(circle_at_80%_30%,#ffffff22_0,transparent_40%)]" />
               <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-8">
                 <div className="inline-flex px-5 py-2 rounded-full bg-amber-500 text-white font-black shadow-2xl mb-6">
-                  🚀 RÉVOLUTION ANALYTIQUE
+                  outil de diagnostic rapide pouvant conduire à des décisions éclairées
                 </div>
                 <h1 className="text-7xl font-black bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent leading-tight drop-shadow">
                   AFOM
@@ -459,6 +490,7 @@ const PresentationMode: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      <MetaBar meta={meta} />
       {/* SLIDE */}
       {current.render()}
 
@@ -480,13 +512,22 @@ const PresentationMode: React.FC<Props> = ({
               ))}
             </div>
 
-            <button
-              onClick={next}
-              className="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-              disabled={index === slides.length - 1}
-            >
-              Suivant →
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={goModerator}
+                className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
+                title="Retour à l’interface modérateur"
+              >
+                ← Retour modérateur
+              </button>
+              <button
+                onClick={next}
+                className="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                disabled={index === slides.length - 1}
+              >
+                Suivant →
+              </button>
+            </div>
           </div>
         </div>
       </div>
