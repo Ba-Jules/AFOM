@@ -35,21 +35,21 @@ export const QUADRANT_INFO: Record<QuadrantKey, QuadrantInfo> = {
   opportunites: {
     title: "Opportunités",
     subtitle: "Potentialités • Ressources exploitables",
-    color: "#66bb6a", // Lighter green
-    textColor: "text-green-800",
-    borderColor: "border-green-500",
-    bgColor: "bg-green-50",
-    gradient: "from-green-400 to-green-300",
+    color: "#10b981",
+    textColor: "text-emerald-800",
+    borderColor: "border-emerald-500",
+    bgColor: "bg-emerald-50",
+    gradient: "from-emerald-500 to-emerald-400",
     description: "Potentialités • Ressources exploitables • Atouts • Ce qu'on peut valoriser",
   },
   menaces: {
     title: "Menaces",
     subtitle: "Risques • Obstacles • Craintes",
-    color: "#ef5350", // Lighter red
-    textColor: "text-red-800",
-    borderColor: "border-red-500",
-    bgColor: "bg-red-50",
-    gradient: "from-red-400 to-red-300",
+    color: "#f97316",
+    textColor: "text-orange-800",
+    borderColor: "border-orange-500",
+    bgColor: "bg-orange-50",
+    gradient: "from-orange-500 to-orange-400",
     description: "Risques • Obstacles • Craintes • Suppositions pouvant influencer négativement",
   },
 };
@@ -65,17 +65,29 @@ export const QUADRANTS = {
   acquis: {
     title: "Acquis",
     subtitle: "Forces • Réalisations positives",
+    textColor: "text-green-700",
+    borderColor: "border-green-400",
+    bgColor: "bg-green-50",
   },
   faiblesses: {
     title: "Faiblesses",
     subtitle: "Échecs • Aspects négatifs",
+    textColor: "text-red-700",
+    borderColor: "border-red-400",
+    bgColor: "bg-red-50",
   },
   opportunites: {
     title: "Opportunités",
     subtitle: "Potentialités • Ressources exploitables",
+    textColor: "text-teal-700",
+    borderColor: "border-teal-400",
+    bgColor: "bg-emerald-50",
   },
   menaces: {
     title: "Menaces",
     subtitle: "Risques • Obstacles • Craintes",
+    textColor: "text-orange-700",
+    borderColor: "border-orange-400",
+    bgColor: "bg-orange-50",
   },
 } as const;
