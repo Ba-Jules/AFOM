@@ -293,10 +293,9 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       <div className="min-h-screen bg-gray-50">
         <PrintStyles />
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
-          <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
-            <button onClick={goBack} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center gap-2">
+            <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">← Retour</button>
             <div className="text-sm font-semibold text-gray-600">Analyse</div>
-            <div />
           </div>
         </header>
         <div className="p-8 text-center text-gray-500">Commencez à ajouter des post-its pour voir l'analyse.</div>
@@ -309,15 +308,19 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       <PrintStyles />
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
-        <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <button onClick={goBack} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
-            <div className="text-sm font-semibold text-gray-600">Analyse</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={exportCSV} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">Exporter CSV</button>
-            <button onClick={exportJSON} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">Exporter JSON</button>
-            <button onClick={exportPDF} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Exporter PDF</button>
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center gap-2 min-w-0">
+          <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm flex-shrink-0">← Retour</button>
+          <div className="text-sm font-semibold text-gray-600 flex-shrink-0">Analyse</div>
+          <div className="flex items-center gap-1 sm:gap-2 ml-auto overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            <button onClick={exportCSV} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">CSV</span><span className="hidden sm:inline">Exporter CSV</span>
+            </button>
+            <button onClick={exportJSON} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">JSON</span><span className="hidden sm:inline">Exporter JSON</span>
+            </button>
+            <button onClick={exportPDF} className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">PDF</span><span className="hidden sm:inline">Exporter PDF</span>
+            </button>
           </div>
         </div>
       </header>

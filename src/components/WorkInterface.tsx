@@ -150,49 +150,55 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
     <div className="min-h-screen">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-gradient-to-r from-rose-200 via-violet-200 to-fuchsia-200/80 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow">
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2 min-w-0">
+          {/* Logo */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="inline-flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-white shadow text-base">
               🚀
             </span>
-            <div className="leading-tight">
+            <div className="leading-tight hidden xs:block sm:block">
               <div className="text-sm font-semibold text-gray-700">AFOM Ultimate</div>
-              <div className="text-[11px] text-gray-600">Interface de Travail</div>
+              <div className="text-[11px] text-gray-600 hidden sm:block">Interface de Travail</div>
             </div>
           </div>
 
-          <nav className="flex items-center gap-2">
-            {/* Bouton Collecte supprimé */}
+          {/* Nav — scrollable horizontalement sur mobile */}
+          <nav
+            className="flex items-center gap-1 sm:gap-2 overflow-x-auto flex-1 justify-end"
+            style={{ scrollbarWidth: "none" }}
+          >
             <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
+              className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => goto("analysis")}
             >
               Analyse
             </button>
             <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
+              className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => goto("matrix")}
             >
               Matrice
             </button>
             <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
+              className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => setShowQR(true)}
             >
-              QR Code
+              <span className="sm:hidden">QR</span>
+              <span className="hidden sm:inline">QR Code</span>
             </button>
-            {/* Bouton "Modifier Projet/Thème" supprimé (il y a le bouton 'Modifier' dans le bloc) */}
             <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
+              className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50"
               onClick={clearSession}
             >
-              Supprimer
+              <span className="sm:hidden">🗑</span>
+              <span className="hidden sm:inline">Supprimer</span>
             </button>
             <button
-              className="px-3 py-1.5 rounded-md text-sm bg-white shadow-sm border font-medium"
+              className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => goto("presentation")}
             >
-              Présentation
+              <span className="sm:hidden">🏠</span>
+              <span className="hidden sm:inline">Présentation</span>
             </button>
           </nav>
         </div>

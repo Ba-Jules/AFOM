@@ -10,6 +10,7 @@ import { doc as fsDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { BoardMeta, BoardContext } from "../types";
 import { extractContextFromDocument } from "../services/geminiService";
+import AIProviderPanel from "./AIProviderPanel";
 
 /** Extrait le texte brut d'un fichier TXT, PDF ou DOCX (côté navigateur) */
 async function extractTextFromFile(file: File): Promise<string> {
@@ -74,22 +75,26 @@ function Dot({ active }: { active: boolean }) {
 const BASE_W = 1280;
 const BASE_H = 820;
 
+const AI_PANEL_H = 60; // hauteur réservée pour le panneau IA en haut (px)
+
 /** Conteneur qui scale le contenu pour tenir dans l’écran */
 function FitToScreen({
   children,
   bottomReserve = 96,
+  topReserve = 0,
 }: {
   children: React.ReactNode;
   bottomReserve?: number;
+  topReserve?: number;
 }) {
   const [scale, setScale] = useState(1);
 
   const compute = useCallback(() => {
     const vw = window.innerWidth;
-    const vh = window.innerHeight - bottomReserve;
+    const vh = window.innerHeight - bottomReserve - topReserve;
     const s = Math.min((vw - 24) / BASE_W, (vh - 24) / BASE_H);
     setScale(Math.max(0.6, Math.min(1.15, s)));
-  }, [bottomReserve]);
+  }, [bottomReserve, topReserve]);
 
   useLayoutEffect(() => {
     compute();
@@ -103,7 +108,10 @@ function FitToScreen({
   }, [compute]);
 
   return (
-    <div className="w-full min-h-[calc(100vh-96px)] flex items-center justify-center">
+    <div
+      className="w-full flex items-center justify-center"
+      style={{ minHeight: `calc(100vh - ${bottomReserve}px - ${topReserve}px)` }}
+    >
       <div
         className="origin-center"
         style={{ width: BASE_W, height: BASE_H, transform: `scale(${scale})` }}
@@ -124,9 +132,9 @@ function Pill({ sign }: { sign: "+" | "-" }) {
 
 /* ------------ Slide “logique des deux axes” ------------------ */
 
-function MatrixSlide() {
+function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
   return (
-    <FitToScreen>
+    <FitToScreen topReserve={topReserve}>
       <div
         className="relative rounded-[24px] shadow-2xl overflow-hidden"
         style={{ width: BASE_W, height: BASE_H, background: "#0a0a0a" }}
@@ -388,7 +396,7 @@ const PresentationMode: React.FC<Props> = ({
       {
         id: "hero",
         render: () => (
-          <FitToScreen>
+          <FitToScreen topReserve={AI_PANEL_H}>
             <div className="relative w-full h-full">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900" />
               <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_20%_20%,#ffffff33_0,transparent_35%),radial-gradient(circle_at_80%_30%,#ffffff22_0,transparent_40%)]" />
@@ -466,12 +474,12 @@ const PresentationMode: React.FC<Props> = ({
       },
       {
         id: "framework",
-        render: () => <MatrixSlide />,
+        render: () => <MatrixSlide topReserve={AI_PANEL_H} />,
       },
       {
         id: "launch",
         render: () => (
-          <FitToScreen>
+          <FitToScreen topReserve={AI_PANEL_H}>
             <div className="w-full h-full px-10 py-8 grid grid-cols-2 gap-10 items-center">
               {/* QR */}
               <div className="order-2 md:order-1 bg-white/80 rounded-3xl p-8 shadow-xl border">
@@ -586,6 +594,9 @@ const PresentationMode: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      {/* Panneau IA — toujours en tête de page, avant Projet et Thème */}
+      <AIProviderPanel />
+
       {current.render()}
 
       {/* ---- Modal contexte ---- */}

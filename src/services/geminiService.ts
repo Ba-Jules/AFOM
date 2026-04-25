@@ -1,15 +1,16 @@
-// Service Gemini — compat ancien SDK (@google/generative-ai) et nouveau (@google/genai).
+// Service IA AFOM — délègue les appels au provider configuré via aiProviderService.
 // Fournit: getAIAnalysis, proposeCentralProblem, proposeMatrixSelection, proposeOrientations.
-// Tous renvoient du JSON, avec fallback heuristique quand l'API n'est pas dispo.
+// Tous renvoient du JSON, avec fallback heuristique quand l'IA n'est pas dispo.
 
 import type { PostIt, QuadrantKey, BoardContext } from "../types";
+import { callAI, isAIAvailable } from "./aiProviderService";
 
 export type MatrixInteractionType = "O×A" | "O×F" | "M×A" | "M×F";
 
 export type MatrixInteraction = {
   type: MatrixInteractionType;
-  row: string;   // libellé opportunité ou menace
-  col: string;   // libellé acquis ou faiblesse
+  row: string;
+  col: string;
 };
 
 /** Décode les marks Firestore ("r,c") en interactions typées */
@@ -37,57 +38,11 @@ export function decodeMatrixInteractions(
 type Insight = { title: string; content: string };
 type Recommendation = { title: string; content: string; priority?: "HIGH" | "MEDIUM" | "LOW" };
 
-const API_KEY: string | undefined = import.meta.env.VITE_GEMINI_API_KEY as any;
+// ─────────── Fallbacks locaux (sans IA) ───────────
 
-/** Charge dynamiquement le constructeur GoogleGenerativeAI depuis l'un des SDKs */
-let _CtorCache: any | undefined;
-async function loadGoogleCtor(): Promise<any | null> {
-  if (_CtorCache !== undefined) return _CtorCache;
-  // Try legacy @google/generative-ai
-  try {
-    const mod: any = await import(/* @vite-ignore */ "@google/generative-ai");
-    if (mod && (mod as any).GoogleGenerativeAI) {
-      _CtorCache = (mod as any).GoogleGenerativeAI;
-      return _CtorCache;
-    }
-  } catch (e) {
-    // ignore
-  }
-  // Try new @google/genai
-  try {
-    const mod: any = await import(/* @vite-ignore */ "@google/genai");
-    const ctor = (mod as any).GoogleGenerativeAI || (mod as any).GoogleAI || null;
-    _CtorCache = ctor;
-    return _CtorCache;
-  } catch (e) {
-    _CtorCache = null;
-    return null;
-  }
-}
-
-async function getModel(modelName = "gemini-1.5-flash"): Promise<any | null> {
-  if (!API_KEY) return null;
-  const Ctor = await loadGoogleCtor();
-  if (!Ctor) return null;
-  try {
-    const genAI = new (Ctor as any)(API_KEY);
-    const model = (genAI as any).getGenerativeModel
-      ? (genAI as any).getGenerativeModel({
-          model: modelName,
-          generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
-        })
-      : null;
-    return model;
-  } catch {
-    return null;
-  }
-}
-
-/** -------- Fallbacks locaux (sans IA) -------- */
 function localAnalysisFallback(postIts: PostIt[]): { insights: Insight[]; recommendations: Recommendation[] } {
   const counts: Record<string, number> = { acquis: 0, faiblesses: 0, opportunites: 0, menaces: 0 };
   for (const p of postIts) counts[p.quadrant] = (counts[p.quadrant] || 0) + 1;
-
   const insights: Insight[] = [
     { title: "Répartition AFOM", content: `A:${counts.acquis} • F:${counts.faiblesses} • O:${counts.opportunites} • M:${counts.menaces}` },
   ];
@@ -107,9 +62,7 @@ function localCentralFallback(mode: "full" | "fm"): { problem: string; rationale
 }
 
 function pickTopPerQuadrant(postIts: PostIt[], n = 4): Record<QuadrantKey, string[]> {
-  const result: Record<QuadrantKey, string[]> = {
-    acquis: [], faiblesses: [], opportunites: [], menaces: []
-  };
+  const result: Record<QuadrantKey, string[]> = { acquis: [], faiblesses: [], opportunites: [], menaces: [] };
   const byQ: Record<QuadrantKey, PostIt[]> = { acquis: [], faiblesses: [], opportunites: [], menaces: [] };
   for (const p of postIts) {
     if ((p as any).status === "bin") continue;
@@ -117,25 +70,21 @@ function pickTopPerQuadrant(postIts: PostIt[], n = 4): Record<QuadrantKey, strin
   }
   (Object.keys(byQ) as QuadrantKey[]).forEach((k) => {
     const arr = byQ[k].slice().sort((a: any, b: any) => {
-      // Favori d'abord si flag présent, sinon par sortIndex croissant puis timestamp
       const fa = (a as any).favorite ? 1 : 0;
       const fb = (b as any).favorite ? 1 : 0;
       if (fa !== fb) return fb - fa;
       const sa = (a as any).sortIndex ?? 0;
       const sb = (b as any).sortIndex ?? 0;
       if (sa !== sb) return sa - sb;
-      const ta = (a as any).timestamp?.seconds ?? 0;
-      const tb = (b as any).timestamp?.seconds ?? 0;
-      return ta - tb;
+      return ((a as any).timestamp?.seconds ?? 0) - ((b as any).timestamp?.seconds ?? 0);
     });
     result[k] = arr.slice(0, n).map((x) => x.id);
   });
   return result;
 }
 
-/** -------- Helpers contexte -------- */
+// ─────────── Helpers contexte ───────────
 
-/** Construit le bloc matrice pour les prompts */
 function buildMatrixBlock(interactions?: MatrixInteraction[]): string {
   if (!interactions || interactions.length === 0) return "";
   const LABELS: Record<MatrixInteractionType, string> = {
@@ -144,17 +93,11 @@ function buildMatrixBlock(interactions?: MatrixInteraction[]): string {
     "M×A": "RÉSISTANCE (menace atténuée par une force)",
     "M×F": "BLOCAGE (menace amplifiant une faiblesse)",
   };
-  const grouped: Record<MatrixInteractionType, string[]> = {
-    "O×A": [], "O×F": [], "M×A": [], "M×F": []
-  };
-  for (const i of interactions) {
-    grouped[i.type].push(`"${i.row}" × "${i.col}"`);
-  }
+  const grouped: Record<MatrixInteractionType, string[]> = { "O×A": [], "O×F": [], "M×A": [], "M×F": [] };
+  for (const i of interactions) grouped[i.type].push(`"${i.row}" × "${i.col}"`);
   const lines: string[] = ["\n\nINTERACTIONS MATRICE :"];
   (["O×A", "O×F", "M×A", "M×F"] as MatrixInteractionType[]).forEach((t) => {
-    if (grouped[t].length > 0) {
-      lines.push(`  ${LABELS[t]} :\n    ${grouped[t].join("\n    ")}`);
-    }
+    if (grouped[t].length > 0) lines.push(`  ${LABELS[t]} :\n    ${grouped[t].join("\n    ")}`);
   });
   return lines.join("\n");
 }
@@ -162,25 +105,24 @@ function buildMatrixBlock(interactions?: MatrixInteraction[]): string {
 function buildContextBlock(ctx?: BoardContext): string {
   if (!ctx) return "";
   const parts: string[] = [];
-  if (ctx.situationActuelle) parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
+  if (ctx.situationActuelle)  parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
   if (ctx.symptomesObservables) parts.push(`Symptômes observables : ${ctx.symptomesObservables}`);
-  if (ctx.perimetre) parts.push(`Périmètre : ${ctx.perimetre}`);
-  if (ctx.problematique) parts.push(`Problématique identifiée : ${ctx.problematique}`);
-  if (ctx.acteurs) parts.push(`Acteurs : ${ctx.acteurs}`);
-  if (ctx.zone) parts.push(`Zone / Population : ${ctx.zone}`);
-  if (ctx.enjeux) parts.push(`Enjeux : ${ctx.enjeux}`);
+  if (ctx.perimetre)          parts.push(`Périmètre : ${ctx.perimetre}`);
+  if (ctx.problematique)      parts.push(`Problématique identifiée : ${ctx.problematique}`);
+  if (ctx.acteurs)            parts.push(`Acteurs : ${ctx.acteurs}`);
+  if (ctx.zone)               parts.push(`Zone / Population : ${ctx.zone}`);
+  if (ctx.enjeux)             parts.push(`Enjeux : ${ctx.enjeux}`);
   if (parts.length === 0) return "";
   return `\n\nCONTEXTE DE LA SESSION :\n${parts.join("\n")}`;
 }
 
-/** -------- Fonctions exportées -------- */
+// ─────────── Fonctions exportées ───────────
 
-/** extractContextFromDocument — analyse un texte extrait d'un TDR/rapport et renvoie un contexte structuré */
+/** extractContextFromDocument — analyse un texte extrait d'un TDR/rapport */
 export async function extractContextFromDocument(text: string): Promise<{
   problematique: string; acteurs: string; zone: string; enjeux: string;
 }> {
-  const model = await getModel();
-  if (!model) return { problematique: "", acteurs: "", zone: "", enjeux: "" };
+  if (!isAIAvailable()) return { problematique: "", acteurs: "", zone: "", enjeux: "" };
 
   const sys = `
 Tu es un assistant d'analyse documentaire. À partir du texte ci-dessous (extrait d'un TDR ou document de projet),
@@ -196,14 +138,13 @@ AUCUN texte hors JSON.
 `.trim();
 
   try {
-    const res: any = await model.generateContent(`${sys}\n\nDOCUMENT :\n${text}`);
-    const raw = res?.response?.text?.() ?? "";
+    const raw = await callAI(`${sys}\n\nDOCUMENT :\n${text}`);
     const json = JSON.parse(raw || "{}");
     return {
       problematique: String(json.problematique || ""),
-      acteurs: String(json.acteurs || ""),
-      zone: String(json.zone || ""),
-      enjeux: String(json.enjeux || ""),
+      acteurs:       String(json.acteurs || ""),
+      zone:          String(json.zone || ""),
+      enjeux:        String(json.enjeux || ""),
     };
   } catch (e) {
     console.error("extractContextFromDocument failed:", e);
@@ -217,8 +158,7 @@ export async function getAIAnalysis(
   context?: BoardContext,
   matrixInteractions?: MatrixInteraction[]
 ): Promise<{ insights: Insight[]; recommendations: Recommendation[] }> {
-  const model = await getModel();
-  if (!model) return localAnalysisFallback(postIts);
+  if (!isAIAvailable()) return localAnalysisFallback(postIts);
 
   const sys = `
 Tu es un analyste stratégique AFOM expert. Tu dois produire une analyse SPÉCIFIQUE et ANCRÉE dans les données réelles fournies.
@@ -249,32 +189,30 @@ RETOURNE STRICTEMENT du JSON :
 Aucun texte hors JSON.
 `.trim();
 
-  const ctxBlock = buildContextBlock(context);
+  const ctxBlock    = buildContextBlock(context);
   const matrixBlock = buildMatrixBlock(matrixInteractions);
-  const data = postIts.map((p) => ({ quadrant: p.quadrant, text: p.content }));
-  const prompt = `${sys}${ctxBlock}${matrixBlock}\n\nPOST-ITS AFOM :\n${JSON.stringify(data, null, 2)}`;
+  const data        = postIts.map((p) => ({ quadrant: p.quadrant, text: p.content }));
+  const prompt      = `${sys}${ctxBlock}${matrixBlock}\n\nPOST-ITS AFOM :\n${JSON.stringify(data, null, 2)}`;
 
   try {
-    const res: any = await model.generateContent(prompt);
-    const text = res?.response?.text?.() ?? "";
+    const text = await callAI(prompt);
     const json = JSON.parse(text || "{}");
-    const insights: Insight[] = Array.isArray(json.insights) ? json.insights : [];
+    const insights: Insight[]             = Array.isArray(json.insights) ? json.insights : [];
     const recommendations: Recommendation[] = Array.isArray(json.recommendations) ? json.recommendations : [];
     return { insights, recommendations };
   } catch (e) {
-    console.error("Gemini getAIAnalysis failed:", e);
+    console.error("getAIAnalysis failed:", e);
     return localAnalysisFallback(postIts);
   }
 }
 
-/** proposeCentralProblem — JSON { problem, problemCourt, rationale } ; options.mode : 'full' | 'fm' */
+/** proposeCentralProblem — JSON { problem, problemCourt, rationale } */
 export async function proposeCentralProblem(
   postIts: PostIt[],
   options: { mode?: "full" | "fm"; context?: BoardContext; matrixInteractions?: MatrixInteraction[] } = {}
 ): Promise<{ problem: string; problemCourt?: string; rationale?: string }> {
   const { mode = "full", context, matrixInteractions } = options;
-  const model = await getModel();
-  if (!model) {
+  if (!isAIAvailable()) {
     const fb = localCentralFallback(mode);
     return { problem: fb.problem, rationale: fb.rationale };
   }
@@ -307,28 +245,27 @@ Retourne STRICTEMENT du JSON :
 Aucun texte hors JSON.
 `.trim();
 
-  const ctxBlock = buildContextBlock(context);
+  const ctxBlock    = buildContextBlock(context);
   const matrixBlock = buildMatrixBlock(matrixInteractions);
-  const data = filtered.map((p) => ({ quadrant: p.quadrant, text: p.content }));
-  const prompt = `${sys}${ctxBlock}${matrixBlock}\nMODE: ${mode}\nDONNÉES:\n${JSON.stringify(data, null, 2)}`;
+  const data        = filtered.map((p) => ({ quadrant: p.quadrant, text: p.content }));
+  const prompt      = `${sys}${ctxBlock}${matrixBlock}\nMODE: ${mode}\nDONNÉES:\n${JSON.stringify(data, null, 2)}`;
 
   try {
-    const res: any = await model.generateContent(prompt);
-    const text = res?.response?.text?.() ?? "";
+    const text = await callAI(prompt);
     const json = JSON.parse(text || "{}");
     return {
-      problem: String(json.long || json.problem || "").slice(0, 400),
+      problem:      String(json.long || json.problem || "").slice(0, 400),
       problemCourt: String(json.court || "").slice(0, 60) || undefined,
-      rationale: typeof json.rationale === "string" ? json.rationale : undefined,
+      rationale:    typeof json.rationale === "string" ? json.rationale : undefined,
     };
   } catch (e) {
-    console.error("Gemini proposeCentralProblem failed:", e);
+    console.error("proposeCentralProblem failed:", e);
     const fb = localCentralFallback(mode);
     return { problem: fb.problem, rationale: fb.rationale };
   }
 }
 
-/** proposeMatrixSelection — choisit N étiquettes par quadrant (par défaut 4) ; renvoie { selection } */
+/** proposeMatrixSelection — choisit N étiquettes par quadrant (par défaut 4) */
 export async function proposeMatrixSelection(
   postIts: PostIt[],
   options: { perQuadrant?: number; context?: BoardContext } = {}
@@ -336,16 +273,12 @@ export async function proposeMatrixSelection(
   const n = options.perQuadrant ?? 4;
   const { context } = options;
 
-  // Si IA indisponible, heuristique locale
-  const model = await getModel();
-  if (!model) {
-    const selection = pickTopPerQuadrant(postIts, n);
-    return { selection, rationale: "Sélection heuristique locale (favoris, ordre, timestamp)." };
+  if (!isAIAvailable()) {
+    return { selection: pickTopPerQuadrant(postIts, n), rationale: "Sélection heuristique locale (favoris, ordre, timestamp)." };
   }
 
-  // Prompt IA — renvoyer uniquement des IDs
   const byQ: Record<QuadrantKey, Array<{ id: string; text: string }>> = {
-    acquis: [], faiblesses: [], opportunites: [], menaces: []
+    acquis: [], faiblesses: [], opportunites: [], menaces: [],
   };
   for (const p of postIts) {
     if ((p as any).status === "bin") continue;
@@ -368,31 +301,27 @@ Retourne STRICTEMENT du JSON:
 Uniquement des IDs dans "selection". Pas de texte libre hors JSON.
 `.trim();
 
-  const ctxBlock = buildContextBlock(context);
-  const prompt = `${sys}${ctxBlock}\nDONNÉES:\n${JSON.stringify(byQ, null, 2)}`;
+  const prompt = `${sys}${buildContextBlock(context)}\nDONNÉES:\n${JSON.stringify(byQ, null, 2)}`;
 
   try {
-    const res: any = await model.generateContent(prompt);
-    const text = res?.response?.text?.() ?? "";
+    const text = await callAI(prompt);
     const json = JSON.parse(text || "{}");
     const selection = json.selection && typeof json.selection === "object"
       ? json.selection
       : pickTopPerQuadrant(postIts, n);
     return { selection, rationale: typeof json.rationale === "string" ? json.rationale : undefined };
   } catch (e) {
-    console.error("Gemini proposeMatrixSelection failed:", e);
-    const selection = pickTopPerQuadrant(postIts, n);
-    return { selection, rationale: "Erreur IA, sélection heuristique locale." };
+    console.error("proposeMatrixSelection failed:", e);
+    return { selection: pickTopPerQuadrant(postIts, n), rationale: "Erreur IA, sélection heuristique locale." };
   }
 }
 
-/** proposeOrientations — à partir d'une matrice (paires O×A / O×F / M×A / M×F), génère 4–8 orientations synthétiques */
+/** proposeOrientations — génère 4–8 orientations stratégiques à partir de la matrice */
 export async function proposeOrientations(
   input: any,
   context?: BoardContext
 ): Promise<{ orientations: string[]; rationale?: string }> {
-  const model = await getModel();
-  if (!model) {
+  if (!isAIAvailable()) {
     return {
       orientations: [
         "Activer les leviers O×A identifiés dans la matrice en priorité.",
@@ -400,7 +329,7 @@ export async function proposeOrientations(
         "Réduire les vulnérabilités M×F par des mesures correctives ciblées.",
         "Exploiter les résistances M×A comme protection face aux menaces prioritaires.",
       ],
-      rationale: "Généré localement (fallback) — relancer avec l'IA pour des orientations spécifiques."
+      rationale: "Généré localement (fallback) — relancer avec l'IA pour des orientations spécifiques.",
     };
   }
 
@@ -422,29 +351,27 @@ Retourne STRICTEMENT du JSON :
 Aucun texte hors JSON.
 `.trim();
 
-  const ctxBlock = buildContextBlock(context);
-  const prompt = `${sys}${ctxBlock}\nDONNÉES MATRICE:\n${JSON.stringify(input ?? {}, null, 2)}`;
+  const prompt = `${sys}${buildContextBlock(context)}\nDONNÉES MATRICE:\n${JSON.stringify(input ?? {}, null, 2)}`;
 
   try {
-    const res: any = await model.generateContent(prompt);
-    const text = res?.response?.text?.() ?? "";
+    const text = await callAI(prompt);
     const json = JSON.parse(text || "{}");
     const orientations: string[] = Array.isArray(json.orientations) ? json.orientations : [];
     return {
       orientations: orientations.length ? orientations : [
         "Prioriser 2 actions défensives pour réduire les menaces majeures.",
-        "Accélérer 1 initiative offensive s’appuyant sur les acquis pour saisir une opportunité clé."
+        "Accélérer 1 initiative offensive s'appuyant sur les acquis pour saisir une opportunité clé.",
       ],
-      rationale: typeof json.rationale === "string" ? json.rationale : undefined
+      rationale: typeof json.rationale === "string" ? json.rationale : undefined,
     };
   } catch (e) {
-    console.error("Gemini proposeOrientations failed:", e);
+    console.error("proposeOrientations failed:", e);
     return {
       orientations: [
         "Structurer un plan d'atténuation des risques critiques (M×F).",
         "Mobiliser les forces existantes pour capter une opportunité prioritaire (O×A).",
       ],
-      rationale: "Erreur IA, orientations de repli."
+      rationale: "Erreur IA, orientations de repli.",
     };
   }
 }
