@@ -9,7 +9,7 @@ import {
   QuadrantAnalysis,
   QuadrantKey,
 } from '../types';
-import { getAIAnalysis } from '../services/geminiService';
+import { getAIAnalysis, decodeMatrixInteractions, MatrixInteraction } from '../services/geminiService';
 import * as geminiAny from '../services/geminiService';
 import {
   BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -23,6 +23,7 @@ interface AnalysisModeProps { postIts: PostIt[]; }
 
 type CentralProblem = {
   text: string;
+  textCourt?: string;
   source: 'manual' | 'ai_full' | 'ai_fm';
   rationale?: string;
   updatedAt?: any;
@@ -32,6 +33,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [boardContext, setBoardContext] = useState<BoardContext | undefined>();
+  const [matrixInteractions, setMatrixInteractions] = useState<MatrixInteraction[]>([]);
 
   // ---- Session / navigation ----
   const sessionId = useMemo(() => {
@@ -75,14 +77,20 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
           if (d.centralProblem) {
             setCentral({
               text: d.centralProblem.text || '',
+              textCourt: d.centralProblem.textCourt || '',
               source: d.centralProblem.source || 'manual',
               rationale: d.centralProblem.rationale || '',
               updatedAt: d.centralProblem.updatedAt,
             });
           }
+          // Décoder les interactions matrice si disponibles
+          if (d.selection && Array.isArray(d.marks)) {
+            const interactions = decodeMatrixInteractions(d.marks, d.selection);
+            setMatrixInteractions(interactions);
+          }
         }
       } catch (e) {
-        console.error('Load centralProblem failed', e);
+        console.error('Load confrontation data failed', e);
       }
     })();
   }, [sessionId]);
@@ -92,7 +100,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     try {
       await setDoc(
         fsDoc(db, 'confrontations', sessionId),
-        { centralProblem: { ...next, updatedAt: new Date() } },
+        { centralProblem: { text: next.text, textCourt: next.textCourt || '', source: next.source, rationale: next.rationale || '', updatedAt: new Date() } },
         { merge: true }
       );
       setCentral(next);
@@ -120,9 +128,10 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
         ? postIts
         : postIts.filter((p) => p.quadrant === 'faiblesses' || p.quadrant === 'menaces');
 
-      const result = await fn(input, { mode, context: boardContext });
+      const result = await fn(input, { mode, context: boardContext, matrixInteractions });
       const next: CentralProblem = {
         text: (result?.problem || result?.text || '').slice(0, 400),
+        textCourt: result?.problemCourt || '',
         rationale: result?.rationale || '',
         source: mode === 'full' ? 'ai_full' : 'ai_fm',
       };
@@ -238,7 +247,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
 
       setLoadingAI(true);
       const timer = setTimeout(() => {
-        getAIAnalysis(postIts, boardContext).then((res) => {
+        getAIAnalysis(postIts, boardContext, matrixInteractions).then((res) => {
           // 🛠 Normalisation stricte vers nos types locaux pour éviter le conflit de modules
           const insights: Insight[] = Array.isArray((res as any)?.insights)
             ? (res as any).insights.map((i: any) => ({
@@ -268,7 +277,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       setAnalysisData(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postIts]);
+  }, [postIts, matrixInteractions]);
 
   const doughnutData = useMemo(() => {
     if (!analysisData) return [];
@@ -316,30 +325,66 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       <div className="p-4 sm:p-8 space-y-8 print:p-0">
         {/* ---- Problème central ---- */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 className="text-lg font-black text-gray-800">🎯 Problème central</h3>
-            <div className="text-xs text-gray-500">Source : <span className="font-bold">{central.source}</span></div>
+            <div className="flex items-center gap-2">
+              {matrixInteractions.length > 0 && (
+                <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  {matrixInteractions.length} interaction{matrixInteractions.length > 1 ? 's' : ''} matrice utilisée{matrixInteractions.length > 1 ? 's' : ''}
+                </span>
+              )}
+              <div className="text-xs text-gray-500">Source : <span className="font-bold">{central.source}</span></div>
+            </div>
           </div>
+
+          {/* Formulation longue */}
+          <label className="text-xs font-semibold text-gray-600 mb-1 block">Formulation complète</label>
           <textarea
             value={central.text}
             onChange={(e) => setCentral({ ...central, text: e.target.value, source: 'manual' })}
-            placeholder="Saisissez ou générez le problème central…"
-            className="w-full min-h-[110px] rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+            placeholder="Saisissez ou générez le problème central… (état négatif, spécifique aux données)"
+            className="w-full min-h-[90px] rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400 text-sm"
           />
-          {central.rationale ? (
-            <div className="mt-2 text-xs text-gray-600"><span className="font-semibold">Justification IA :</span> {central.rationale}</div>
-          ) : null}
+
+          {/* Formulation courte — arbre à problème */}
+          <div className="mt-3">
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">
+              Titre pour arbre à problème
+              <span className="font-normal text-gray-400 ml-1">(max 5 mots)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                value={central.textCourt || ''}
+                onChange={(e) => setCentral({ ...central, textCourt: e.target.value, source: 'manual' })}
+                placeholder="Ex : Participation faible et sous-financement"
+                className="flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
+                maxLength={60}
+              />
+              {central.textCourt && (
+                <span className="shrink-0 px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg shadow">
+                  {central.textCourt}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {central.rationale && (
+            <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2">
+              <span className="font-semibold text-gray-700">Justification IA :</span> {central.rationale}
+            </div>
+          )}
+
           <div className="mt-3 flex flex-wrap gap-2">
-            <button onClick={() => askAIForCentral('full')} disabled={!!aiRunningCentral} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">
-              {aiRunningCentral === 'full' ? 'Génération…' : 'Proposer (IA – AFOM complet)'}
+            <button onClick={() => askAIForCentral('full')} disabled={!!aiRunningCentral} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">
+              {aiRunningCentral === 'full' ? 'Génération…' : 'IA – AFOM complet'}
             </button>
-            <button onClick={() => askAIForCentral('fm')} disabled={!!aiRunningCentral} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">
-              {aiRunningCentral === 'fm' ? 'Génération…' : 'Proposer (IA – Faiblesses + Menaces)'}
+            <button onClick={() => askAIForCentral('fm')} disabled={!!aiRunningCentral} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">
+              {aiRunningCentral === 'fm' ? 'Génération…' : 'IA – Faiblesses + Menaces'}
             </button>
-            <button onClick={() => saveCentral({ ...central, source: 'manual' })} disabled={savingCentral} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+            <button onClick={() => saveCentral({ ...central, source: 'manual' })} disabled={savingCentral} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm">
               {savingCentral ? 'Enregistrement…' : 'Enregistrer'}
             </button>
-            <button onClick={() => saveCentral({ text: '', source: 'manual' })} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50">Effacer</button>
+            <button onClick={() => saveCentral({ text: '', textCourt: '', source: 'manual' })} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm text-gray-500">Effacer</button>
           </div>
         </div>
 

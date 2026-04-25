@@ -4,6 +4,36 @@
 
 import type { PostIt, QuadrantKey, BoardContext } from "../types";
 
+export type MatrixInteractionType = "O×A" | "O×F" | "M×A" | "M×F";
+
+export type MatrixInteraction = {
+  type: MatrixInteractionType;
+  row: string;   // libellé opportunité ou menace
+  col: string;   // libellé acquis ou faiblesse
+};
+
+/** Décode les marks Firestore ("r,c") en interactions typées */
+export function decodeMatrixInteractions(
+  marks: string[],
+  selection: { acquis: string[]; faiblesses: string[]; opportunites: string[]; menaces: string[] }
+): MatrixInteraction[] {
+  const { acquis, faiblesses, opportunites, menaces } = selection;
+  return marks
+    .map((m) => {
+      const [r, c] = m.split(",").map(Number);
+      const isO = r < opportunites.length;
+      const isA = c < acquis.length;
+      const row = isO ? opportunites[r] : menaces[r - opportunites.length];
+      const col = isA ? acquis[c] : faiblesses[c - acquis.length];
+      if (!row || !col) return null;
+      const type: MatrixInteractionType = isO
+        ? (isA ? "O×A" : "O×F")
+        : (isA ? "M×A" : "M×F");
+      return { type, row, col };
+    })
+    .filter(Boolean) as MatrixInteraction[];
+}
+
 type Insight = { title: string; content: string };
 type Recommendation = { title: string; content: string; priority?: "HIGH" | "MEDIUM" | "LOW" };
 
@@ -105,6 +135,30 @@ function pickTopPerQuadrant(postIts: PostIt[], n = 4): Record<QuadrantKey, strin
 
 /** -------- Helpers contexte -------- */
 
+/** Construit le bloc matrice pour les prompts */
+function buildMatrixBlock(interactions?: MatrixInteraction[]): string {
+  if (!interactions || interactions.length === 0) return "";
+  const LABELS: Record<MatrixInteractionType, string> = {
+    "O×A": "LEVIER (opportunité activable grâce à une force)",
+    "O×F": "FREIN (opportunité bloquée par une faiblesse)",
+    "M×A": "RÉSISTANCE (menace atténuée par une force)",
+    "M×F": "BLOCAGE (menace amplifiant une faiblesse)",
+  };
+  const grouped: Record<MatrixInteractionType, string[]> = {
+    "O×A": [], "O×F": [], "M×A": [], "M×F": []
+  };
+  for (const i of interactions) {
+    grouped[i.type].push(`"${i.row}" × "${i.col}"`);
+  }
+  const lines: string[] = ["\n\nINTERACTIONS MATRICE :"];
+  (["O×A", "O×F", "M×A", "M×F"] as MatrixInteractionType[]).forEach((t) => {
+    if (grouped[t].length > 0) {
+      lines.push(`  ${LABELS[t]} :\n    ${grouped[t].join("\n    ")}`);
+    }
+  });
+  return lines.join("\n");
+}
+
 function buildContextBlock(ctx?: BoardContext): string {
   if (!ctx) return "";
   const parts: string[] = [];
@@ -158,24 +212,47 @@ AUCUN texte hors JSON.
 }
 
 /** getAIAnalysis — JSON { insights[], recommendations[] } */
-export async function getAIAnalysis(postIts: PostIt[], context?: BoardContext): Promise<{ insights: Insight[]; recommendations: Recommendation[] }> {
+export async function getAIAnalysis(
+  postIts: PostIt[],
+  context?: BoardContext,
+  matrixInteractions?: MatrixInteraction[]
+): Promise<{ insights: Insight[]; recommendations: Recommendation[] }> {
   const model = await getModel();
   if (!model) return localAnalysisFallback(postIts);
 
   const sys = `
-Tu es un assistant d'analyse stratégique AFOM.
-Tes insights et recommandations doivent être SPÉCIFIQUES aux données fournies, pas génériques.
-Retourne STRICTEMENT du JSON de la forme:
+Tu es un analyste stratégique AFOM expert. Tu dois produire une analyse SPÉCIFIQUE et ANCRÉE dans les données réelles fournies.
+
+CADRE D'ANALYSE DES INTERACTIONS MATRICE :
+- O×A = LEVIER : opportunité activable grâce à une force → action à prioriser
+- O×F = FREIN : opportunité bloquée par une faiblesse → lever le blocage en priorité
+- M×A = RÉSISTANCE : menace atténuée par une force → capitaliser sur cette protection
+- M×F = BLOCAGE/VULNÉRABILITÉ : menace amplifiant une faiblesse → risque critique
+
+DÉTECTE et commente :
+- Contradictions : un même item apparaît en levier ET en frein/blocage
+- Blocages structurels : plusieurs M×F sans O×A compensateurs
+- Leviers prioritaires : O×A à fort enjeu contextuel
+
+RÈGLES ABSOLUES (violation = résultat invalide) :
+1. Chaque insight et recommandation DOIT citer NOMINATIVEMENT au moins un post-it réel entre guillemets
+2. Chaque recommandation DOIT référencer une interaction matrice concrète si disponible
+3. INTERDICTION FORMELLE de ces formulations génériques : "capitaliser sur les acquis", "réduire les menaces", "améliorer la stratégie", "renforcer les capacités", "mobiliser les forces", "développer des partenariats"
+4. Maximum 5 insights — chacun doit être IMPOSSIBLE à copier-coller dans une autre session
+5. Les recommandations doivent être actionnables : qui fait quoi, sur quelle base concrète
+
+RETOURNE STRICTEMENT du JSON :
 {
-  "insights": [{"title": "...","content":"..."}],
-  "recommendations":[{"title":"...","content":"...","priority":"HIGH|MEDIUM|LOW"}]
+  "insights": [{"title": "...", "content": "..."}],
+  "recommendations": [{"title": "...", "content": "...", "priority": "URGENT|HIGH|MEDIUM|LOW"}]
 }
-Ne mets AUCUN autre texte hors JSON.
+Aucun texte hors JSON.
 `.trim();
 
   const ctxBlock = buildContextBlock(context);
+  const matrixBlock = buildMatrixBlock(matrixInteractions);
   const data = postIts.map((p) => ({ quadrant: p.quadrant, text: p.content }));
-  const prompt = `${sys}${ctxBlock}\nDONNÉES AFOM :\n${JSON.stringify(data, null, 2)}\nConsidère concision et actionnabilité.`;
+  const prompt = `${sys}${ctxBlock}${matrixBlock}\n\nPOST-ITS AFOM :\n${JSON.stringify(data, null, 2)}`;
 
   try {
     const res: any = await model.generateContent(prompt);
@@ -190,12 +267,12 @@ Ne mets AUCUN autre texte hors JSON.
   }
 }
 
-/** proposeCentralProblem — JSON { problem, rationale } ; options.mode : 'full' | 'fm' */
+/** proposeCentralProblem — JSON { problem, problemCourt, rationale } ; options.mode : 'full' | 'fm' */
 export async function proposeCentralProblem(
   postIts: PostIt[],
-  options: { mode?: "full" | "fm"; context?: BoardContext } = {}
-): Promise<{ problem: string; rationale?: string }> {
-  const { mode = "full", context } = options;
+  options: { mode?: "full" | "fm"; context?: BoardContext; matrixInteractions?: MatrixInteraction[] } = {}
+): Promise<{ problem: string; problemCourt?: string; rationale?: string }> {
+  const { mode = "full", context, matrixInteractions } = options;
   const model = await getModel();
   if (!model) {
     const fb = localCentralFallback(mode);
@@ -207,25 +284,41 @@ export async function proposeCentralProblem(
     : postIts;
 
   const sys = `
-Tu es un stratège. À partir des idées AFOM et du contexte fourni, propose UN SEUL problème central,
-court (<= 240 caractères), précis, ancré dans les données réelles (pas générique).
-Retourne STRICTEMENT du JSON:
+Tu es un analyste stratégique. À partir des données AFOM, formule le problème central de la situation.
+
+RÈGLES DU PROBLÈME CENTRAL :
+1. ÉTAT NÉGATIF : formule ce qui ne fonctionne pas ou ce qui bloque (pas un objectif, pas une solution)
+2. SPÉCIFIQUE : cite des éléments réels des post-its — la formulation doit être impossible à réutiliser ailleurs
+3. ANCRÉ dans les interactions matrice (blocages M×F prioritaires, freins O×F critiques)
+4. INTERDIT : "manque de ressources", "problème de gouvernance", "absence de coordination" seuls (trop génériques)
+
+DEUX FORMULATIONS OBLIGATOIRES :
+- "long" : une phrase complète, ≤ 240 caractères, état négatif, cite du contenu réel
+  Exemple : "La faible participation des bénéficiaires combinée aux retards de financement empêche l'atteinte des résultats du programme X"
+- "court" : MAX 5 MOTS, titre pour un arbre à problème
+  Exemple : "Participation faible et sous-financement"
+
+Retourne STRICTEMENT du JSON :
 {
-  "problem": "…",
-  "rationale": "…"
+  "long": "...",
+  "court": "...",
+  "rationale": "pourquoi ces données pointent vers ce problème"
 }
+Aucun texte hors JSON.
 `.trim();
 
   const ctxBlock = buildContextBlock(context);
+  const matrixBlock = buildMatrixBlock(matrixInteractions);
   const data = filtered.map((p) => ({ quadrant: p.quadrant, text: p.content }));
-  const prompt = `${sys}${ctxBlock}\nMODE: ${mode}\nDONNÉES:\n${JSON.stringify(data, null, 2)}`;
+  const prompt = `${sys}${ctxBlock}${matrixBlock}\nMODE: ${mode}\nDONNÉES:\n${JSON.stringify(data, null, 2)}`;
 
   try {
     const res: any = await model.generateContent(prompt);
     const text = res?.response?.text?.() ?? "";
     const json = JSON.parse(text || "{}");
     return {
-      problem: String(json.problem || "").slice(0, 400),
+      problem: String(json.long || json.problem || "").slice(0, 400),
+      problemCourt: String(json.court || "").slice(0, 60) || undefined,
       rationale: typeof json.rationale === "string" ? json.rationale : undefined,
     };
   } catch (e) {
@@ -293,36 +386,44 @@ Uniquement des IDs dans "selection". Pas de texte libre hors JSON.
   }
 }
 
-/** proposeOrientations — à partir d'une matrice (ou des paires O×A / O×F / M×A / M×F), génère 4–8 orientations synthétiques */
+/** proposeOrientations — à partir d'une matrice (paires O×A / O×F / M×A / M×F), génère 4–8 orientations synthétiques */
 export async function proposeOrientations(
-  input: any
+  input: any,
+  context?: BoardContext
 ): Promise<{ orientations: string[]; rationale?: string }> {
   const model = await getModel();
   if (!model) {
-    // Fallback simple
     return {
       orientations: [
-        "Déployer un plan de réduction des risques critiques (M×F).",
-        "Capitaliser des acquis pour saisir 1–2 opportunités rapides (O×A).",
-        "Renforcer les capacités internes sur les faiblesses majeures (M×F).",
-        "Expérimenter un pilote à fort levier aligné sur l'opportunité #1 (O×A).",
+        "Activer les leviers O×A identifiés dans la matrice en priorité.",
+        "Lever les freins O×F bloquant les opportunités à fort enjeu.",
+        "Réduire les vulnérabilités M×F par des mesures correctives ciblées.",
+        "Exploiter les résistances M×A comme protection face aux menaces prioritaires.",
       ],
-      rationale: "Généré localement (fallback), basé sur des combinaisons classiques de la matrice."
+      rationale: "Généré localement (fallback) — relancer avec l'IA pour des orientations spécifiques."
     };
   }
 
   const sys = `
-À partir de la matrice de confrontation AFOM (paires O×A, O×F, M×A, M×F, avec notes/scores éventuels),
-propose 4 à 8 **orientations stratégiques** concrètes, formulées en une phrase chacune (style actionnable).
-Retourne STRICTEMENT du JSON:
+Tu es un stratège. À partir des interactions réelles de la matrice AFOM (paires O×A, O×F, M×A, M×F),
+propose 4 à 8 orientations stratégiques concrètes.
+
+RÈGLES :
+1. Chaque orientation DOIT citer les libellés réels des post-its impliqués
+2. Précise le type d'interaction (levier, frein, résistance, blocage) qui justifie l'orientation
+3. Formule en mode actionnable : "Faire X pour Y parce que Z"
+4. INTERDIT : orientations génériques sans référence aux données réelles
+
+Retourne STRICTEMENT du JSON :
 {
-  "orientations": ["...","..."],
+  "orientations": ["...", "..."],
   "rationale": "..."
 }
-Pas d'autre texte hors JSON.
+Aucun texte hors JSON.
 `.trim();
 
-  const prompt = `${sys}\nDONNÉES:\n${JSON.stringify(input ?? {}, null, 2)}`;
+  const ctxBlock = buildContextBlock(context);
+  const prompt = `${sys}${ctxBlock}\nDONNÉES MATRICE:\n${JSON.stringify(input ?? {}, null, 2)}`;
 
   try {
     const res: any = await model.generateContent(prompt);
