@@ -2,7 +2,7 @@
 // Fournit: getAIAnalysis, proposeCentralProblem, proposeMatrixSelection, proposeOrientations.
 // Tous renvoient du JSON, avec fallback heuristique quand l'API n'est pas dispo.
 
-import type { PostIt, QuadrantKey } from "../types";
+import type { PostIt, QuadrantKey, BoardContext } from "../types";
 
 type Insight = { title: string; content: string };
 type Recommendation = { title: string; content: string; priority?: "HIGH" | "MEDIUM" | "LOW" };
@@ -103,15 +103,68 @@ function pickTopPerQuadrant(postIts: PostIt[], n = 4): Record<QuadrantKey, strin
   return result;
 }
 
+/** -------- Helpers contexte -------- */
+
+function buildContextBlock(ctx?: BoardContext): string {
+  if (!ctx) return "";
+  const parts: string[] = [];
+  if (ctx.situationActuelle) parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
+  if (ctx.symptomesObservables) parts.push(`Symptômes observables : ${ctx.symptomesObservables}`);
+  if (ctx.perimetre) parts.push(`Périmètre : ${ctx.perimetre}`);
+  if (ctx.problematique) parts.push(`Problématique identifiée : ${ctx.problematique}`);
+  if (ctx.acteurs) parts.push(`Acteurs : ${ctx.acteurs}`);
+  if (ctx.zone) parts.push(`Zone / Population : ${ctx.zone}`);
+  if (ctx.enjeux) parts.push(`Enjeux : ${ctx.enjeux}`);
+  if (parts.length === 0) return "";
+  return `\n\nCONTEXTE DE LA SESSION :\n${parts.join("\n")}`;
+}
+
 /** -------- Fonctions exportées -------- */
 
+/** extractContextFromDocument — analyse un texte extrait d'un TDR/rapport et renvoie un contexte structuré */
+export async function extractContextFromDocument(text: string): Promise<{
+  problematique: string; acteurs: string; zone: string; enjeux: string;
+}> {
+  const model = await getModel();
+  if (!model) return { problematique: "", acteurs: "", zone: "", enjeux: "" };
+
+  const sys = `
+Tu es un assistant d'analyse documentaire. À partir du texte ci-dessous (extrait d'un TDR ou document de projet),
+identifie et extrais les éléments clés suivants. Retourne STRICTEMENT du JSON :
+{
+  "problematique": "formulation courte de la problématique principale (2-3 phrases max)",
+  "acteurs": "liste des acteurs / parties prenantes principaux, séparés par des virgules",
+  "zone": "zone géographique ou population concernée",
+  "enjeux": "principaux enjeux en 2-3 phrases"
+}
+Si un élément n'est pas clairement identifiable dans le texte, renvoie une chaîne vide "".
+AUCUN texte hors JSON.
+`.trim();
+
+  try {
+    const res: any = await model.generateContent(`${sys}\n\nDOCUMENT :\n${text}`);
+    const raw = res?.response?.text?.() ?? "";
+    const json = JSON.parse(raw || "{}");
+    return {
+      problematique: String(json.problematique || ""),
+      acteurs: String(json.acteurs || ""),
+      zone: String(json.zone || ""),
+      enjeux: String(json.enjeux || ""),
+    };
+  } catch (e) {
+    console.error("extractContextFromDocument failed:", e);
+    return { problematique: "", acteurs: "", zone: "", enjeux: "" };
+  }
+}
+
 /** getAIAnalysis — JSON { insights[], recommendations[] } */
-export async function getAIAnalysis(postIts: PostIt[]): Promise<{ insights: Insight[]; recommendations: Recommendation[] }> {
+export async function getAIAnalysis(postIts: PostIt[], context?: BoardContext): Promise<{ insights: Insight[]; recommendations: Recommendation[] }> {
   const model = await getModel();
   if (!model) return localAnalysisFallback(postIts);
 
   const sys = `
-Tu es un assistant d'analyse stratégique AFOM. 
+Tu es un assistant d'analyse stratégique AFOM.
+Tes insights et recommandations doivent être SPÉCIFIQUES aux données fournies, pas génériques.
 Retourne STRICTEMENT du JSON de la forme:
 {
   "insights": [{"title": "...","content":"..."}],
@@ -120,8 +173,9 @@ Retourne STRICTEMENT du JSON de la forme:
 Ne mets AUCUN autre texte hors JSON.
 `.trim();
 
+  const ctxBlock = buildContextBlock(context);
   const data = postIts.map((p) => ({ quadrant: p.quadrant, text: p.content }));
-  const prompt = `${sys}\nDONNÉES:\n${JSON.stringify(data, null, 2)}\nConsidère concision et actionnabilité.`;
+  const prompt = `${sys}${ctxBlock}\nDONNÉES AFOM :\n${JSON.stringify(data, null, 2)}\nConsidère concision et actionnabilité.`;
 
   try {
     const res: any = await model.generateContent(prompt);
@@ -139,9 +193,9 @@ Ne mets AUCUN autre texte hors JSON.
 /** proposeCentralProblem — JSON { problem, rationale } ; options.mode : 'full' | 'fm' */
 export async function proposeCentralProblem(
   postIts: PostIt[],
-  options: { mode?: "full" | "fm" } = {}
+  options: { mode?: "full" | "fm"; context?: BoardContext } = {}
 ): Promise<{ problem: string; rationale?: string }> {
-  const { mode = "full" } = options;
+  const { mode = "full", context } = options;
   const model = await getModel();
   if (!model) {
     const fb = localCentralFallback(mode);
@@ -153,7 +207,8 @@ export async function proposeCentralProblem(
     : postIts;
 
   const sys = `
-Tu es un stratège. À partir d'idées AFOM, propose UN SEUL problème central, court (<= 240 caractères), clair, actionnable.
+Tu es un stratège. À partir des idées AFOM et du contexte fourni, propose UN SEUL problème central,
+court (<= 240 caractères), précis, ancré dans les données réelles (pas générique).
 Retourne STRICTEMENT du JSON:
 {
   "problem": "…",
@@ -161,8 +216,9 @@ Retourne STRICTEMENT du JSON:
 }
 `.trim();
 
+  const ctxBlock = buildContextBlock(context);
   const data = filtered.map((p) => ({ quadrant: p.quadrant, text: p.content }));
-  const prompt = `${sys}\nMODE: ${mode}\nDONNÉES:\n${JSON.stringify(data, null, 2)}`;
+  const prompt = `${sys}${ctxBlock}\nMODE: ${mode}\nDONNÉES:\n${JSON.stringify(data, null, 2)}`;
 
   try {
     const res: any = await model.generateContent(prompt);
@@ -182,9 +238,10 @@ Retourne STRICTEMENT du JSON:
 /** proposeMatrixSelection — choisit N étiquettes par quadrant (par défaut 4) ; renvoie { selection } */
 export async function proposeMatrixSelection(
   postIts: PostIt[],
-  options: { perQuadrant?: number } = {}
+  options: { perQuadrant?: number; context?: BoardContext } = {}
 ): Promise<{ selection: Record<QuadrantKey, string[]>; rationale?: string }> {
   const n = options.perQuadrant ?? 4;
+  const { context } = options;
 
   // Si IA indisponible, heuristique locale
   const model = await getModel();
@@ -218,7 +275,8 @@ Retourne STRICTEMENT du JSON:
 Uniquement des IDs dans "selection". Pas de texte libre hors JSON.
 `.trim();
 
-  const prompt = `${sys}\nDONNÉES:\n${JSON.stringify(byQ, null, 2)}`;
+  const ctxBlock = buildContextBlock(context);
+  const prompt = `${sys}${ctxBlock}\nDONNÉES:\n${JSON.stringify(byQ, null, 2)}`;
 
   try {
     const res: any = await model.generateContent(prompt);

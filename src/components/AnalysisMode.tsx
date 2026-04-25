@@ -17,6 +17,7 @@ import {
 import { QUADRANT_INFO, PRIORITY_STYLES } from '../constants';
 import { doc as fsDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { BoardMeta, BoardContext } from '../types';
 
 interface AnalysisModeProps { postIts: PostIt[]; }
 
@@ -30,6 +31,7 @@ type CentralProblem = {
 const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
+  const [boardContext, setBoardContext] = useState<BoardContext | undefined>();
 
   // ---- Session / navigation ----
   const sessionId = useMemo(() => {
@@ -40,6 +42,22 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     const { origin, pathname } = window.location;
     window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}`;
   };
+
+  // ---- Contexte du board (Firestore) ----
+  useEffect(() => {
+    (async () => {
+      if (!sessionId) return;
+      try {
+        const snap = await getDoc(fsDoc(db, 'boards', sessionId));
+        if (snap.exists()) {
+          const m = snap.data() as BoardMeta;
+          if (m.context) setBoardContext(m.context);
+        }
+      } catch (e) {
+        console.error('Load boardContext failed', e);
+      }
+    })();
+  }, [sessionId]);
 
   // ---- Problème central (Firestore) ----
   const [central, setCentral] = useState<CentralProblem>({ text: '', source: 'manual' });
@@ -102,7 +120,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
         ? postIts
         : postIts.filter((p) => p.quadrant === 'faiblesses' || p.quadrant === 'menaces');
 
-      const result = await fn(input, { mode });
+      const result = await fn(input, { mode, context: boardContext });
       const next: CentralProblem = {
         text: (result?.problem || result?.text || '').slice(0, 400),
         rationale: result?.rationale || '',
@@ -220,7 +238,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
 
       setLoadingAI(true);
       const timer = setTimeout(() => {
-        getAIAnalysis(postIts).then((res) => {
+        getAIAnalysis(postIts, boardContext).then((res) => {
           // 🛠 Normalisation stricte vers nos types locaux pour éviter le conflit de modules
           const insights: Insight[] = Array.isArray((res as any)?.insights)
             ? (res as any).insights.map((i: any) => ({

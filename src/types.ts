@@ -30,9 +30,21 @@ export interface QuadrantData {
   postIts: PostIt[];
 }
 
+export interface BoardContext {
+  situationActuelle?: string;
+  symptomesObservables?: string;
+  perimetre?: string;
+  // Éléments extraits d'un document (jamais envoyés bruts à l'IA finale)
+  problematique?: string;
+  acteurs?: string;
+  zone?: string;
+  enjeux?: string;
+}
+
 export interface BoardMeta {
   projectName: string;
   themeName: string;
+  context?: BoardContext;
   createdAt?: any;
   updatedAt?: any;
 }

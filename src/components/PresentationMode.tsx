@@ -8,7 +8,48 @@ import React, {
 import { QRCodeCanvas } from "qrcode.react";
 import { doc as fsDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { BoardMeta } from "../types";
+import { BoardMeta, BoardContext } from "../types";
+import { extractContextFromDocument } from "../services/geminiService";
+
+/** Extrait le texte brut d'un fichier TXT, PDF ou DOCX (côté navigateur) */
+async function extractTextFromFile(file: File): Promise<string> {
+  const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+
+  if (ext === "txt") {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error("Lecture échouée"));
+      reader.readAsText(file, "UTF-8");
+    });
+  }
+
+  if (ext === "pdf") {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url
+    ).href;
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+    const pages: string[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      pages.push(content.items.map((it: any) => it.str ?? "").join(" "));
+    }
+    return pages.join("\n");
+  }
+
+  if (ext === "docx") {
+    const mammoth = await import("mammoth");
+    const ab = await file.arrayBuffer();
+    const result = await (mammoth as any).extractRawText({ arrayBuffer: ab });
+    return result.value as string;
+  }
+
+  throw new Error(`Format ".${ext}" non supporté. Utilisez TXT, PDF ou DOCX.`);
+}
 
 type Slide = { id: string; render: () => React.ReactNode };
 
@@ -241,6 +282,16 @@ const PresentationMode: React.FC<Props> = ({
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
 
+  // Contexte de session
+  const [situationActuelle, setSituationActuelle] = useState("");
+  const [symptomesObservables, setSymptomesObservables] = useState("");
+  const [perimetre, setPerimetre] = useState("");
+  const [docExtracted, setDocExtracted] = useState<{
+    problematique: string; acteurs: string; zone: string; enjeux: string;
+  } | null>(null);
+  const [showContextModal, setShowContextModal] = useState(false);
+  const [extractingDoc, setExtractingDoc] = useState(false);
+
   useEffect(() => {
     (async () => {
       if (!sessionId) return;
@@ -250,12 +301,44 @@ const PresentationMode: React.FC<Props> = ({
           const m = snap.data() as BoardMeta;
           setProjectName(m.projectName || "");
           setThemeName(m.themeName || "");
+          if (m.context) {
+            setSituationActuelle(m.context.situationActuelle || "");
+            setSymptomesObservables(m.context.symptomesObservables || "");
+            setPerimetre(m.context.perimetre || "");
+            if (m.context.problematique || m.context.acteurs || m.context.zone || m.context.enjeux) {
+              setDocExtracted({
+                problematique: m.context.problematique || "",
+                acteurs: m.context.acteurs || "",
+                zone: m.context.zone || "",
+                enjeux: m.context.enjeux || "",
+              });
+            }
+          }
         }
       } catch (e) {
         console.error(e);
       }
     })();
   }, [sessionId]);
+
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExtractingDoc(true);
+    try {
+      const rawText = await extractTextFromFile(file);
+      if (!rawText.trim()) { alert("Impossible d’extraire le texte du document."); return; }
+      // Tronquer à 8000 caractères max — jamais le document brut en analyse finale
+      const truncated = rawText.slice(0, 8000);
+      const extracted = await extractContextFromDocument(truncated);
+      setDocExtracted(extracted);
+    } catch (err: any) {
+      alert(err?.message || "Erreur lors de l’extraction du document.");
+    } finally {
+      setExtractingDoc(false);
+      e.target.value = "";
+    }
+  }, []);
 
   const saveMeta = useCallback(async () => {
     if (!sessionId) {
@@ -266,18 +349,25 @@ const PresentationMode: React.FC<Props> = ({
       alert("Renseigne le Projet et le Thème.");
       return;
     }
+    const context: BoardContext = {
+      situationActuelle: situationActuelle.trim(),
+      symptomesObservables: symptomesObservables.trim(),
+      perimetre: perimetre.trim(),
+      ...(docExtracted ?? {}),
+    };
     try {
       await setDoc(
         fsDoc(db, "boards", sessionId),
-        { projectName: projectName.trim(), themeName: themeName.trim(), updatedAt: new Date() } as BoardMeta,
+        { projectName: projectName.trim(), themeName: themeName.trim(), context, updatedAt: new Date() } as BoardMeta,
         { merge: true }
       );
-      alert("Projet & Thème enregistrés.");
+      setShowContextModal(false);
+      alert("Session enregistrée.");
     } catch (e) {
       console.error(e);
-      alert("Impossible d’enregistrer Projet/Thème.");
+      alert("Impossible d’enregistrer.");
     }
-  }, [sessionId, projectName, themeName]);
+  }, [sessionId, projectName, themeName, situationActuelle, symptomesObservables, perimetre, docExtracted]);
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
@@ -336,20 +426,34 @@ const PresentationMode: React.FC<Props> = ({
                       />
                     </div>
                   </div>
-                  <div className="flex items-center justify-end gap-2 mt-3">
+                  <div className="flex items-center justify-between mt-3 gap-2 flex-wrap">
                     <button
-                      onClick={saveMeta}
-                      className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                      onClick={() => setShowContextModal(true)}
+                      className={`px-4 py-2 rounded-md border text-sm font-medium ${
+                        (situationActuelle || perimetre || docExtracted)
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                          : "bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      }`}
                     >
-                      Enregistrer
+                      {(situationActuelle || perimetre || docExtracted)
+                        ? "Contexte ✓"
+                        : "+ Ajouter le contexte"}
                     </button>
-                    <button
-                      onClick={goModerator}
-                      className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50"
-                      title="Aller à l’interface modérateur"
-                    >
-                      Aller au modérateur →
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={saveMeta}
+                        className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                      >
+                        Enregistrer
+                      </button>
+                      <button
+                        onClick={goModerator}
+                        className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50"
+                        title="Aller à l’interface modérateur"
+                      >
+                        Aller au modérateur →
+                      </button>
+                    </div>
                   </div>
                   <div className="text-[11px] text-gray-500 mt-1">
                     ID de session actuel : <span className="font-mono">{sessionId || "—"}</span>
@@ -438,7 +542,7 @@ const PresentationMode: React.FC<Props> = ({
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName]
+    [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName, situationActuelle, perimetre, docExtracted, setShowContextModal]
   );
 
   /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
@@ -483,6 +587,155 @@ const PresentationMode: React.FC<Props> = ({
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
       {current.render()}
+
+      {/* ---- Modal contexte ---- */}
+      {showContextModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900">Contexte de la session</h2>
+              <button
+                onClick={() => setShowContextModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Situation actuelle */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Situation actuelle
+              </label>
+              <textarea
+                value={situationActuelle}
+                onChange={(e) => setSituationActuelle(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                placeholder="Ex : Le programme est en phase d'exécution depuis 2 ans, les résultats restent en deçà des objectifs initiaux..."
+              />
+            </div>
+
+            {/* Symptômes observables */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Symptômes observables
+              </label>
+              <textarea
+                value={symptomesObservables}
+                onChange={(e) => setSymptomesObservables(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                placeholder="Ex : Faible taux de participation, retards fréquents, conflits entre parties prenantes, budget non consommé..."
+              />
+            </div>
+
+            {/* Périmètre */}
+            <div className="mb-5">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Périmètre (zone / population concernée)
+              </label>
+              <input
+                value={perimetre}
+                onChange={(e) => setPerimetre(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
+                placeholder="Ex : Région Nord, 12 communes, 50 000 bénéficiaires"
+              />
+            </div>
+
+            {/* Upload document */}
+            <div className="mb-4 border-t pt-5">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Document de référence
+                <span className="text-xs font-normal text-gray-500 ml-1">(TDR, rapport… PDF, DOCX, TXT)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <label className={`cursor-pointer px-4 py-2 rounded-lg border text-sm font-medium ${extractingDoc ? "opacity-60 pointer-events-none" : "bg-gray-50 hover:bg-gray-100"}`}>
+                  {extractingDoc ? "Extraction en cours…" : "Choisir un fichier"}
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    className="hidden"
+                    disabled={extractingDoc}
+                    onChange={handleFileUpload}
+                  />
+                </label>
+                {extractingDoc && (
+                  <span className="text-xs text-indigo-600 animate-pulse">
+                    L'IA analyse le document…
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Seuls les éléments extraits (problématique, acteurs, zone, enjeux) seront utilisés par l'IA — jamais le document brut.
+              </p>
+            </div>
+
+            {/* Bloc extrait éditable */}
+            {docExtracted && (
+              <div className="mb-5 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-indigo-800">Éléments extraits du document</h3>
+                  <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
+                    Vérifiez et corrigez si nécessaire
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-indigo-700">Problématique</label>
+                    <textarea
+                      value={docExtracted.problematique}
+                      onChange={(e) => setDocExtracted({ ...docExtracted, problematique: e.target.value })}
+                      rows={2}
+                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-indigo-700">Acteurs</label>
+                    <input
+                      value={docExtracted.acteurs}
+                      onChange={(e) => setDocExtracted({ ...docExtracted, acteurs: e.target.value })}
+                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-indigo-700">Zone / Population</label>
+                    <input
+                      value={docExtracted.zone}
+                      onChange={(e) => setDocExtracted({ ...docExtracted, zone: e.target.value })}
+                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-indigo-700">Enjeux</label>
+                    <textarea
+                      value={docExtracted.enjeux}
+                      onChange={(e) => setDocExtracted({ ...docExtracted, enjeux: e.target.value })}
+                      rows={2}
+                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <button
+                onClick={() => setShowContextModal(false)}
+                className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={saveMeta}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700"
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Barre de nav bas (conditions demandées) */}
       <div className="fixed bottom-0 left-0 right-0 pb-4">
