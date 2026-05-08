@@ -287,6 +287,8 @@ const PresentationMode: React.FC<Props> = ({
 
   const { config: aiCfg } = useAIConfig();
   const [aiConfigured, setAiConfigured] = useState(aiCfg.configured);
+  const [showVideo, setShowVideo] = useState(false);
+  const videoUrl = import.meta.env.BASE_URL + "afom-presentation.mp4";
 
   // Meta (Projet/Thème) – formulaire sur slide 1
   const [projectName, setProjectName] = useState("");
@@ -409,6 +411,24 @@ const PresentationMode: React.FC<Props> = ({
                 <p className="mt-6 text-2xl text-white/90 max-w-3xl font-semibold">
                   Outil de diagnostic rapide pouvant conduire à des décisions éclairées
                 </p>
+
+                {/* Bouton vidéo de présentation */}
+                <div className="mt-6">
+                  <button
+                    onClick={() => setShowVideo(true)}
+                    className="group inline-flex items-center gap-3 px-5 py-3 rounded-2xl bg-slate-900/70 hover:bg-slate-800 text-white font-semibold text-sm transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 border border-white/20"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-white/15 group-hover:bg-white/25 flex items-center justify-center transition-colors">
+                      <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                    </div>
+                    Voir la vidéo de présentation AFOM
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all fill-none stroke-current" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </button>
+                </div>
 
                 {/* Formulaire Projet / Thème */}
                 <div className="mt-10 w-full max-w-2xl bg-white/90 rounded-2xl border shadow p-4 text-left">
@@ -797,6 +817,39 @@ const PresentationMode: React.FC<Props> = ({
               >
                 Enregistrer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale vidéo */}
+      {showVideo && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+          onClick={(e) => e.target === e.currentTarget && setShowVideo(false)}
+        >
+          <div className="bg-white rounded-2xl overflow-hidden w-full max-w-4xl relative shadow-2xl">
+            <button
+              type="button"
+              className="absolute top-4 right-4 z-[60] p-2 bg-white/90 rounded-full hover:bg-gray-100 shadow-sm transition"
+              onClick={() => setShowVideo(false)}
+              aria-label="Fermer la vidéo"
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-600 fill-none stroke-current" strokeWidth={2} strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+            <div className="p-5 md:p-7">
+              <div className="aspect-video bg-gray-100 rounded-xl overflow-hidden">
+                <video className="w-full h-full" controls playsInline preload="metadata">
+                  <source src={videoUrl} type="video/mp4" />
+                </video>
+              </div>
+              <div className="mt-3 text-sm text-gray-500 text-center">
+                <a href={videoUrl} target="_blank" rel="noreferrer" className="underline hover:text-gray-700">
+                  Ouvrir dans un nouvel onglet
+                </a>
+              </div>
             </div>
           </div>
         </div>

@@ -23,5 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .claude/
+# Vidéo racine exclue (trop volumineuse / doublon)
 afom-presentation.mp4
+# Exclure les MP4 sauf la vidéo de présentation dans public/
 *.mp4
+!public/afom-presentation.mp4
