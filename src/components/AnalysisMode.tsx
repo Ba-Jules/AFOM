@@ -166,45 +166,146 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
     URL.revokeObjectURL(url);
   };
 
-  const toCSV = (d: AnalysisData) => {
-    const esc = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
-    const lines: string[] = [];
-    lines.push('Section,Sous-section,Clé,Valeur');
-    lines.push(`Problème central,,Texte,${esc(central.text || '')}`);
-    lines.push(`Problème central,,Source,${esc(central.source || '')}`);
-    lines.push(`Métriques,,Contributions,${d.metrics.totalContributions}`);
-    lines.push(`Métriques,,Participants,${d.metrics.uniqueParticipants}`);
-    lines.push(`Métriques,,Durée (min),${d.metrics.sessionDuration}`);
-    lines.push(`Métriques,,Engagement,${d.metrics.engagementScore}`);
+  const toExcelHTML = (d: AnalysisData) => {
+    const cell = (v: any, bold = false) =>
+      `<td style="border:1px solid #ccc;padding:6px 10px;${bold ? 'font-weight:bold;background:#f0f4ff;' : ''}">${String(v ?? '').replace(/</g, '&lt;')}</td>`;
+    const hdr = (...cols: string[]) =>
+      `<tr>${cols.map((c) => `<th style="background:#4f46e5;color:#fff;padding:6px 10px;border:1px solid #3730a3;font-weight:bold">${c}</th>`).join('')}</tr>`;
+    const sectionTitle = (t: string) =>
+      `<tr><td colspan="4" style="background:#e0e7ff;font-weight:bold;padding:8px 10px;border:1px solid #c7d2fe;font-size:13px">${t}</td></tr>`;
+
+    const rows: string[] = [];
+
+    // Problème central
+    rows.push(sectionTitle('🎯 Problème central'));
+    rows.push(hdr('Champ', 'Valeur', '', ''));
+    rows.push(`<tr>${cell('Texte', true)}${cell(central.text || '—')}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell('Source', true)}${cell(central.source || '—')}<td></td><td></td></tr>`);
+    if (central.rationale) rows.push(`<tr>${cell('Justification', true)}${cell(central.rationale)}<td></td><td></td></tr>`);
+    rows.push(`<tr><td colspan="4"></td></tr>`);
+
+    // Métriques
+    rows.push(sectionTitle('📊 Métriques de session'));
+    rows.push(hdr('Indicateur', 'Valeur', '', ''));
+    rows.push(`<tr>${cell('Total contributions', true)}${cell(d.metrics.totalContributions)}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell('Participants uniques', true)}${cell(d.metrics.uniqueParticipants)}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell('Durée (min)', true)}${cell(d.metrics.sessionDuration)}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell('Score d\'engagement', true)}${cell(d.metrics.engagementScore)}<td></td><td></td></tr>`);
+    rows.push(`<tr><td colspan="4"></td></tr>`);
+
+    // Quadrants AFOM
+    rows.push(sectionTitle('🔲 Quadrants AFOM'));
+    rows.push(hdr('Quadrant', 'Nombre de contributions', 'Nombre de mots', ''));
     (Object.keys(d.quadrants) as QuadrantKey[]).forEach((k) => {
       const q = d.quadrants[k];
-      lines.push(`Quadrants,${k},Count,${q.count}`);
-      lines.push(`Quadrants,${k},WordCount,${q.wordCount}`);
+      const labels: Record<string, string> = { acquis: 'Acquis (Forces)', faiblesses: 'Faiblesses', opportunites: 'Opportunités', menaces: 'Menaces' };
+      rows.push(`<tr>${cell(labels[k] || k, true)}${cell(q.count)}${cell(q.wordCount)}<td></td></tr>`);
     });
-    d.timeline.forEach((t) => {
-      lines.push(`Timeline,${t.time},acquis,${(t as any).acquis}`);
-      lines.push(`Timeline,${t.time},faiblesses,${(t as any).faiblesses}`);
-      lines.push(`Timeline,${t.time},opportunites,${(t as any).opportunites}`);
-      lines.push(`Timeline,${t.time},menaces,${(t as any).menaces}`);
-    });
-    d.contributors.forEach((c) => {
-      lines.push(`Contributeurs,${esc(c.name)},Count,${c.count}`);
-      lines.push(`Contributeurs,${esc(c.name)},TotalWords,${c.totalWords}`);
-    });
-    d.insights.forEach((i, idx) => {
-      lines.push(`Insights,${idx + 1},Titre,${esc(i.title)}`);
-      lines.push(`Insights,${idx + 1},Contenu,${esc(i.content)}`);
-    });
-    d.recommendations.forEach((r, idx) => {
-      lines.push(`Recommandations,${idx + 1},Titre,${esc(r.title)}`);
-      lines.push(`Recommandations,${idx + 1},Contenu,${esc(r.content)}`);
-      lines.push(`Recommandations,${idx + 1},Priorité,${esc(r.priority)}`);
-    });
-    return lines.join('\n');
+    rows.push(`<tr><td colspan="4"></td></tr>`);
+
+    // Insights IA
+    if (d.insights.length > 0) {
+      rows.push(sectionTitle('💡 Insights IA'));
+      rows.push(hdr('#', 'Titre', 'Contenu', ''));
+      d.insights.forEach((ins, i) => {
+        rows.push(`<tr>${cell(i + 1)}${cell(ins.title, true)}${cell(ins.content)}<td></td></tr>`);
+      });
+      rows.push(`<tr><td colspan="4"></td></tr>`);
+    }
+
+    // Recommandations
+    if (d.recommendations.length > 0) {
+      rows.push(sectionTitle('✅ Recommandations'));
+      rows.push(hdr('#', 'Titre', 'Contenu', 'Priorité'));
+      d.recommendations.forEach((r, i) => {
+        const pColor: Record<string, string> = { HIGH: '#fca5a5', URGENT: '#f87171', MEDIUM: '#fde68a', LOW: '#bbf7d0' };
+        const bg = pColor[r.priority || ''] || '';
+        rows.push(`<tr>${cell(i + 1)}${cell(r.title, true)}${cell(r.content)}<td style="border:1px solid #ccc;padding:6px 10px;background:${bg};font-weight:bold">${r.priority || ''}</td></tr>`);
+      });
+      rows.push(`<tr><td colspan="4"></td></tr>`);
+    }
+
+    // Contributeurs
+    if (d.contributors.length > 0) {
+      rows.push(sectionTitle('👥 Contributeurs'));
+      rows.push(hdr('Nom', 'Contributions', 'Total mots', ''));
+      d.contributors.forEach((c) => {
+        rows.push(`<tr>${cell(c.name, true)}${cell(c.count)}${cell(c.totalWords)}<td></td></tr>`);
+      });
+    }
+
+    return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8">
+<style>table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px}td,th{white-space:pre-wrap;max-width:400px}</style>
+</head><body>
+<h2 style="font-family:Calibri,sans-serif;color:#4f46e5">Rapport AFOM — Session ${sessionId || ''}</h2>
+<table>${rows.join('')}</table>
+</body></html>`;
   };
 
-  const exportCSV = () => { if (analysisData) download(`analysis_${sessionId || 'session'}.csv`, 'text/csv;charset=utf-8', toCSV(analysisData)); };
-  const exportJSON = () => { if (analysisData) download(`analysis_${sessionId || 'session'}.json`, 'application/json', JSON.stringify({ sessionId, centralProblem: central, analysis: analysisData }, null, 2)); };
+  const toWordHTML = (d: AnalysisData) => {
+    const sec = (title: string, content: string) =>
+      `<h2 style="color:#4f46e5;border-bottom:2px solid #4f46e5;padding-bottom:4pt;margin-top:18pt">${title}</h2>${content}`;
+    const p = (t: string) => `<p style="margin:6pt 0;line-height:1.5">${String(t ?? '').replace(/</g, '&lt;')}</p>`;
+    const label = (l: string, v: string) =>
+      `<p style="margin:4pt 0"><strong>${l} :</strong> ${String(v ?? '').replace(/</g, '&lt;')}</p>`;
+
+    const quadLabels: Record<string, string> = { acquis: 'Acquis (Forces)', faiblesses: 'Faiblesses', opportunites: 'Opportunités', menaces: 'Menaces' };
+    const prioColor: Record<string, string> = { HIGH: '#dc2626', URGENT: '#7f1d1d', MEDIUM: '#d97706', LOW: '#16a34a' };
+
+    const sections: string[] = [
+      sec('🎯 Problème central', [
+        label('Énoncé', central.text || '—'),
+        central.textCourt ? label('Titre court', central.textCourt) : '',
+        central.rationale ? label('Justification IA', central.rationale) : '',
+        label('Source', central.source === 'ai_full' ? 'IA (analyse complète)' : central.source === 'ai_fm' ? 'IA (F+M)' : 'Manuel'),
+      ].join('')),
+
+      sec('📊 Métriques de session', [
+        label('Total contributions', String(d.metrics.totalContributions)),
+        label('Participants uniques', String(d.metrics.uniqueParticipants)),
+        label('Durée', `${d.metrics.sessionDuration} min`),
+        label("Score d'engagement", String(d.metrics.engagementScore)),
+      ].join('')),
+
+      sec('🔲 Quadrants AFOM', (Object.keys(d.quadrants) as QuadrantKey[]).map((k) =>
+        label(quadLabels[k] || k, `${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`)
+      ).join('')),
+
+      d.insights.length > 0 ? sec('💡 Insights IA', d.insights.map((ins, i) =>
+        `<p style="margin:8pt 0 2pt"><strong style="color:#4f46e5">${i + 1}. ${ins.title.replace(/</g, '&lt;')}</strong></p>${p(ins.content)}`
+      ).join('')) : '',
+
+      d.recommendations.length > 0 ? sec('✅ Recommandations', d.recommendations.map((r, i) => {
+        const col = prioColor[r.priority || ''] || '#374151';
+        return `<p style="margin:8pt 0 2pt"><strong>${i + 1}. ${r.title.replace(/</g, '&lt;')}</strong> <span style="color:${col};font-size:9pt">[${r.priority || ''}]</span></p>${p(r.content)}`;
+      }).join('')) : '',
+
+      d.contributors.length > 0 ? sec('👥 Contributeurs', d.contributors.map((c) =>
+        label(c.name, `${c.count} contributions — ${c.totalWords} mots`)
+      ).join('')) : '',
+    ].filter(Boolean);
+
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>body{font-family:Calibri,Georgia,serif;font-size:12pt;color:#111;margin:2cm;line-height:1.6}
+h1{color:#4f46e5;font-size:18pt}h2{font-size:13pt}strong{font-weight:600}</style>
+</head><body>
+<h1>Rapport d'analyse AFOM</h1>
+<p style="color:#6b7280;margin-bottom:18pt">Session : ${sessionId || '—'} &nbsp;|&nbsp; Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
+${sections.join('')}
+</body></html>`;
+  };
+
+  const exportExcel = () => {
+    if (!analysisData) return;
+    const html = toExcelHTML(analysisData);
+    download(`AFOM_${sessionId || 'session'}.xls`, 'application/vnd.ms-excel', '﻿' + html);
+  };
+  const exportWord = () => {
+    if (!analysisData) return;
+    const html = toWordHTML(analysisData);
+    download(`AFOM_${sessionId || 'session'}.doc`, 'application/msword', html);
+  };
   const exportPDF = () => window.print();
 
   // ---- Traitement des données de base ----
@@ -329,11 +430,11 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
             >
               {loadingAI ? 'IA…' : '⟳ Analyse IA'}
             </button>
-            <button onClick={exportCSV} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">CSV</span><span className="hidden sm:inline">Exporter CSV</span>
+            <button onClick={exportExcel} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">Excel</span><span className="hidden sm:inline">Exporter Excel</span>
             </button>
-            <button onClick={exportJSON} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">JSON</span><span className="hidden sm:inline">Exporter JSON</span>
+            <button onClick={exportWord} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">Word</span><span className="hidden sm:inline">Exporter Word</span>
             </button>
             <button onClick={exportPDF} className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
               <span className="sm:hidden">PDF</span><span className="hidden sm:inline">Exporter PDF</span>
