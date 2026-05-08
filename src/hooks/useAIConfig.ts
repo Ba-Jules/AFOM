@@ -16,7 +16,7 @@ export const PROVIDER_DEFAULTS: Record<string, { model: string; label: string; h
   gemini:     { model: 'gemini-1.5-flash',          label: 'Gemini (Google)', hint: 'AIzaSy…' },
   openai:     { model: 'gpt-4o-mini',               label: 'OpenAI',          hint: 'sk-…' },
   anthropic:  { model: 'claude-haiku-4-5-20251001', label: 'Anthropic',       hint: 'sk-ant-…' },
-  openrouter: { model: 'google/gemini-flash-1.5',   label: 'OpenRouter',      hint: 'sk-or-v1-…' },
+  openrouter: { model: 'openai/gpt-4o-mini',        label: 'OpenRouter',      hint: 'sk-or-v1-…' },
   mistral:    { model: 'mistral-small-latest',       label: 'Mistral AI',      hint: '…' },
 };
 
@@ -57,12 +57,12 @@ export function useAIConfig() {
     return () => window.removeEventListener(SYNC_EVENT, handler);
   }, []);
 
-  const save = useCallback((provider: string, apiKey: string): AIConfig => {
+  const save = useCallback((provider: string, apiKey: string, model?: string): AIConfig => {
     const defaults = PROVIDER_DEFAULTS[provider];
     const next: AIConfig = {
       provider,
       apiKey: apiKey.trim(),
-      model: defaults?.model || '',
+      model: (model && model.trim()) ? model.trim() : (defaults?.model || ''),
       configured: !!(provider && apiKey.trim()),
     };
     try { localStorage.setItem(AFOM_AI_STORAGE_KEY, JSON.stringify(next)); } catch { /* quota */ }

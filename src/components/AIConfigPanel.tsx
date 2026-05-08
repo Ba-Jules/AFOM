@@ -135,6 +135,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
   const { config, save, clear } = useAIConfig();
   const [provider, setProvider]   = useState<ProviderId | ''>(config.provider as ProviderId | '');
   const [apiKey, setApiKey]       = useState(config.apiKey || '');
+  const [model, setModel]         = useState(config.model || '');
   const [showKey, setShowKey]     = useState(false);
   const [showHelp, setShowHelp]   = useState(false);
   const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
@@ -145,6 +146,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
 
   const handleProviderChange = (val: string) => {
     setProvider(val as ProviderId | '');
+    setModel(PROVIDER_DEFAULTS[val]?.model || '');
     setShowHelp(false);
     setTestState('idle');
     setTestMsg('');
@@ -152,7 +154,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
 
   const handleSave = () => {
     if (!provider || !apiKey.trim()) return;
-    const next = save(provider, apiKey);
+    const next = save(provider, apiKey, model);
     onConfigured?.(next);
     setTestState('idle');
     setTestMsg('');
@@ -183,6 +185,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
     clear();
     setProvider('');
     setApiKey('');
+    setModel('');
     setTestState('idle');
     setTestMsg('');
     setShowHelp(false);
@@ -294,6 +297,28 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
             Stockée localement dans votre navigateur — non transmise à nos serveurs.
           </p>
+        </div>
+
+        {/* ── Modèle ── */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            Modèle
+          </label>
+          <input
+            type="text"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+            placeholder={PROVIDER_DEFAULTS[provider]?.model || 'Identifiant du modèle'}
+            className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono transition"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {provider === 'openrouter' && (
+            <p className="mt-1 text-[10px] text-gray-400">
+              Exemples : <code className="text-indigo-500">openai/gpt-4o-mini</code> · <code className="text-indigo-500">google/gemini-2.0-flash-001</code> · <code className="text-indigo-500">anthropic/claude-3-haiku</code>
+            </p>
+          )}
         </div>
       )}
 
