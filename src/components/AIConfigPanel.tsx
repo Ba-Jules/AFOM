@@ -152,6 +152,23 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
     setTestMsg('');
   };
 
+  // Détecte si la clé appartient à un autre provider
+  const KEY_SIGNATURES: Record<string, RegExp> = {
+    openai:     /^sk-(?!ant-|or-v1-)/,
+    anthropic:  /^sk-ant-/,
+    gemini:     /^AIza/,
+    openrouter: /^sk-or-v1-/,
+    mistral:    /^[a-zA-Z0-9]{32,}$/,
+  };
+  const PROVIDER_OF_KEY = (key: string): string | null => {
+    for (const [p, re] of Object.entries(KEY_SIGNATURES)) {
+      if (re.test(key.trim())) return p;
+    }
+    return null;
+  };
+  const detectedProvider = apiKey ? PROVIDER_OF_KEY(apiKey) : null;
+  const keyMismatch = detectedProvider && provider && detectedProvider !== provider;
+
   const handleSave = () => {
     if (!provider || !apiKey.trim()) return;
     const next = save(provider, apiKey, model);
@@ -164,15 +181,13 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
     if (!provider || !apiKey.trim()) return;
     setTestState('testing');
     setTestMsg('');
-    await new Promise((r) => setTimeout(r, 1000));
-    const formats: Record<string, RegExp> = {
-      openai: /^sk-/,
-      anthropic: /^sk-ant-/,
-      gemini: /^AIza/,
-      openrouter: /^sk-or-v1-/,
-    };
-    const re = formats[provider];
-    if (!re || re.test(apiKey.trim())) {
+    await new Promise((r) => setTimeout(r, 500));
+    const re = KEY_SIGNATURES[provider];
+    if (keyMismatch) {
+      setTestState('error');
+      const label = PROVIDERS.find((p) => p.id === detectedProvider)?.name ?? detectedProvider;
+      setTestMsg(`Clé ${label} détectée — sélectionnez le bon fournisseur.`);
+    } else if (!re || re.test(apiKey.trim())) {
       setTestState('ok');
       setTestMsg('Format de clé valide ✓');
     } else {
@@ -293,10 +308,17 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
               {showKey ? <EyeOffIcon /> : <EyeIcon />}
             </button>
           </div>
-          <p className="mt-1 text-[10px] text-gray-400 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-            Stockée localement dans votre navigateur — non transmise à nos serveurs.
-          </p>
+          {keyMismatch ? (
+            <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1 font-medium">
+              <AlertCircleIcon />
+              Cette clé semble être une clé {PROVIDERS.find((p) => p.id === detectedProvider)?.name ?? detectedProvider} — sélectionnez le bon fournisseur.
+            </p>
+          ) : (
+            <p className="mt-1 text-[10px] text-gray-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              Stockée localement dans votre navigateur — non transmise à nos serveurs.
+            </p>
+          )}
         </div>
 
         {/* ── Modèle ── */}

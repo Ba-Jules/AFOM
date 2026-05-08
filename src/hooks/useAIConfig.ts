@@ -20,10 +20,23 @@ export const PROVIDER_DEFAULTS: Record<string, { model: string; label: string; h
   mistral:    { model: 'mistral-small-latest',       label: 'Mistral AI',      hint: '…' },
 };
 
+// Modèles retirés des providers → remplacés automatiquement
+const DEPRECATED_MODELS: Record<string, string> = {
+  'google/gemini-flash-1.5': 'openai/gpt-4o-mini',
+};
+
 function readFromStorage(): AIConfig {
   try {
     const raw = localStorage.getItem(AFOM_AI_STORAGE_KEY);
-    if (raw) return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+    if (raw) {
+      const cfg: AIConfig = { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+      // Migration automatique des modèles obsolètes
+      if (cfg.model && DEPRECATED_MODELS[cfg.model]) {
+        cfg.model = DEPRECATED_MODELS[cfg.model];
+        localStorage.setItem(AFOM_AI_STORAGE_KEY, JSON.stringify(cfg));
+      }
+      return cfg;
+    }
   } catch { /* ignore */ }
   // Migration depuis l'ancien format à deux clés séparées
   try {
