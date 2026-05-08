@@ -1,7 +1,12 @@
-// Service multi-providers IA — appels REST vers Gemini, OpenAI, Anthropic, OpenRouter, Mistral.
+// Service multi-providers IA — appels REST vers Gemini, OpenAI, Anthropic, OpenRouter, Mistral, xAI.
 // La clé active est lue depuis localStorage (format unifié afom_ai_config) à chaque appel.
 
 const STORAGE_KEY = 'afom_ai_config';
+
+// Modèles retirés → remplacements automatiques (synchronisé avec useAIConfig.ts)
+const DEPRECATED_MODELS: Record<string, string> = {
+  'google/gemini-flash-1.5': 'openai/gpt-4o-mini',
+};
 
 export function getStoredAIConfig(): { provider: string; key: string; model?: string } | null {
   try {
@@ -9,7 +14,10 @@ export function getStoredAIConfig(): { provider: string; key: string; model?: st
     if (raw) {
       const cfg = JSON.parse(raw);
       if (cfg.provider && cfg.apiKey && cfg.apiKey.length > 4) {
-        return { provider: cfg.provider, key: cfg.apiKey, model: cfg.model || undefined };
+        const model = cfg.model && DEPRECATED_MODELS[cfg.model]
+          ? DEPRECATED_MODELS[cfg.model]
+          : (cfg.model || undefined);
+        return { provider: cfg.provider, key: cfg.apiKey, model };
       }
     }
     return null;
@@ -39,9 +47,11 @@ export async function callAI(prompt: string): Promise<string> {
     if (provider === 'anthropic')
       return callAnthropic(prompt, key, model || 'claude-haiku-4-5-20251001');
     if (provider === 'openrouter')
-      return callOpenAICompat(prompt, key, 'https://openrouter.ai/api/v1/chat/completions', model || 'google/gemini-flash-1.5');
+      return callOpenAICompat(prompt, key, 'https://openrouter.ai/api/v1/chat/completions', model || 'openai/gpt-4o-mini');
     if (provider === 'mistral')
       return callOpenAICompat(prompt, key, 'https://api.mistral.ai/v1/chat/completions', model || 'mistral-small-latest');
+    if (provider === 'xai')
+      return callOpenAICompat(prompt, key, 'https://api.x.ai/v1/chat/completions', model || 'grok-3-mini-fast');
   }
 
   // Fallback : clé Gemini de l'environnement (GitHub Actions secret)

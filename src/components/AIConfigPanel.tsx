@@ -121,6 +121,19 @@ const PROVIDERS = [
       'Mistral offre un accès gratuit limité pour les nouveaux comptes',
     ],
   },
+  {
+    id: 'xai',
+    name: 'xAI (Grok)',
+    sub: 'Grok 3 mini fast',
+    hint: 'xai-…',
+    keyUrl: 'https://console.x.ai',
+    steps: [
+      'Connectez-vous sur console.x.ai',
+      'Allez dans « API Keys »',
+      "Cliquez « Create API Key »",
+      "La clé commence par « xai-… »",
+    ],
+  },
 ] as const;
 
 type ProviderId = (typeof PROVIDERS)[number]['id'];
@@ -158,6 +171,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
     anthropic:  /^sk-ant-/,
     gemini:     /^AIza/,
     openrouter: /^sk-or-v1-/,
+    xai:        /^xai-/,
     mistral:    /^[a-zA-Z0-9]{32,}$/,
   };
   const PROVIDER_OF_KEY = (key: string): string | null => {
@@ -338,7 +352,12 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
           />
           {provider === 'openrouter' && (
             <p className="mt-1 text-[10px] text-gray-400">
-              Exemples : <code className="text-indigo-500">openai/gpt-4o-mini</code> · <code className="text-indigo-500">google/gemini-2.0-flash-001</code> · <code className="text-indigo-500">anthropic/claude-3-haiku</code>
+              Exemples : <code className="text-indigo-500">openai/gpt-4o-mini</code> · <code className="text-indigo-500">google/gemini-2.0-flash-001</code> · <code className="text-indigo-500">anthropic/claude-3-haiku</code> · <code className="text-indigo-500">x-ai/grok-3-mini-beta</code>
+            </p>
+          )}
+          {provider === 'xai' && (
+            <p className="mt-1 text-[10px] text-gray-400">
+              Exemples : <code className="text-indigo-500">grok-3-mini-fast</code> · <code className="text-indigo-500">grok-3-mini-beta</code> · <code className="text-indigo-500">grok-2-latest</code>
             </p>
           )}
         </div>

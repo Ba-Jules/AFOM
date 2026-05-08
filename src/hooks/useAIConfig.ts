@@ -13,11 +13,12 @@ export interface AIConfig {
 const DEFAULT_CONFIG: AIConfig = { provider: '', apiKey: '', model: '', configured: false };
 
 export const PROVIDER_DEFAULTS: Record<string, { model: string; label: string; hint: string }> = {
-  gemini:     { model: 'gemini-1.5-flash',          label: 'Gemini (Google)', hint: 'AIzaSy…' },
-  openai:     { model: 'gpt-4o-mini',               label: 'OpenAI',          hint: 'sk-…' },
-  anthropic:  { model: 'claude-haiku-4-5-20251001', label: 'Anthropic',       hint: 'sk-ant-…' },
-  openrouter: { model: 'openai/gpt-4o-mini',        label: 'OpenRouter',      hint: 'sk-or-v1-…' },
-  mistral:    { model: 'mistral-small-latest',       label: 'Mistral AI',      hint: '…' },
+  gemini:     { model: 'gemini-1.5-flash',          label: 'Gemini (Google)', hint: 'AIzaSy…'     },
+  openai:     { model: 'gpt-4o-mini',               label: 'OpenAI',          hint: 'sk-…'        },
+  anthropic:  { model: 'claude-haiku-4-5-20251001', label: 'Anthropic',       hint: 'sk-ant-…'    },
+  openrouter: { model: 'openai/gpt-4o-mini',        label: 'OpenRouter',      hint: 'sk-or-v1-…'  },
+  mistral:    { model: 'mistral-small-latest',       label: 'Mistral AI',      hint: '…'           },
+  xai:        { model: 'grok-3-mini-fast',           label: 'xAI (Grok)',      hint: 'xai-…'       },
 };
 
 // Modèles retirés des providers → remplacés automatiquement
