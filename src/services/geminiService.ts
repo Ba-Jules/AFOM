@@ -196,8 +196,9 @@ Aucun texte hors JSON.
 
   try {
     const text = await callAI(prompt);
-    const json = JSON.parse(text || "{}");
-    const insights: Insight[]             = Array.isArray(json.insights) ? json.insights : [];
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    const json = JSON.parse(cleaned || "{}");
+    const insights: Insight[]               = Array.isArray(json.insights) ? json.insights : [];
     const recommendations: Recommendation[] = Array.isArray(json.recommendations) ? json.recommendations : [];
     return { insights, recommendations };
   } catch (e) {
@@ -250,19 +251,14 @@ Aucun texte hors JSON.
   const data        = filtered.map((p) => ({ quadrant: p.quadrant, text: p.content }));
   const prompt      = `${sys}${ctxBlock}${matrixBlock}\nMODE: ${mode}\nDONNÉES:\n${JSON.stringify(data, null, 2)}`;
 
-  try {
-    const text = await callAI(prompt);
-    const json = JSON.parse(text || "{}");
-    return {
-      problem:      String(json.long || json.problem || "").slice(0, 400),
-      problemCourt: String(json.court || "").slice(0, 60) || undefined,
-      rationale:    typeof json.rationale === "string" ? json.rationale : undefined,
-    };
-  } catch (e) {
-    console.error("proposeCentralProblem failed:", e);
-    const fb = localCentralFallback(mode);
-    return { problem: fb.problem, rationale: fb.rationale };
-  }
+  const text = await callAI(prompt);
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const json = JSON.parse(cleaned || "{}");
+  return {
+    problem:      String(json.long || json.problem || "").slice(0, 400),
+    problemCourt: String(json.court || "").slice(0, 60) || undefined,
+    rationale:    typeof json.rationale === "string" ? json.rationale : undefined,
+  };
 }
 
 /** proposeMatrixSelection — choisit N étiquettes par quadrant (par défaut 4) */
@@ -303,17 +299,13 @@ Uniquement des IDs dans "selection". Pas de texte libre hors JSON.
 
   const prompt = `${sys}${buildContextBlock(context)}\nDONNÉES:\n${JSON.stringify(byQ, null, 2)}`;
 
-  try {
-    const text = await callAI(prompt);
-    const json = JSON.parse(text || "{}");
-    const selection = json.selection && typeof json.selection === "object"
-      ? json.selection
-      : pickTopPerQuadrant(postIts, n);
-    return { selection, rationale: typeof json.rationale === "string" ? json.rationale : undefined };
-  } catch (e) {
-    console.error("proposeMatrixSelection failed:", e);
-    return { selection: pickTopPerQuadrant(postIts, n), rationale: "Erreur IA, sélection heuristique locale." };
-  }
+  const text = await callAI(prompt);
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const json = JSON.parse(cleaned || "{}");
+  const selection = json.selection && typeof json.selection === "object"
+    ? json.selection
+    : pickTopPerQuadrant(postIts, n);
+  return { selection, rationale: typeof json.rationale === "string" ? json.rationale : undefined };
 }
 
 /** proposeOrientations — génère 4–8 orientations stratégiques à partir de la matrice */
@@ -353,25 +345,13 @@ Aucun texte hors JSON.
 
   const prompt = `${sys}${buildContextBlock(context)}\nDONNÉES MATRICE:\n${JSON.stringify(input ?? {}, null, 2)}`;
 
-  try {
-    const text = await callAI(prompt);
-    const json = JSON.parse(text || "{}");
-    const orientations: string[] = Array.isArray(json.orientations) ? json.orientations : [];
-    return {
-      orientations: orientations.length ? orientations : [
-        "Prioriser 2 actions défensives pour réduire les menaces majeures.",
-        "Accélérer 1 initiative offensive s'appuyant sur les acquis pour saisir une opportunité clé.",
-      ],
-      rationale: typeof json.rationale === "string" ? json.rationale : undefined,
-    };
-  } catch (e) {
-    console.error("proposeOrientations failed:", e);
-    return {
-      orientations: [
-        "Structurer un plan d'atténuation des risques critiques (M×F).",
-        "Mobiliser les forces existantes pour capter une opportunité prioritaire (O×A).",
-      ],
-      rationale: "Erreur IA, orientations de repli.",
-    };
-  }
+  const text = await callAI(prompt);
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const json = JSON.parse(cleaned || "{}");
+  const orientations: string[] = Array.isArray(json.orientations) ? json.orientations : [];
+  if (orientations.length === 0) throw new Error("L'IA n'a renvoyé aucune orientation.");
+  return {
+    orientations,
+    rationale: typeof json.rationale === "string" ? json.rationale : undefined,
+  };
 }

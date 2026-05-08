@@ -12,6 +12,7 @@ import {
 import { getAIAnalysis, decodeMatrixInteractions, MatrixInteraction } from '../services/geminiService';
 import AIConfigPanel from './AIConfigPanel';
 import { useAIConfig } from '../hooks/useAIConfig';
+import { isAIAvailable } from '../services/aiProviderService';
 import * as geminiAny from '../services/geminiService';
 import {
   BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -120,6 +121,10 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   const askAIForCentral = async (mode: 'full' | 'fm') => {
     if (!postIts.length) {
       alert('Pas de données AFOM.');
+      return;
+    }
+    if (!isAIAvailable()) {
+      alert("Aucun provider IA configuré.\n\nOuvrez le bandeau « Assistance IA » ci-dessus pour renseigner votre clé API.");
       return;
     }
     try {
@@ -245,38 +250,29 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     return { metrics, quadrants, contributors, timeline };
   };
 
+  const runAIAnalysis = (its: PostIt[], ctx: BoardContext | undefined, interactions: MatrixInteraction[]) => {
+    setLoadingAI(true);
+    getAIAnalysis(its, ctx, interactions).then((res) => {
+      const insights: Insight[] = Array.isArray((res as any)?.insights)
+        ? (res as any).insights.map((i: any) => ({ title: String(i.title ?? ''), content: String(i.content ?? '') })) as Insight[]
+        : [];
+      const recommendations: Recommendation[] = Array.isArray((res as any)?.recommendations)
+        ? (res as any).recommendations.map((r: any) => ({
+            title: String(r.title ?? ''),
+            content: String(r.content ?? ''),
+            priority: (r.priority as any) ?? 'moyenne',
+          })) as Recommendation[]
+        : [];
+      setAnalysisData((prev) => prev ? { ...prev, insights, recommendations } : prev);
+      setLoadingAI(false);
+    });
+  };
+
   useEffect(() => {
     if (postIts.length > 0) {
       const basicData = processData(postIts);
       setAnalysisData({ ...basicData, insights: [], recommendations: [] });
-
-      setLoadingAI(true);
-      const timer = setTimeout(() => {
-        getAIAnalysis(postIts, boardContext, matrixInteractions).then((res) => {
-          // 🛠 Normalisation stricte vers nos types locaux pour éviter le conflit de modules
-          const insights: Insight[] = Array.isArray((res as any)?.insights)
-            ? (res as any).insights.map((i: any) => ({
-                title: String(i.title ?? ''),
-                content: String(i.content ?? ''),
-              })) as Insight[]
-            : [];
-          const recommendations: Recommendation[] = Array.isArray((res as any)?.recommendations)
-            ? (res as any).recommendations.map((r: any) => ({
-                title: String(r.title ?? ''),
-                content: String(r.content ?? ''),
-                // on garde la valeur si connue sinon "moyenne" par défaut
-                priority: (r.priority as any) ?? 'moyenne',
-              })) as Recommendation[]
-            : [];
-
-          setAnalysisData((prev) => {
-            if (!prev) return prev; // null
-            const updated: AnalysisData = { ...prev, insights, recommendations };
-            return updated;
-          });
-          setLoadingAI(false);
-        });
-      }, 500);
+      const timer = setTimeout(() => runAIAnalysis(postIts, boardContext, matrixInteractions), 500);
       return () => clearTimeout(timer);
     } else {
       setAnalysisData(null);
@@ -317,6 +313,20 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
           <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm flex-shrink-0">← Retour</button>
           <div className="text-sm font-semibold text-gray-600 flex-shrink-0">Analyse</div>
           <div className="flex items-center gap-1 sm:gap-2 ml-auto overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            <button
+              onClick={() => {
+                if (!isAIAvailable()) {
+                  alert("Aucun provider IA configuré.\n\nOuvrez le bandeau « Assistance IA » ci-dessous pour renseigner votre clé API.");
+                  return;
+                }
+                runAIAnalysis(postIts, boardContext, matrixInteractions);
+              }}
+              disabled={loadingAI}
+              className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0 disabled:opacity-50"
+              title="Relancer l'analyse IA avec le provider configuré"
+            >
+              {loadingAI ? 'IA…' : '⟳ Analyse IA'}
+            </button>
             <button onClick={exportCSV} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
               <span className="sm:hidden">CSV</span><span className="hidden sm:inline">Exporter CSV</span>
             </button>

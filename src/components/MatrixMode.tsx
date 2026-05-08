@@ -13,6 +13,7 @@ import {
 import { db } from "../services/firebase";
 import { PostIt, QuadrantKey } from "../types";
 import { proposeMatrixSelection, proposeOrientations } from "../services/geminiService";
+import { isAIAvailable } from "../services/aiProviderService";
 
 type Cell = boolean;
 
@@ -258,6 +259,10 @@ export default function MatrixMode({ sessionId }: Props) {
   /** IA sélection (on garde la logique, on n'affecte que l'UI) */
   async function proposeIASelection() {
     if (iaLoading) return;
+    if (!isAIAvailable()) {
+      alert("Aucun provider IA configuré.\n\nVeuillez renseigner votre clé API dans le panneau « Assistance IA » (slide 3/3 de la présentation ou bandeau en haut de la vue Analyse).");
+      return;
+    }
     setIaLoading(true);
     try {
       const iaSel = await proposeMatrixSelection(postIts, { perQuadrant: 4 });
@@ -420,6 +425,10 @@ export default function MatrixMode({ sessionId }: Props) {
 
   async function proposeIAOrientations() {
     if (iaOrientLoading) return;
+    if (!isAIAvailable()) {
+      alert("Aucun provider IA configuré.\n\nVeuillez renseigner votre clé API dans le panneau « Assistance IA » (slide 3/3 de la présentation ou bandeau en haut de la vue Analyse).");
+      return;
+    }
     setIaOrientLoading(true);
     try {
       const resp = await proposeOrientations({
