@@ -1,28 +1,21 @@
 // Service multi-providers IA — appels REST vers Gemini, OpenAI, Anthropic, OpenRouter, Mistral.
-// La clé active est lue depuis localStorage à chaque appel.
+// La clé active est lue depuis localStorage (format unifié afom_ai_config) à chaque appel.
 
-export const STORAGE_PROVIDER_KEY = 'afom_ai_provider';
-export const STORAGE_API_KEY_KEY  = 'afom_ai_key';
+const STORAGE_KEY = 'afom_ai_config';
 
 export function getStoredAIConfig(): { provider: string; key: string } | null {
   try {
-    const provider = localStorage.getItem(STORAGE_PROVIDER_KEY);
-    const key      = localStorage.getItem(STORAGE_API_KEY_KEY);
-    if (provider && key && key.length > 4) return { provider, key };
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      if (cfg.provider && cfg.apiKey && cfg.apiKey.length > 4) {
+        return { provider: cfg.provider, key: cfg.apiKey };
+      }
+    }
     return null;
   } catch {
     return null;
   }
-}
-
-export function setStoredAIConfig(provider: string, key: string): void {
-  localStorage.setItem(STORAGE_PROVIDER_KEY, provider);
-  localStorage.setItem(STORAGE_API_KEY_KEY, key);
-}
-
-export function clearStoredAIConfig(): void {
-  localStorage.removeItem(STORAGE_PROVIDER_KEY);
-  localStorage.removeItem(STORAGE_API_KEY_KEY);
 }
 
 export function isAIAvailable(): boolean {
@@ -43,7 +36,7 @@ export async function callAI(prompt: string): Promise<string> {
     if (provider === 'mistral')     return callOpenAICompat(prompt, key, 'https://api.mistral.ai/v1/chat/completions', 'mistral-small-latest');
   }
 
-  // Fallback : clé Gemini de l'environnement
+  // Fallback : clé Gemini de l'environnement (GitHub Actions secret)
   const envKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
   if (envKey) return callGeminiRest(prompt, envKey);
 
@@ -83,7 +76,6 @@ async function callOpenAICompat(prompt: string, key: string, url: string, model:
     model,
     messages: [{ role: 'user', content: prompt }],
   };
-  // response_format JSON supporté par OpenAI et Mistral, pas toujours par OpenRouter
   if (!url.includes('openrouter.ai')) {
     body['response_format'] = { type: 'json_object' };
   }

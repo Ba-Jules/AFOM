@@ -10,7 +10,8 @@ import { doc as fsDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { BoardMeta, BoardContext } from "../types";
 import { extractContextFromDocument } from "../services/geminiService";
-import AIProviderPanel from "./AIProviderPanel";
+import AIConfigPanel from "./AIConfigPanel";
+import { useAIConfig } from "../hooks/useAIConfig";
 
 /** Extrait le texte brut d'un fichier TXT, PDF ou DOCX (côté navigateur) */
 async function extractTextFromFile(file: File): Promise<string> {
@@ -74,8 +75,6 @@ function Dot({ active }: { active: boolean }) {
 
 const BASE_W = 1280;
 const BASE_H = 820;
-
-const AI_PANEL_H = 60; // hauteur réservée pour le panneau IA en haut (px)
 
 /** Conteneur qui scale le contenu pour tenir dans l’écran */
 function FitToScreen({
@@ -286,6 +285,9 @@ const PresentationMode: React.FC<Props> = ({
     if (sessionId) localStorage.setItem("sessionId", sessionId);
   }, [sessionId]);
 
+  const { config: aiCfg } = useAIConfig();
+  const [aiConfigured, setAiConfigured] = useState(aiCfg.configured);
+
   // Meta (Projet/Thème) – formulaire sur slide 1
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
@@ -396,7 +398,7 @@ const PresentationMode: React.FC<Props> = ({
       {
         id: "hero",
         render: () => (
-          <FitToScreen topReserve={AI_PANEL_H}>
+          <FitToScreen topReserve={0}>
             <div className="relative w-full h-full">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900" />
               <div className="absolute inset-0 opacity-15 bg-[radial-gradient(circle_at_20%_20%,#ffffff33_0,transparent_35%),radial-gradient(circle_at_80%_30%,#ffffff22_0,transparent_40%)]" />
@@ -474,83 +476,138 @@ const PresentationMode: React.FC<Props> = ({
       },
       {
         id: "framework",
-        render: () => <MatrixSlide topReserve={AI_PANEL_H} />,
+        render: () => <MatrixSlide topReserve={0} />,
       },
       {
         id: "launch",
         render: () => (
-          <FitToScreen topReserve={AI_PANEL_H}>
-            <div className="w-full h-full px-10 py-8 grid grid-cols-2 gap-10 items-center">
-              {/* QR */}
-              <div className="order-2 md:order-1 bg-white/80 rounded-3xl p-8 shadow-xl border">
-                <div className="text-2xl font-black mb-6">📱 Connexion instantanée</div>
-                <div className="flex items-center justify-center mb-6">
-                  <div className="p-4 rounded-2xl bg-gray-50 border">
-                    <QRCodeCanvas value={participantUrl} size={220} />
+          <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-indigo-50 flex items-start justify-center px-4 pt-6 pb-28">
+            <div className="w-full max-w-5xl space-y-5">
+
+              {/* ── Bandeau Assistance IA (clone arbre_problèmes slide 4) ── */}
+              <div className="rounded-2xl overflow-hidden shadow-lg ring-1 ring-indigo-200">
+                <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 px-6 py-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm">
+                    <span className="text-2xl leading-none">🤖</span>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-extrabold text-white leading-tight tracking-tight">
+                      Assistance IA
+                    </p>
+                    <p className="text-xs text-indigo-200 mt-0.5 leading-relaxed">
+                      Analyse du contexte · Formulation des acquis/faiblesses · Recommandations stratégiques
+                    </p>
+                  </div>
+                  {aiConfigured ? (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-400/30 text-white border border-emerald-300/50 backdrop-blur-sm">
+                      <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                      Prête
+                    </span>
+                  ) : (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/15 text-indigo-100 border border-white/25">
+                      <span className="w-2 h-2 rounded-full bg-amber-300" />
+                      Non configurée
+                    </span>
+                  )}
                 </div>
-                <div className="text-xs font-mono break-all bg-gray-100 p-2 rounded mb-3">
-                  {participantUrl}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => window.open(participantUrl, "_blank")}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                  >
-                    🌐 Ouvrir
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(participantUrl);
-                      alert("Lien copié !");
-                    }}
-                    className="px-4 py-2 border border-gray-300 bg-white rounded-lg hover:bg-gray-50"
-                  >
-                    📋 Copier
-                  </button>
+                <div className="bg-white px-6 py-5">
+                  <AIConfigPanel onConfigured={(next) => setAiConfigured(!!next?.configured)} />
                 </div>
               </div>
 
-              {/* Config */}
-              <div className="order-1 md:order-2 bg-white/80 rounded-3xl p-8 shadow-xl border">
-                <div className="text-2xl font-black mb-6">⚙️ Configuration Session</div>
-                <label className="block text-sm font-black text-gray-700 mb-2">
-                  🔑 ID de Session
-                </label>
-                <input
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-300 font-mono"
-                  placeholder="SESSION-2025-XXX"
-                />
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={() => onLaunchSession(sessionId || "")}
-                    className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-lg font-black rounded-xl shadow hover:scale-[1.02] transition"
-                  >
-                    🚀 Lancer la session
-                  </button>
-                  <button
-                    onClick={() => {
-                      const ns =
-                        "SESSION-" +
-                        new Date().getFullYear() +
-                        "-" +
-                        String(Math.floor(Math.random() * 1000)).padStart(3, "0");
-                      setSessionId(ns);
-                    }}
-                    className="px-4 py-3 border-2 border-indigo-200 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 font-semibold"
-                  >
-                    🔄 Nouveau ID
-                  </button>
+              {/* ── Ligne 2 : QR + Config session ── */}
+              <div className="grid lg:grid-cols-2 gap-5">
+
+                {/* QR code participants */}
+                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-lg">📱</span>
+                    <h4 className="text-base font-bold text-gray-900">Connexion des participants</h4>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="shrink-0 p-3 rounded-xl bg-gray-50 border">
+                      <QRCodeCanvas value={participantUrl} size={140} />
+                    </div>
+                    <div className="text-xs text-gray-600 leading-relaxed space-y-2 min-w-0">
+                      <p>
+                        Demandez aux participants de <strong>scanner</strong> ce QR code pour rejoindre la session en mode <em>participant</em>.
+                      </p>
+                      {(participantUrl.includes("localhost") || participantUrl.includes("127.0.0.1")) && (
+                        <div className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-700">
+                          <span className="shrink-0 font-bold">⚠</span>
+                          <span>URL locale — les participants doivent être sur le même réseau.</span>
+                        </div>
+                      )}
+                      <p className="break-all font-mono text-gray-400 text-[10px]">{participantUrl}</p>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => window.open(participantUrl, "_blank")}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-medium"
+                        >
+                          🌐 Ouvrir
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(participantUrl);
+                            alert("Lien copié !");
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors text-xs font-medium"
+                        >
+                          📋 Copier
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Configuration session */}
+                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <h4 className="text-base font-bold text-gray-900 mb-4">⚙️ Configuration de la session</h4>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="block text-sm font-medium text-gray-700">ID de session</span>
+                      <input
+                        value={sessionId}
+                        onChange={(e) => setSessionId(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
+                        placeholder="SESSION-2025-XXX"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-400">
+                      Projet et thème définis sur la première diapositive. Modifiables à tout moment depuis l'en-tête de l'atelier.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button
+                      onClick={() => onLaunchSession(sessionId || "")}
+                      className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-sm font-bold transition-all shadow-sm hover:shadow-md"
+                    >
+                      🚀 Lancer la session
+                    </button>
+                    <button
+                      onClick={() => {
+                        const ns =
+                          "SESSION-" +
+                          new Date().getFullYear() +
+                          "-" +
+                          String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+                        setSessionId(ns);
+                      }}
+                      className="px-3 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-sm font-medium transition"
+                      title="Générer un nouvel ID"
+                    >
+                      🔄
+                    </button>
+                  </div>
                 </div>
               </div>
+
             </div>
-          </FitToScreen>
+          </div>
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName, situationActuelle, perimetre, docExtracted, setShowContextModal]
+    [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName, situationActuelle, perimetre, docExtracted, setShowContextModal, aiConfigured, setAiConfigured]
   );
 
   /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
@@ -594,9 +651,6 @@ const PresentationMode: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      {/* Panneau IA — toujours en tête de page, avant Projet et Thème */}
-      <AIProviderPanel />
-
       {current.render()}
 
       {/* ---- Modal contexte ---- */}

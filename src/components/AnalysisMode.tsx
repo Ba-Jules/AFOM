@@ -10,7 +10,8 @@ import {
   QuadrantKey,
 } from '../types';
 import { getAIAnalysis, decodeMatrixInteractions, MatrixInteraction } from '../services/geminiService';
-import AIProviderPanel from './AIProviderPanel';
+import AIConfigPanel from './AIConfigPanel';
+import { useAIConfig } from '../hooks/useAIConfig';
 import * as geminiAny from '../services/geminiService';
 import {
   BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -35,6 +36,9 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
   const [loadingAI, setLoadingAI] = useState(false);
   const [boardContext, setBoardContext] = useState<BoardContext | undefined>();
   const [matrixInteractions, setMatrixInteractions] = useState<MatrixInteraction[]>([]);
+  const { config: aiCfg } = useAIConfig();
+  const [aiConfigured, setAiConfigured] = useState(aiCfg.configured);
+  const [showAIPanel, setShowAIPanel] = useState(false);
 
   // ---- Session / navigation ----
   const sessionId = useMemo(() => {
@@ -326,8 +330,36 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
         </div>
       </header>
 
-      {/* Panneau IA — provider + clé API, identique à PresentationMode */}
-      <AIProviderPanel />
+      {/* Bandeau Assistance IA — collapsible */}
+      <div className="no-print">
+        <div
+          className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 px-6 py-3 flex items-center gap-3 cursor-pointer select-none"
+          onClick={() => setShowAIPanel((v) => !v)}
+        >
+          <span className="text-lg leading-none">🤖</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white leading-tight">Assistance IA</p>
+            <p className="text-[11px] text-indigo-200">Analyse · Recommandations · Problème central</p>
+          </div>
+          {aiConfigured ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-400/30 text-white border border-emerald-300/50">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+              Prête
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/15 text-indigo-100 border border-white/25">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
+              Non configurée
+            </span>
+          )}
+          <span className="text-white/60 text-xs ml-1">{showAIPanel ? '▲' : '▼'}</span>
+        </div>
+        {showAIPanel && (
+          <div className="bg-white border-b border-indigo-100 px-6 py-5 max-w-2xl">
+            <AIConfigPanel onConfigured={(next) => setAiConfigured(!!next?.configured)} />
+          </div>
+        )}
+      </div>
 
       <div className="p-4 sm:p-8 space-y-8 print:p-0">
         {/* ---- Problème central ---- */}
