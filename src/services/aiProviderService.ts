@@ -3,13 +3,13 @@
 
 const STORAGE_KEY = 'afom_ai_config';
 
-export function getStoredAIConfig(): { provider: string; key: string } | null {
+export function getStoredAIConfig(): { provider: string; key: string; model?: string } | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const cfg = JSON.parse(raw);
       if (cfg.provider && cfg.apiKey && cfg.apiKey.length > 4) {
-        return { provider: cfg.provider, key: cfg.apiKey };
+        return { provider: cfg.provider, key: cfg.apiKey, model: cfg.model || undefined };
       }
     }
     return null;
@@ -28,12 +28,20 @@ export async function callAI(prompt: string): Promise<string> {
   const config = getStoredAIConfig();
 
   if (config) {
-    const { provider, key } = config;
-    if (provider === 'gemini')      return callGeminiRest(prompt, key);
-    if (provider === 'openai')      return callOpenAICompat(prompt, key, 'https://api.openai.com/v1/chat/completions', 'gpt-4o-mini');
-    if (provider === 'anthropic')   return callAnthropic(prompt, key);
-    if (provider === 'openrouter')  return callOpenAICompat(prompt, key, 'https://openrouter.ai/api/v1/chat/completions', 'google/gemini-flash-1.5');
-    if (provider === 'mistral')     return callOpenAICompat(prompt, key, 'https://api.mistral.ai/v1/chat/completions', 'mistral-small-latest');
+    const { provider, key, model } = config;
+    if (provider === 'gemini') {
+      const m = model || 'gemini-1.5-flash';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
+      return callGeminiRest(prompt, key, url);
+    }
+    if (provider === 'openai')
+      return callOpenAICompat(prompt, key, 'https://api.openai.com/v1/chat/completions', model || 'gpt-4o-mini');
+    if (provider === 'anthropic')
+      return callAnthropic(prompt, key, model || 'claude-haiku-4-5-20251001');
+    if (provider === 'openrouter')
+      return callOpenAICompat(prompt, key, 'https://openrouter.ai/api/v1/chat/completions', model || 'google/gemini-flash-1.5');
+    if (provider === 'mistral')
+      return callOpenAICompat(prompt, key, 'https://api.mistral.ai/v1/chat/completions', model || 'mistral-small-latest');
   }
 
   // Fallback : clé Gemini de l'environnement (GitHub Actions secret)
@@ -45,9 +53,9 @@ export async function callAI(prompt: string): Promise<string> {
 
 // ─────────── implémentations REST ───────────
 
-async function callGeminiRest(prompt: string, key: string): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(key)}`;
-  const res = await fetch(url, {
+async function callGeminiRest(prompt: string, key: string, url?: string): Promise<string> {
+  const endpoint = url ?? `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -88,7 +96,7 @@ async function callOpenAICompat(prompt: string, key: string, url: string, model:
   return data?.choices?.[0]?.message?.content ?? '';
 }
 
-async function callAnthropic(prompt: string, key: string): Promise<string> {
+async function callAnthropic(prompt: string, key: string, model = 'claude-haiku-4-5-20251001'): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -98,7 +106,7 @@ async function callAnthropic(prompt: string, key: string): Promise<string> {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model,
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     }),

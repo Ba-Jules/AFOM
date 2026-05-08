@@ -149,7 +149,8 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
       await saveCentral(next);
     } catch (e) {
       console.error(e);
-      alert('Échec de la génération IA du problème central.');
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`Échec de la génération IA du problème central.\n\nErreur : ${msg}`);
     } finally {
       setAiRunningCentral(null);
     }

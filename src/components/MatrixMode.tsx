@@ -302,7 +302,8 @@ export default function MatrixMode({ sessionId }: Props) {
       await saveMatrix(nextSel, newCells, "ia");
     } catch (e) {
       console.error(e);
-      alert("Proposition IA indisponible.");
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`Proposition IA indisponible.\n\nErreur : ${msg}`);
     } finally {
       setIaLoading(false);
     }
@@ -444,7 +445,8 @@ export default function MatrixMode({ sessionId }: Props) {
       }
     } catch (e) {
       console.error(e);
-      alert("Proposition d’orientations IA indisponible.");
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`Proposition d’orientations IA indisponible.\n\nErreur : ${msg}`);
     } finally {
       setIaOrientLoading(false);
     }
