@@ -293,74 +293,76 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
         </div>
       )}
 
-      {/* ── Clé API ── */}
+      {/* ── Clé API + Modèle ── */}
       {provider && (
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Clé API
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-              <KeyIcon />
-            </span>
+        <>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              Clé API
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                <KeyIcon />
+              </span>
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                placeholder={hint}
+                className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono transition"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                title={showKey ? 'Masquer' : 'Afficher'}
+              >
+                {showKey ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+            {keyMismatch ? (
+              <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1 font-medium">
+                <AlertCircleIcon />
+                Cette clé semble être une clé {PROVIDERS.find((p) => p.id === detectedProvider)?.name ?? detectedProvider} — sélectionnez le bon fournisseur.
+              </p>
+            ) : (
+              <p className="mt-1 text-[10px] text-gray-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                Stockée localement dans votre navigateur — non transmise à nos serveurs.
+              </p>
+            )}
+          </div>
+
+          {/* ── Modèle ── */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              Modèle
+            </label>
             <input
-              type={showKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              type="text"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-              placeholder={hint}
-              className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono transition"
+              placeholder={PROVIDER_DEFAULTS[provider]?.model || 'Identifiant du modèle'}
+              className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono transition"
               autoComplete="off"
               spellCheck={false}
             />
-            <button
-              type="button"
-              onClick={() => setShowKey((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
-              title={showKey ? 'Masquer' : 'Afficher'}
-            >
-              {showKey ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
+            {provider === 'openrouter' && (
+              <p className="mt-1 text-[10px] text-gray-400">
+                Exemples : <code className="text-indigo-500">openai/gpt-4o-mini</code> · <code className="text-indigo-500">google/gemini-2.0-flash-001</code> · <code className="text-indigo-500">anthropic/claude-3-haiku</code> · <code className="text-indigo-500">x-ai/grok-3-mini-beta</code>
+              </p>
+            )}
+            {provider === 'xai' && (
+              <p className="mt-1 text-[10px] text-gray-400">
+                Exemples : <code className="text-indigo-500">grok-3-mini-fast</code> · <code className="text-indigo-500">grok-3-mini-beta</code> · <code className="text-indigo-500">grok-2-latest</code>
+              </p>
+            )}
           </div>
-          {keyMismatch ? (
-            <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1 font-medium">
-              <AlertCircleIcon />
-              Cette clé semble être une clé {PROVIDERS.find((p) => p.id === detectedProvider)?.name ?? detectedProvider} — sélectionnez le bon fournisseur.
-            </p>
-          ) : (
-            <p className="mt-1 text-[10px] text-gray-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-              Stockée localement dans votre navigateur — non transmise à nos serveurs.
-            </p>
-          )}
-        </div>
-
-        {/* ── Modèle ── */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Modèle
-          </label>
-          <input
-            type="text"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-            placeholder={PROVIDER_DEFAULTS[provider]?.model || 'Identifiant du modèle'}
-            className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono transition"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {provider === 'openrouter' && (
-            <p className="mt-1 text-[10px] text-gray-400">
-              Exemples : <code className="text-indigo-500">openai/gpt-4o-mini</code> · <code className="text-indigo-500">google/gemini-2.0-flash-001</code> · <code className="text-indigo-500">anthropic/claude-3-haiku</code> · <code className="text-indigo-500">x-ai/grok-3-mini-beta</code>
-            </p>
-          )}
-          {provider === 'xai' && (
-            <p className="mt-1 text-[10px] text-gray-400">
-              Exemples : <code className="text-indigo-500">grok-3-mini-fast</code> · <code className="text-indigo-500">grok-3-mini-beta</code> · <code className="text-indigo-500">grok-2-latest</code>
-            </p>
-          )}
-        </div>
+        </>
       )}
 
       {/* ── Message de test ── */}
