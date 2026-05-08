@@ -36,7 +36,7 @@ type MatrixDoc = {
   updatedAt?: any;
 };
 
-interface Props { sessionId: string; }
+interface Props { sessionId: string; onBack?: () => void; }
 
 /* ---------------------- Utils texte ----------------------- */
 const STOPWORDS = new Set([
@@ -76,7 +76,7 @@ const dec = (s: string): [number, number] => {
 
 /* --------------------------- Composant ------------------------------ */
 
-export default function MatrixMode({ sessionId }: Props) {
+export default function MatrixMode({ sessionId, onBack }: Props) {
   // 1) Post-its
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   useEffect(() => {
@@ -496,6 +496,7 @@ export default function MatrixMode({ sessionId }: Props) {
 
   // 14) Nav
   const gotoWork = () => {
+    if (onBack) { onBack(); return; }
     const { origin, pathname } = window.location;
     window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}`;
   };

@@ -22,7 +22,7 @@ import { doc as fsDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { BoardMeta, BoardContext } from '../types';
 
-interface AnalysisModeProps { postIts: PostIt[]; }
+interface AnalysisModeProps { postIts: PostIt[]; onBack?: () => void; }
 
 type CentralProblem = {
   text: string;
@@ -32,7 +32,7 @@ type CentralProblem = {
   updatedAt?: any;
 };
 
-const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
+const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [boardContext, setBoardContext] = useState<BoardContext | undefined>();
@@ -47,6 +47,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
     return qs.get('session') || localStorage.getItem('sessionId') || '';
   }, []);
   const goBack = () => {
+    if (onBack) { onBack(); return; }
     const { origin, pathname } = window.location;
     window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}`;
   };

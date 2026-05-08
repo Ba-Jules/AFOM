@@ -51,11 +51,13 @@ const PALETTE: Record<
 interface WorkInterfaceProps {
   sessionId: string;
   onBackToPresentation: () => void;
+  onNavigate?: (view: "analysis" | "matrix") => void;
 }
 
 const WorkInterface: React.FC<WorkInterfaceProps> = ({
   sessionId,
   onBackToPresentation,
+  onNavigate,
 }) => {
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
@@ -115,11 +117,14 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
   const goto = (v: "analysis" | "matrix" | "presentation") => {
     const { origin, pathname } = window.location;
     if (v === "presentation") {
-      window.location.href = `${origin}${pathname}`;
+      onBackToPresentation();
+      return;
+    }
+    if (onNavigate) {
+      window.history.replaceState({}, "", `${origin}${pathname}?v=${v}&session=${encodeURIComponent(sessionId)}`);
+      onNavigate(v);
     } else {
-      window.location.href = `${origin}${pathname}?v=${v}&session=${encodeURIComponent(
-        sessionId
-      )}`;
+      window.location.href = `${origin}${pathname}?v=${v}&session=${encodeURIComponent(sessionId)}`;
     }
   };
 

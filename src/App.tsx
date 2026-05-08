@@ -97,6 +97,7 @@ const App: React.FC = () => {
           <WorkInterface
             sessionId={sessionId}
             onBackToPresentation={handleBackToPresentation}
+            onNavigate={(v) => setView(v)}
           />
         </div>
       ) : (
@@ -104,17 +105,16 @@ const App: React.FC = () => {
       );
 
     case "analysis":
-      // ✅ AnalysisMode veut des postIts (et non pas sessionId)
       return (
         <div className="min-h-screen bg-gray-50">
-          <AnalysisMode postIts={analysisPostIts} />
+          <AnalysisMode postIts={analysisPostIts} onBack={() => setView("work")} />
         </div>
       );
 
     case "matrix":
       return sessionId ? (
         <div className="min-h-screen bg-gray-50">
-          <MatrixMode sessionId={sessionId} />
+          <MatrixMode sessionId={sessionId} onBack={() => setView("work")} />
         </div>
       ) : (
         <div>Loading…</div>
