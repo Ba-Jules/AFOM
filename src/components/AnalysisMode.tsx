@@ -10,6 +10,7 @@ import {
   QuadrantKey,
 } from '../types';
 import { getAIAnalysis, decodeMatrixInteractions, MatrixInteraction } from '../services/geminiService';
+import AIProviderPanel from './AIProviderPanel';
 import * as geminiAny from '../services/geminiService';
 import {
   BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -324,6 +325,9 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts }) => {
           </div>
         </div>
       </header>
+
+      {/* Panneau IA — provider + clé API, identique à PresentationMode */}
+      <AIProviderPanel />
 
       <div className="p-4 sm:p-8 space-y-8 print:p-0">
         {/* ---- Problème central ---- */}
