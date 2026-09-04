@@ -67,7 +67,7 @@ Nettoyage : PASS (documents de test postit et board supprimés; aucune donnée e
 
 Fichiers d'implémentation principaux : `src/components/WorkshopDashboard.tsx`, `src/components/ConsolidatedAFOM.tsx`, `src/services/workshopService.ts`, ainsi que les adaptations additives de `src/App.tsx`, `src/types.ts`, `src/components/ParticipantInterface.tsx`, `src/components/WorkInterface.tsx` et `src/components/QRCodeModal.tsx`.
 
-Le build local de production est PASS. Les tests locaux multi-groupes sont PASS. L'instance VPS doit être mise à jour avec le commit final de cette implémentation puis validée avant clôture.
+Le build local et le build VPS de production sont PASS. Les 22 scénarios locaux demandés sont PASS. L'instance VPS indépendante a été mise à jour depuis `feature/multigroupes`; création/lecture de l'atelier, groupes, participant contextualisé, QR/lien, compteurs temps réel et consolidation ont été validés sur `http://187.124.34.82:8830/AFOM/`. Les données de test isolées ont ensuite été supprimées.
 
 Fichiers/composants principalement concernés lors de la mission suivante :
 

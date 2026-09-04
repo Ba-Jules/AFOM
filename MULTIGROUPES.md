@@ -60,7 +60,7 @@ URL : `http://187.124.34.82:8830/AFOM/`
 
 ## Tests
 
-L'atelier `Atelier du 7 septembre 2026` a été utilisé avec les quatre groupes demandés puis un cinquième. Les scénarios ont couvert création, édition, sessions distinctes, QR/liens, participant contextualisé, contributions multi-groupes, temps réel, compteurs, consolidation, origine, filtres, routes historiques, présentation, analyse, matrice et build production. Les données de test sont isolées et supprimées après validation VPS.
+L'atelier `Atelier du 7 septembre 2026` a été utilisé avec les quatre groupes demandés puis un cinquième. Les 22 scénarios demandés ont couvert création, édition, sessions distinctes, QR/liens, participant contextualisé, contributions multi-groupes, temps réel, compteurs, consolidation, origine, filtres, routes historiques, présentation, analyse, matrice et build production. Les contrôles P0 ont aussi été rejoués sur le VPS. Les données de test isolées ont été supprimées après validation.
 
 ## Limites
 
