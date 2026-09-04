@@ -6,6 +6,8 @@ import { QUADRANT_INFO } from '../constants';
 
 interface ParticipantInterfaceProps {
     sessionId: string;
+    workshopId?: string;
+    groupId?: string;
 }
 
 type BoardMeta = {
@@ -15,7 +17,7 @@ type BoardMeta = {
 
 const MAX_LEN = 50;
 
-const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId }) => {
+const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, workshopId, groupId }) => {
     const [name, setName] = useState('');
     const [isAnonymous, setIsAnonymous] = useState(false);
     const [quadrant, setQuadrant] = useState<QuadrantKey | ''>('');
@@ -25,6 +27,8 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId }
 
     // Projet / Thème (lecture boards/{sessionId})
     const [meta, setMeta] = useState<BoardMeta | null>(null);
+    const [workshopTitle, setWorkshopTitle] = useState('');
+    const [groupName, setGroupName] = useState('');
 
     useEffect(() => {
         const savedName = localStorage.getItem('afom_user_name') || '';
@@ -46,6 +50,24 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId }
             }
         })();
     }, [sessionId]);
+
+    useEffect(() => {
+        if (!workshopId || !groupId) return;
+        (async () => {
+            try {
+                const [workshopSnap, groupSnap] = await Promise.all([
+                    getDoc(fsDoc(db, 'workshops', workshopId)),
+                    getDoc(fsDoc(db, 'workshops', workshopId, 'groups', groupId)),
+                ]);
+                if (workshopSnap.exists()) setWorkshopTitle(String(workshopSnap.data().title || ''));
+                if (groupSnap.exists()) {
+                    const data = groupSnap.data();
+                    setGroupName(String(data.name || data.number || ''));
+                    setMeta(current => ({ ...current, projectName: String(data.name || data.number || current?.projectName || ''), themeName: String(data.theme || current?.themeName || '') }));
+                }
+            } catch (e) { console.error('Unable to load workshop/group', e); }
+        })();
+    }, [workshopId, groupId]);
 
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setName(e.target.value);
@@ -113,6 +135,8 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId }
                 <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-gray-200">
                     {/* Bandeau Projet / Thème */}
                     <div className="px-6 py-3 bg-gray-100 border-b">
+                        {workshopTitle && <div className="mb-1 text-xs font-bold uppercase tracking-wide text-indigo-600">{workshopTitle}</div>}
+                        {groupName && <div className="mb-1 text-lg font-black text-gray-900">{groupName}</div>}
                         <div className="text-sm md:text-base flex flex-wrap items-center gap-x-4 gap-y-1">
                             <div><span className="font-extrabold text-gray-900">Projet :</span> <span className="font-semibold text-gray-800">{meta?.projectName || '—'}</span></div>
                             <div><span className="font-extrabold text-gray-900">Thème :</span> <span className="font-semibold text-gray-800">{meta?.themeName || '—'}</span></div>

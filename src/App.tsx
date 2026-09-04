@@ -4,17 +4,21 @@ import WorkInterface from "./components/WorkInterface";
 import ParticipantInterface from "./components/ParticipantInterface";
 import AnalysisMode from "./components/AnalysisMode";
 import MatrixMode from "./components/MatrixMode";
+import WorkshopDashboard from "./components/WorkshopDashboard";
+import ConsolidatedAFOM from "./components/ConsolidatedAFOM";
 
 // 🔥 on récupère les Post-its ici pour les passer à AnalysisMode
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./services/firebase";
-import { PostIt } from "./types";
+import { PostIt, WorkshopGroup } from "./types";
 
-type View = "presentation" | "work" | "participant" | "analysis" | "matrix";
+type View = "presentation" | "work" | "participant" | "analysis" | "matrix" | "workshop" | "consolidation";
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>("presentation");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [workshopId, setWorkshopId] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
 
   // Post-its pour AnalysisMode
   const [analysisPostIts, setAnalysisPostIts] = useState<PostIt[]>([]);
@@ -23,6 +27,10 @@ const App: React.FC = () => {
     const url = new URL(window.location.href);
     const v = (url.searchParams.get("v") || "").toLowerCase() as View;
     const mode = url.searchParams.get("mode");
+    const workshop = url.searchParams.get("workshop");
+    const group = url.searchParams.get("group");
+    setWorkshopId(workshop);
+    setGroupId(group);
     const s =
       url.searchParams.get("session") || localStorage.getItem("sessionId");
 
@@ -31,6 +39,10 @@ const App: React.FC = () => {
       setView("participant");
       return;
     }
+
+    if (v === "workshop" && workshop) { setView("workshop"); return; }
+    if (v === "workshop") { setView("workshop"); return; }
+    if (v === "consolidation" && workshop) { setView("consolidation"); return; }
 
     if ((v === "work" || v === "analysis" || v === "matrix") && s) {
       setSessionId(s);
@@ -79,11 +91,24 @@ const App: React.FC = () => {
     setView("presentation");
   };
 
+  const openWorkshop = () => {
+    window.history.replaceState({}, "", `${window.location.pathname}?v=workshop`);
+    setWorkshopId(null);
+    setView("workshop");
+  };
+
+  const openGroup = (group: WorkshopGroup) => {
+    setSessionId(group.sessionId); setWorkshopId(group.workshopId); setGroupId(group.id);
+    window.history.replaceState({}, "", `${window.location.pathname}?v=work&session=${encodeURIComponent(group.sessionId)}&workshop=${encodeURIComponent(group.workshopId)}&group=${encodeURIComponent(group.id)}`);
+    setView("work");
+  };
+
   // Rendu par vue
   switch (view) {
     case "presentation":
       return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 font-sans">
+          <button onClick={openWorkshop} className="fixed right-4 top-4 z-50 rounded-xl bg-indigo-700 px-4 py-2 font-bold text-white shadow-lg">Ateliers multi-groupes</button>
           <PresentationMode
             onLaunchSession={handleLaunchSession}
             initialSessionId={sessionId || ""}
@@ -98,6 +123,8 @@ const App: React.FC = () => {
             sessionId={sessionId}
             onBackToPresentation={handleBackToPresentation}
             onNavigate={(v) => setView(v)}
+            workshopId={workshopId || undefined}
+            groupId={groupId || undefined}
           />
         </div>
       ) : (
@@ -123,11 +150,17 @@ const App: React.FC = () => {
     case "participant":
       return sessionId ? (
         <div className="min-h-screen bg-white">
-          <ParticipantInterface sessionId={sessionId} />
+          <ParticipantInterface sessionId={sessionId} workshopId={workshopId || undefined} groupId={groupId || undefined} />
         </div>
       ) : (
         <div>Invalid session ID.</div>
       );
+
+    case "workshop":
+      return <WorkshopDashboard workshopId={workshopId || undefined} onOpenSession={openGroup} onConsolidate={(id) => { setWorkshopId(id); window.history.replaceState({}, "", `${window.location.pathname}?v=consolidation&workshop=${encodeURIComponent(id)}`); setView("consolidation"); }} onBack={handleBackToPresentation} />;
+
+    case "consolidation":
+      return workshopId ? <ConsolidatedAFOM workshopId={workshopId} onBack={() => { window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`); setView("workshop"); }} /> : <div>Atelier introuvable.</div>;
   }
 };
 

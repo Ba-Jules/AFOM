@@ -49,6 +49,26 @@ export interface BoardMeta {
   updatedAt?: any;
 }
 
+export interface Workshop {
+  id: string;
+  title: string;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface WorkshopGroup {
+  id: string;
+  workshopId: string;
+  number: string;
+  name: string;
+  theme: string;
+  sessionId: string;
+  order: number;
+  active: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
 export interface Insight { title: string; content: string; }
 export type RecommendationPriority = "URGENT" | "HIGH" | "MEDIUM" | "LOW";
 

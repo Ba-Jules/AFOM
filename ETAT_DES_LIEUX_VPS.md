@@ -63,6 +63,12 @@ Nettoyage : PASS (documents de test postit et board supprimés; aucune donnée e
 
 ## Préparation multi-groupes
 
+État final de la branche de développement : le mode multi-groupes P0 est implémenté. Il comprend la création d'ateliers et de groupes extensibles, l'édition/archivage, les liens et QR individuels, le participant contextualisé, le tableau de bord temps réel et la consolidation fidèle avec filtres. L'analyse et la matrice historiques restent individuelles par session.
+
+Fichiers d'implémentation principaux : `src/components/WorkshopDashboard.tsx`, `src/components/ConsolidatedAFOM.tsx`, `src/services/workshopService.ts`, ainsi que les adaptations additives de `src/App.tsx`, `src/types.ts`, `src/components/ParticipantInterface.tsx`, `src/components/WorkInterface.tsx` et `src/components/QRCodeModal.tsx`.
+
+Le build local de production est PASS. Les tests locaux multi-groupes sont PASS. L'instance VPS doit être mise à jour avec le commit final de cette implémentation puis validée avant clôture.
+
 Fichiers/composants principalement concernés lors de la mission suivante :
 
 - `src/types.ts` : ajouter les types `Workshop`/atelier maître et `Group`, et des références additives (`workshopId`, `groupId`) tout en conservant `sessionId`.

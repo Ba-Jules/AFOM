@@ -52,12 +52,16 @@ interface WorkInterfaceProps {
   sessionId: string;
   onBackToPresentation: () => void;
   onNavigate?: (view: "analysis" | "matrix") => void;
+  workshopId?: string;
+  groupId?: string;
 }
 
 const WorkInterface: React.FC<WorkInterfaceProps> = ({
   sessionId,
   onBackToPresentation,
   onNavigate,
+  workshopId,
+  groupId,
 }) => {
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
@@ -68,6 +72,8 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
   const [themeName, setThemeName] = useState("");
 
   const [showQR, setShowQR] = useState(false);
+  const [workshopTitle, setWorkshopTitle] = useState("");
+  const [groupName, setGroupName] = useState("");
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
@@ -75,6 +81,21 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
       sessionId
     )}`;
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!workshopId || !groupId) return;
+    Promise.all([
+      getDoc(fsDoc(db, "workshops", workshopId)),
+      getDoc(fsDoc(db, "workshops", workshopId, "groups", groupId)),
+    ]).then(([workshopSnap, groupSnap]) => {
+      if (workshopSnap.exists()) setWorkshopTitle(String(workshopSnap.data().title || ""));
+      if (groupSnap.exists()) {
+        const data = groupSnap.data();
+        setGroupName(String(data.name || data.number || ""));
+        setMeta(current => ({ ...current, projectName: String(data.name || data.number || current?.projectName || ""), themeName: String(data.theme || current?.themeName || "") }));
+      }
+    }).catch(error => console.error("Unable to load workshop/group", error));
+  }, [workshopId, groupId]);
 
   useEffect(() => {
     localStorage.setItem("sessionId", sessionId);
@@ -172,6 +193,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             className="flex items-center gap-1 sm:gap-2 overflow-x-auto flex-1 justify-end"
             style={{ scrollbarWidth: "none" }}
           >
+            {workshopId && <button className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-indigo-700 text-white font-medium whitespace-nowrap" onClick={() => window.location.href = `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`}>Atelier</button>}
             <button
               className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => goto("analysis")}
@@ -211,6 +233,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
 
       {/* Sous-bandeau Projet/Thème */}
       <div className="mx-auto max-w-7xl px-4 pt-3">
+        {workshopTitle && <div className="mb-2 text-sm font-bold uppercase tracking-wide text-indigo-700">{workshopTitle}{groupName ? ` — ${groupName}` : ""}</div>}
         <div className="rounded-lg border bg-white shadow-sm px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-1">
             <div className="text-[15px] md:text-lg">
@@ -297,6 +320,11 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         isOpen={showQR}
         onClose={() => setShowQR(false)}
         sessionId={sessionId}
+        workshopId={workshopId}
+        groupId={groupId}
+        workshopTitle={workshopTitle}
+        groupName={groupName}
+        groupTheme={meta?.themeName}
       />
 
       {/* Modal Projet/Thème */}

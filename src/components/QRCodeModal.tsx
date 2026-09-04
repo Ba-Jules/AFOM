@@ -5,13 +5,18 @@ interface QRCodeModalProps {
   isOpen: boolean;
   onClose: () => void;
   sessionId: string;
+  workshopId?: string;
+  groupId?: string;
+  workshopTitle?: string;
+  groupName?: string;
+  groupTheme?: string;
 }
 
 const isLocalhost =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1";
 
-const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId }) => {
+const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, workshopId, groupId, workshopTitle, groupName, groupTheme }) => {
   // IP réseau saisie manuellement (utile en local uniquement)
   const [networkIP, setNetworkIP] = useState(
     () => localStorage.getItem("afom_network_ip") || ""
@@ -31,7 +36,10 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId })
       ? networkIP.trim().replace(/\/$/, "")
       : window.location.origin;
 
-  const participantUrl = `${base}${window.location.pathname}?session=${encodeURIComponent(sessionId)}&mode=participant`;
+  const params = new URLSearchParams({ session: sessionId, mode: "participant" });
+  if (workshopId) params.set("workshop", workshopId);
+  if (groupId) params.set("group", groupId);
+  const participantUrl = `${base}${window.location.pathname}?${params.toString()}`;
 
   const handleSaveIP = () => {
     const val = ipDraft.trim();
@@ -62,6 +70,9 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId })
           <p className="text-xs text-gray-500">
             Session : <span className="font-mono">{sessionId}</span>
           </p>
+          {workshopTitle && <p className="mt-2 text-sm font-semibold text-gray-700">{workshopTitle}</p>}
+          {groupName && <p className="text-lg font-black text-indigo-700">{groupName}</p>}
+          {groupTheme && <p className="text-sm text-gray-600">{groupTheme}</p>}
         </div>
 
         {/* Alerte localhost */}
