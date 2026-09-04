@@ -9,6 +9,7 @@
 - Copie de travail indépendante : `C:\Users\Utilisateur\Documents\_Projets-Code\Projets Famille BA\Boite outils gestion_planification\swot\afom-multigroupes`
 - État local/GitHub au contrôle : propre, `main` identique à `origin/main` (avance 0, retard 0), aucun fichier modifié ou non suivi et aucun commit local non publié.
 - Version historique utilisée : `https://ba-jules.github.io/AFOM/` (GitHub Pages, déploiement de `main`).
+- Profil Windows réellement chargé : `C:\Users\Utilisateur` (`%USERPROFILE%` et compte Windows actif). Le workspace fourni par Codex se trouve réellement sous ce profil; `C:\Users\asus` n'est pas le profil actif de cette session. Aucune ancienne copie d'un autre profil n'a été utilisée.
 
 ## Firestore
 
@@ -27,22 +28,29 @@
 
 ## VPS
 
-- Chemin prévu : `/opt/afom-multigroupes` (à confirmer selon l'organisation réelle du VPS).
-- Service/container : NON CRÉÉ.
-- Port : NON ATTRIBUÉ.
-- URL : NON ATTRIBUÉE.
-- Contrôle ciblé : le seul accès retrouvé sur le poste, `jules@127.0.0.1:2222`, refuse actuellement la connexion. Les services, le reverse proxy, les ports et une éventuelle copie AFOM antérieure ne peuvent donc pas être vérifiés de façon fiable. Aucun service existant n'a été touché.
+- Accès retrouvé dans les traces de déploiement EPC et des autres applications : utilisateur `root` sur le VPS personnel, avec la clé dédiée `~/.ssh/epc_vps_deploy` (adresse non reproduite dans ce rapport).
+- Connexion SSH : PASS.
+- Architecture ciblée constatée : Docker pour les applications et Nginx comme reverse proxy frontal.
+- Copie historique VPS détectée : route Nginx `/AFOM/` vers `/opt/cadre-logique/www/afom/`; laissée intacte.
+- Chemin indépendant : `/opt/afom-multigroupes`.
+- Service/container : `afom-multigroupes` (`nginx:alpine`, politique de redémarrage `unless-stopped`).
+- Port : `8830`, vérifié libre avant attribution.
+- URL de test : `http://187.124.34.82:8830/AFOM/`.
+- Commit déployé : `4cd07562c4727e8699e5fd7b377ca333bf569a1a`, branche `feature/multigroupes`.
+- Aucun service existant n'a été interrompu ou reconfiguré.
 
 ## Tests
 
 ```text
-Build : PASS (npm ci puis npm run build)
-Chargement : PASS sur la baseline GitHub Pages (assets chargés, aucune erreur console bloquante); NON TESTÉ sur VPS
-Session : NON TESTÉ sur VPS
-Participant : NON TESTÉ sur VPS
-Temps réel : NON TESTÉ sur VPS
-QR : présence et construction du lien confirmées dans le code; NON TESTÉ sur VPS
-Modes existants : PASS sur GitHub Pages pour présentation, travail, participant, analyse et matrice; NON TESTÉS sur VPS
+Build : PASS sur VPS (npm ci puis npm run build)
+Chargement : PASS (HTTP 200 externe, assets HTTP 200, aucune erreur console bloquante)
+Session : PASS (session isolée CODEX-VPS-TEST-20260904 créée, lue puis nettoyée)
+Participant : PASS (route participant et contexte Firestore chargés)
+Contribution : PASS (création puis modification de quadrant confirmées)
+Temps réel : PASS (contribution apparue dans la vue modérateur VPS déjà ouverte via onSnapshot)
+QR : PASS (QR affiché et lien participant exact confirmé)
+Modes existants : PASS pour présentation, travail, participant, analyse et matrice
+Nettoyage : PASS (documents de test postit et board supprimés; aucune donnée existante touchée)
 ```
 
 ## Git
@@ -50,8 +58,8 @@ Modes existants : PASS sur GitHub Pages pour présentation, travail, participant
 - Branche baseline : `main` (non modifiée).
 - Branche de travail : `feature/multigroupes`, créée dans la copie indépendante depuis le commit baseline exact.
 - Tag : `baseline-avant-multigroupes-2026-09-04`, créé et poussé sur GitHub.
-- Commit de préparation : ce rapport uniquement; aucun code fonctionnel multi-groupes.
-- Push : tag effectué; branche de travail à pousser avec le commit du rapport.
+- Commit de préparation : rapport uniquement; aucun code fonctionnel multi-groupes.
+- Push : tag et branche `feature/multigroupes` effectués.
 
 ## Préparation multi-groupes
 
@@ -79,6 +87,6 @@ Principaux risques : règles/index Firestore à étendre sans ouvrir davantage l
 
 ```text
 Baseline historique préservée : OUI
-Copie VPS indépendante opérationnelle : NON
-Prêt à implémenter le mode multi-groupes : NON (accès VPS et tests de duplication requis)
+Copie VPS indépendante opérationnelle : OUI
+Prêt à implémenter le mode multi-groupes : OUI
 ```
