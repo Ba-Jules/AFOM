@@ -34,9 +34,11 @@ La suppression depuis le tableau de bord est un archivage (`active: false`). Les
 
 ## Créer un atelier et ses groupes
 
-Depuis l'accueil AFOM, choisir **Ateliers multi-groupes**, saisir le nom de l'atelier puis sélectionner **Créer l'atelier**. Dans le tableau de bord, **+ Ajouter un groupe AFOM** demande le numéro/nom et la thématique. Un `sessionId` unique est produit automatiquement.
+Depuis la dernière diapositive de la présentation, sélectionner le bouton **Préparer l'atelier**, saisir le nom de l'atelier puis **Créer l'atelier**. Dans le tableau de bord, **+ Ajouter un groupe** demande le nom et la thématique. Un `sessionId` unique est produit automatiquement. Un atelier à un seul groupe reste un parcours normal — aucun choix de « mode » n'est présenté au modérateur.
 
-Chaque carte permet d'ouvrir le groupe, modifier son nom/thématique, afficher son QR, copier son lien ou archiver le groupe. Les compteurs total/Forces/Faiblesses/Opportunités/Menaces sont alimentés par `onSnapshot`.
+Chaque carte permet d'ouvrir le groupe, le **partager** (QR code + lien, dans une seule action), modifier son nom/thématique ou l'archiver. Les compteurs total/Forces/Faiblesses/Opportunités/Menaces sont alimentés par `onSnapshot`.
+
+L'accès direct par ID de session (parcours historique, une seule session sans atelier) reste disponible dans les **Options avancées**, repliées par défaut, en bas de la dernière diapositive de présentation.
 
 ## QR et liens
 

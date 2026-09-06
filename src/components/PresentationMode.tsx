@@ -57,6 +57,7 @@ type Slide = { id: string; render: () => React.ReactNode };
 
 interface Props {
   onLaunchSession: (sessionId: string) => void;
+  onPrepareWorkshop: () => void;
   initialSessionId: string;
 }
 
@@ -275,6 +276,7 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
 
 const PresentationMode: React.FC<Props> = ({
   onLaunchSession,
+  onPrepareWorkshop,
   initialSessionId,
 }) => {
   const [sessionId, setSessionId] = useState<string>(initialSessionId || "");
@@ -303,6 +305,9 @@ const PresentationMode: React.FC<Props> = ({
   } | null>(null);
   const [showContextModal, setShowContextModal] = useState(false);
   const [extractingDoc, setExtractingDoc] = useState(false);
+  const [savingMeta, setSavingMeta] = useState(false);
+  const [metaTouched, setMetaTouched] = useState(false);
+  const [metaSaved, setMetaSaved] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -353,20 +358,15 @@ const PresentationMode: React.FC<Props> = ({
   }, []);
 
   const saveMeta = useCallback(async () => {
-    if (!sessionId) {
-      alert("Définis d’abord un ID de session (slide Lancement).");
-      return;
-    }
-    if (!projectName.trim() || !themeName.trim()) {
-      alert("Renseigne le Projet et le Thème.");
-      return;
-    }
+    setMetaTouched(true);
+    if (!sessionId || !projectName.trim() || !themeName.trim() || savingMeta) return;
     const context: BoardContext = {
       situationActuelle: situationActuelle.trim(),
       symptomesObservables: symptomesObservables.trim(),
       perimetre: perimetre.trim(),
       ...(docExtracted ?? {}),
     };
+    setSavingMeta(true);
     try {
       await setDoc(
         fsDoc(db, "boards", sessionId),
@@ -374,23 +374,19 @@ const PresentationMode: React.FC<Props> = ({
         { merge: true }
       );
       setShowContextModal(false);
-      alert("Session enregistrée.");
+      setMetaSaved(true);
+      setTimeout(() => setMetaSaved(false), 2000);
     } catch (e) {
       console.error(e);
       alert("Impossible d’enregistrer.");
+    } finally {
+      setSavingMeta(false);
     }
-  }, [sessionId, projectName, themeName, situationActuelle, symptomesObservables, perimetre, docExtracted]);
+  }, [sessionId, projectName, themeName, situationActuelle, symptomesObservables, perimetre, docExtracted, savingMeta]);
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
     return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(
-      sessionId || ""
-    )}`;
-  }, [sessionId]);
-
-  const goModerator = useCallback(() => {
-    const { origin, pathname } = window.location;
-    window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(
       sessionId || ""
     )}`;
   }, [sessionId]);
@@ -443,6 +439,9 @@ const PresentationMode: React.FC<Props> = ({
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
                         placeholder="Ex : Transformation 2025"
                       />
+                      {metaTouched && !projectName.trim() && (
+                        <p className="mt-1 text-xs text-red-600">Indiquez un projet pour continuer.</p>
+                      )}
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-700">
@@ -454,6 +453,9 @@ const PresentationMode: React.FC<Props> = ({
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
                         placeholder="Ex : Offre digitale PME"
                       />
+                      {metaTouched && !themeName.trim() && (
+                        <p className="mt-1 text-xs text-red-600">Indiquez un thème pour continuer.</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-3 gap-2 flex-wrap">
@@ -470,23 +472,15 @@ const PresentationMode: React.FC<Props> = ({
                         : "+ Ajouter le contexte"}
                     </button>
                     <div className="flex items-center gap-2">
+                      {metaSaved && <span className="text-xs font-semibold text-emerald-600">✓ Enregistré</span>}
                       <button
                         onClick={saveMeta}
-                        className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                        disabled={savingMeta}
+                        className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                       >
-                        Enregistrer
-                      </button>
-                      <button
-                        onClick={goModerator}
-                        className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50"
-                        title="Aller à l’interface modérateur"
-                      >
-                        Aller au modérateur →
+                        {savingMeta ? "Enregistrement…" : "Enregistrer"}
                       </button>
                     </div>
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-1">
-                    ID de session actuel : <span className="font-mono">{sessionId || "—"}</span>
                   </div>
                 </div>
               </div>
@@ -502,70 +496,66 @@ const PresentationMode: React.FC<Props> = ({
         id: "launch",
         render: () => (
           <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-indigo-50 flex items-start justify-center px-4 pt-6 pb-28">
-            <div className="w-full max-w-5xl space-y-5">
+            <div className="w-full max-w-3xl space-y-5">
 
-              {/* ── Bandeau Assistance IA (clone arbre_problèmes slide 4) ── */}
-              <div className="rounded-2xl overflow-hidden shadow-lg ring-1 ring-indigo-200">
-                <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 px-6 py-5 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm">
-                    <span className="text-2xl leading-none">🤖</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-extrabold text-white leading-tight tracking-tight">
-                      Assistance IA
-                    </p>
-                    <p className="text-xs text-indigo-200 mt-0.5 leading-relaxed">
-                      Analyse du contexte · Formulation des acquis/faiblesses · Recommandations stratégiques
-                    </p>
-                  </div>
-                  {aiConfigured ? (
-                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-400/30 text-white border border-emerald-300/50 backdrop-blur-sm">
-                      <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-                      Prête
-                    </span>
-                  ) : (
-                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/15 text-indigo-100 border border-white/25">
-                      <span className="w-2 h-2 rounded-full bg-amber-300" />
-                      Non configurée
-                    </span>
-                  )}
-                </div>
-                <div className="bg-white px-6 py-5">
-                  <AIConfigPanel onConfigured={(next) => setAiConfigured(!!next?.configured)} />
-                </div>
+              {/* ── CTA principal ── */}
+              <div className="rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-8 text-center shadow-xl">
+                <h2 className="text-2xl font-black mb-2">Préparer votre atelier AFOM</h2>
+                <p className="text-indigo-100 mb-6 max-w-md mx-auto">
+                  Donnez un titre à l'atelier et organisez les participants selon vos besoins.
+                </p>
+                <button
+                  onClick={onPrepareWorkshop}
+                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-indigo-700 font-black text-lg shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                >
+                  Préparer l'atelier →
+                </button>
               </div>
 
-              {/* ── Ligne 2 : QR + Config session ── */}
-              <div className="grid lg:grid-cols-2 gap-5">
+              {/* ── Options avancées (repliées) ── */}
+              <details className="group rounded-2xl border border-gray-200 bg-white/70">
+                <summary className="cursor-pointer select-none list-none px-5 py-3 text-sm font-semibold text-gray-500 flex items-center justify-between">
+                  Options avancées
+                  <span className="text-gray-400 transition-transform group-open:rotate-180">⌄</span>
+                </summary>
+                <div className="px-5 pb-5 space-y-5">
 
-                {/* QR code participants */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-lg">📱</span>
-                    <h4 className="text-base font-bold text-gray-900">Connexion des participants</h4>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="shrink-0 p-3 rounded-xl bg-gray-50 border">
-                      <QRCodeCanvas value={participantUrl} size={140} />
-                    </div>
-                    <div className="text-xs text-gray-600 leading-relaxed space-y-2 min-w-0">
-                      <p>
-                        Demandez aux participants de <strong>scanner</strong> ce QR code pour rejoindre la session en mode <em>participant</em>.
+                  {/* Assistance IA — discrète et optionnelle */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-base">🤖</span>
+                      <p className="text-sm font-bold text-gray-700">
+                        Assistance IA <span className="font-normal text-gray-400">(optionnelle)</span>
                       </p>
-                      {(participantUrl.includes("localhost") || participantUrl.includes("127.0.0.1")) && (
-                        <div className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-700">
-                          <span className="shrink-0 font-bold">⚠</span>
-                          <span>URL locale — les participants doivent être sur le même réseau.</span>
-                        </div>
+                      {aiConfigured ? (
+                        <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Prête
+                        </span>
+                      ) : (
+                        <span className="ml-auto text-[11px] text-gray-400">Non configurée</span>
                       )}
-                      <p className="break-all font-mono text-gray-400 text-[10px]">{participantUrl}</p>
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => window.open(participantUrl, "_blank")}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-medium"
-                        >
-                          🌐 Ouvrir
-                        </button>
+                    </div>
+                    <AIConfigPanel onConfigured={(next) => setAiConfigured(!!next?.configured)} />
+                  </div>
+
+                  {/* Accès direct par lien (rétrocompatibilité session seule) */}
+                  <div className="rounded-xl border border-gray-200 bg-white p-4">
+                    <h4 className="text-sm font-bold text-gray-700 mb-1">Accès direct par lien</h4>
+                    <p className="text-xs text-gray-400 mb-3">
+                      Pour rouvrir une session existante sans passer par un atelier.
+                    </p>
+                    <div className="flex items-start gap-4 mb-4">
+                      <div className="shrink-0 p-2 rounded-lg bg-gray-50 border">
+                        <QRCodeCanvas value={participantUrl} size={96} />
+                      </div>
+                      <div className="text-xs text-gray-600 leading-relaxed space-y-2 min-w-0">
+                        {(participantUrl.includes("localhost") || participantUrl.includes("127.0.0.1")) && (
+                          <div className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-700">
+                            <span className="shrink-0 font-bold">⚠</span>
+                            <span>URL locale — les participants doivent être sur le même réseau.</span>
+                          </div>
+                        )}
+                        <p className="break-all font-mono text-gray-400 text-[10px]">{participantUrl}</p>
                         <button
                           onClick={async () => {
                             await navigator.clipboard.writeText(participantUrl);
@@ -573,61 +563,51 @@ const PresentationMode: React.FC<Props> = ({
                           }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors text-xs font-medium"
                         >
-                          📋 Copier
+                          📋 Copier le lien
                         </button>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Configuration session */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <h4 className="text-base font-bold text-gray-900 mb-4">⚙️ Configuration de la session</h4>
-                  <div className="space-y-3">
                     <label className="block">
-                      <span className="block text-sm font-medium text-gray-700">ID de session</span>
+                      <span className="block text-xs font-medium text-gray-700">ID de session</span>
                       <input
                         value={sessionId}
                         onChange={(e) => setSessionId(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
                         placeholder="SESSION-2025-XXX"
                       />
                     </label>
-                    <p className="text-xs text-gray-400">
-                      Projet et thème définis sur la première diapositive. Modifiables à tout moment depuis l'en-tête de l'atelier.
-                    </p>
-                  </div>
-                  <div className="flex gap-2 mt-5">
-                    <button
-                      onClick={() => onLaunchSession(sessionId || "")}
-                      className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-sm font-bold transition-all shadow-sm hover:shadow-md"
-                    >
-                      🚀 Lancer la session
-                    </button>
-                    <button
-                      onClick={() => {
-                        const ns =
-                          "SESSION-" +
-                          new Date().getFullYear() +
-                          "-" +
-                          String(Math.floor(Math.random() * 1000)).padStart(3, "0");
-                        setSessionId(ns);
-                      }}
-                      className="px-3 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-sm font-medium transition"
-                      title="Générer un nouvel ID"
-                    >
-                      🔄
-                    </button>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => onLaunchSession(sessionId || "")}
+                        className="flex-1 inline-flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold transition-colors"
+                      >
+                        Ouvrir cette session
+                      </button>
+                      <button
+                        onClick={() => {
+                          const ns =
+                            "SESSION-" +
+                            new Date().getFullYear() +
+                            "-" +
+                            String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+                          setSessionId(ns);
+                        }}
+                        className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 text-sm font-medium transition"
+                        title="Générer un nouvel ID"
+                      >
+                        🔄
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </details>
 
             </div>
           </div>
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName, situationActuelle, perimetre, docExtracted, setShowContextModal, aiConfigured, setAiConfigured]
+    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, situationActuelle, perimetre, docExtracted, setShowContextModal, aiConfigured, setAiConfigured]
   );
 
   /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
@@ -813,9 +793,10 @@ const PresentationMode: React.FC<Props> = ({
               </button>
               <button
                 onClick={saveMeta}
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700"
+                disabled={savingMeta}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50"
               >
-                Enregistrer
+                {savingMeta ? "Enregistrement…" : "Enregistrer"}
               </button>
             </div>
           </div>
@@ -876,15 +857,6 @@ const PresentationMode: React.FC<Props> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Retour modérateur : caché sur la première slide */}
-              <button
-                onClick={goModerator}
-                className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
-                title="Retour à l’interface modérateur"
-                style={{ visibility: index === 0 ? "hidden" : "visible" }}
-              >
-                ← Retour modérateur
-              </button>
               {/* Suivant : caché sur la dernière slide */}
               <button
                 onClick={next}

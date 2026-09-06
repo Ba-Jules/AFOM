@@ -70,6 +70,8 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [themeName, setThemeName] = useState("");
+  const [metaModalTouched, setMetaModalTouched] = useState(false);
+  const [savingModalMeta, setSavingModalMeta] = useState(false);
 
   const [showQR, setShowQR] = useState(false);
   const [workshopTitle, setWorkshopTitle] = useState("");
@@ -247,7 +249,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             <div className="ml-auto">
               <button
                 className="text-sm px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
-                onClick={() => setShowMetaModal(true)}
+                onClick={() => { setMetaModalTouched(false); setShowMetaModal(true); }}
               >
                 Modifier
               </button>
@@ -352,6 +354,9 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                   className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
                   placeholder="Ex : Transformation 2025"
                 />
+                {metaModalTouched && !projectName.trim() && (
+                  <p className="mt-1 text-xs text-red-600">Indiquez un projet pour continuer.</p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-600">
@@ -363,6 +368,9 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                   className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
                   placeholder="Ex : Offre digitale PME"
                 />
+                {metaModalTouched && !themeName.trim() && (
+                  <p className="mt-1 text-xs text-red-600">Indiquez un thème pour continuer.</p>
+                )}
               </div>
             </div>
 
@@ -375,10 +383,9 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
               </button>
               <button
                 onClick={async () => {
-                  if (!projectName.trim() || !themeName.trim()) {
-                    alert("Merci de renseigner Projet et Thème.");
-                    return;
-                  }
+                  setMetaModalTouched(true);
+                  if (!projectName.trim() || !themeName.trim() || savingModalMeta) return;
+                  setSavingModalMeta(true);
                   try {
                     await setDoc(
                       fsDoc(db, "boards", sessionId),
@@ -397,11 +404,14 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                   } catch (e) {
                     console.error(e);
                     alert("Impossible d’enregistrer le Projet/Thème.");
+                  } finally {
+                    setSavingModalMeta(false);
                   }
                 }}
-                className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                disabled={savingModalMeta}
+                className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                Enregistrer
+                {savingModalMeta ? "Enregistrement…" : "Enregistrer"}
               </button>
             </div>
           </div>

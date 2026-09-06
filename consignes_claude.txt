@@ -1,0 +1,603 @@
+MISSION — AFOM ULTIMATE — RECETTE UX/UI ET POLISSAGE FINAL AVANT REMISE UTILISATEUR
+
+CONTEXTE
+
+AFOM Ultimate multi-groupes est désormais fonctionnel et validé techniquement.
+
+Branche :
+feature/multigroupes
+
+Correctif VPS actuel :
+968a5c7
+
+Instance :
+http://187.124.34.82:8830/AFOM/
+
+Le cahier des charges fonctionnel de Mouhamed BA est couvert.
+
+Cette mission ne porte PLUS sur la faisabilité technique.
+
+OBJECTIF UNIQUE :
+
+Faire en sorte que l’outil soit immédiatement compréhensible, fluide, rassurant et visuellement abouti dès la première utilisation par un modérateur non technicien.
+
+L'utilisateur final est exigeant sur :
+- clarté ;
+- logique du parcours ;
+- vocabulaire ;
+- esthétique ;
+- absence d'ambiguïté ;
+- impression de finition.
+
+On ne doit PAS sacrifier l’esthétique au profit des nouvelles fonctions multi-groupes.
+
+==================================================
+1. PRINCIPE UX FONDAMENTAL
+==================================================
+
+Le concept « multi-groupes » est une capacité de l’outil.
+
+Il ne doit PAS être présenté comme un second produit ou comme un mode technique permanent.
+
+Le modérateur ne doit idéalement jamais devoir choisir entre :
+
+- mode solo
+- mode isolé
+- mode individuel
+- mode multi-groupes
+
+Ces appellations sont interdites dans l’interface.
+
+Le modèle mental doit devenir simplement :
+
+UN ATELIER
+→ un ou plusieurs groupes.
+
+Un atelier peut naturellement comporter un seul groupe.
+
+Si le modérateur en ajoute d’autres, il devient de fait un atelier à plusieurs groupes sans qu’on lui demande de changer de mode.
+
+==================================================
+2. PROBLÈME VISUEL ACTUEL À CORRIGER
+==================================================
+
+Le bouton flottant :
+
+« Ateliers multi-groupes »
+
+apparaît actuellement en haut à droite pendant la présentation.
+
+Ce comportement est à supprimer.
+
+Ce bouton :
+
+- détourne l’attention ;
+- introduit trop tôt une notion d’administration ;
+- parasite les diapositives ;
+- donne l’impression de deux applications distinctes ;
+- alourdit visuellement une présentation qui doit rester élégante.
+
+Aucun bouton permanent de gestion des groupes ne doit flotter au-dessus de la présentation.
+
+==================================================
+3. PARCOURS CIBLE
+==================================================
+
+Le parcours modérateur doit devenir aussi naturel que possible :
+
+PRÉSENTATION
+↓
+PRÉPARER L’ATELIER
+↓
+CONFIGURATION DE L’ATELIER
+↓
+GROUPES
+↓
+LANCEMENT / ANIMATION
+↓
+SUIVI
+↓
+CONSOLIDATION
+
+À la FIN de la présentation, proposer un CTA principal élégant :
+
+« Préparer l’atelier »
+
+ou, si le contexte existant rend cette formulation moins pertinente :
+
+« Configurer l’atelier »
+
+Préférer « Préparer l’atelier » si les deux conviennent.
+
+Ne pas utiliser :
+« Multi-groupes »
+dans ce CTA principal.
+
+==================================================
+4. CONFIGURATION DE L’ATELIER
+==================================================
+
+Le nouvel écran doit présenter quelque chose de très simple.
+
+Titre :
+
+« Préparer votre atelier AFOM »
+
+Texte court éventuel :
+
+« Donnez un titre à l’atelier et organisez les participants selon vos besoins. »
+
+Pas de jargon technique.
+
+Le modérateur crée son atelier.
+
+Un premier groupe peut être proposé/créé naturellement.
+
+Exemple :
+
+Groupe 1
+[Thématique]
+
+Puis :
+
++ Ajouter un groupe
+
+Le modérateur peut ensuite créer autant de groupes qu’il le souhaite.
+
+S’il ne crée qu’un seul groupe :
+le parcours doit rester parfaitement naturel.
+
+S’il en crée quatre :
+il obtient les quatre groupes et leurs QR/liens.
+
+Aucune notion de changement de mode.
+
+==================================================
+5. VOCABULAIRE
+==================================================
+
+Auditer systématiquement le vocabulaire visible.
+
+Préférer des formulations orientées utilisateur.
+
+Exemples souhaités :
+
+« Préparer l’atelier »
+« Ajouter un groupe »
+« Modifier »
+« Partager »
+« Copier le lien »
+« QR Code »
+« Ouvrir le groupe »
+« Voir les contributions »
+« Vue d’ensemble »
+« Consolider les productions »
+« Retour à l’atelier »
+
+Éviter dans l’interface utilisateur :
+
+« multi-groupes » quand ce n’est pas indispensable ;
+« dashboard » ;
+« sessionId » ;
+« workshop » ;
+« mode » ;
+« interface » ;
+« instance » ;
+tout vocabulaire technique interne.
+
+En particulier :
+
+« Retour modérateur »
+
+doit être réévalué.
+
+Préférer :
+
+« Retour à l’atelier »
+
+si cela correspond réellement à la destination.
+
+==================================================
+6. PRÉSENTATION
+==================================================
+
+La présentation doit rester visuellement pure.
+
+Pendant les diapositives :
+
+- aucun bouton flottant d’administration ;
+- aucune fonction avancée parasite ;
+- navigation claire ;
+- cohérence des espacements ;
+- cohérence des boutons ;
+- aucun élément qui donne l’impression d’avoir été greffé après coup.
+
+Le passage vers la préparation de l’atelier intervient à un endroit logique, idéalement à la fin.
+
+==================================================
+7. ÉCRAN ACTUEL « ASSISTANCE IA »
+==================================================
+
+Examiner particulièrement la diapositive / zone visible contenant :
+
+« Assistance IA »
+« Non configurée »
+« Fournisseur IA »
+
+La fonction IA ne doit pas devenir le centre visuel de l’écran si elle n’est pas configurée et si elle n’est pas nécessaire au déroulement de l’atelier.
+
+Sans supprimer une capacité existante, vérifier si :
+
+- son poids visuel peut être réduit ;
+- elle peut être présentée comme optionnelle ;
+- le statut « Non configurée » peut être moins dominant ;
+- la hiérarchie visuelle peut mieux privilégier les fonctions réellement utiles au modérateur.
+
+Ne supprime pas arbitrairement la fonction.
+
+Améliore uniquement sa place dans la hiérarchie UX si nécessaire.
+
+==================================================
+8. TABLEAU DE BORD ATELIER
+==================================================
+
+Éprouver le tableau de bord comme si tu étais Mouhamed BA découvrant l’outil.
+
+En moins de 10 secondes il doit comprendre :
+
+- quel atelier il gère ;
+- combien de groupes existent ;
+- quelle est leur thématique ;
+- comment ajouter un groupe ;
+- comment ouvrir un groupe ;
+- comment partager son QR/lien ;
+- comment suivre les contributions ;
+- comment obtenir la consolidation.
+
+Les actions principales doivent ressortir.
+
+Les actions secondaires doivent être discrètes.
+
+Éviter une accumulation de boutons de même importance.
+
+==================================================
+9. CARTE GROUPE
+==================================================
+
+Chaque groupe doit privilégier visuellement :
+
+1. Groupe
+2. Thématique
+3. Avancement / contributions
+4. Action principale
+
+Les actions secondaires peuvent être regroupées ou hiérarchisées.
+
+Réévaluer les libellés actuels :
+
+QR/lien
+Modifier
+Copier le lien
+Archiver
+
+pour éviter l’impression de panneau d’administration.
+
+Si cela améliore réellement l’usage, une action principale :
+
+« Partager »
+
+peut regrouper intelligemment :
+
+- QR Code
+- copier le lien
+
+Mais uniquement si cela simplifie réellement l’interface.
+
+Ne crée pas de sous-menus complexes.
+
+==================================================
+10. VALIDATIONS UTILISATEUR
+==================================================
+
+Les précédentes recettes ont identifié une validation silencieuse :
+
+- nom vide ;
+- thématique vide.
+
+Corriger ce comportement.
+
+Un utilisateur qui clique sur « Enregistrer » doit comprendre immédiatement pourquoi rien ne se passe.
+
+Afficher un message discret et élégant directement sous le champ concerné.
+
+Exemple :
+
+« Indiquez une thématique pour continuer. »
+
+Ne pas utiliser de popup agressive.
+
+==================================================
+11. DOUBLE-CLIC
+==================================================
+
+Sécuriser les actions de création/enregistrement contre les doubles clics raisonnablement prévisibles.
+
+Lors d’un enregistrement :
+
+- bouton temporairement désactivé ;
+- éventuellement état très bref « Enregistrement… ».
+
+Pas de spinner lourd ni d’animation excessive.
+
+==================================================
+12. LIENS INVALIDES
+==================================================
+
+Un participant ouvrant un lien invalide ou ancien ne doit pas arriver sur un écran incompréhensible.
+
+Prévoir un message simple :
+
+« Ce lien d’atelier n’est pas valide ou n’est plus disponible. »
+
+avec possibilité raisonnable de revenir à l’accueil.
+
+==================================================
+13. SMARTPHONE
+==================================================
+
+Tester réellement le parcours participant avec viewport smartphone.
+
+Priorités :
+
+- groupe immédiatement visible ;
+- thématique immédiatement visible ;
+- boutons accessibles ;
+- zones tactiles confortables ;
+- aucun défilement horizontal ;
+- saisie simple ;
+- confirmation compréhensible.
+
+Le participant ne doit pas voir des commandes destinées au modérateur.
+
+==================================================
+14. ESTHÉTIQUE
+==================================================
+
+Conserver l’identité actuelle AFOM Ultimate :
+
+- violet ;
+- cartes arrondies ;
+- ombres légères ;
+- typographie actuelle ;
+- hiérarchie visuelle actuelle.
+
+Ne fais PAS de redesign complet.
+
+Recherche plutôt une finition de niveau produit :
+
+- alignements ;
+- marges ;
+- largeur des cartes ;
+- cohérence rayons ;
+- taille des boutons ;
+- contraste ;
+- densité ;
+- espacements ;
+- responsive ;
+- états hover/focus ;
+- textes trop longs ;
+- composants greffés visuellement.
+
+Le résultat doit paraître conçu ainsi depuis le début.
+
+==================================================
+15. TEST « PREMIÈRE MINUTE »
+==================================================
+
+Effectuer une vraie simulation.
+
+Partir de l’accueil sans connaissance préalable.
+
+Chronométrer conceptuellement le parcours :
+
+1. comprendre ce qu’est l’outil ;
+2. parcourir la présentation ;
+3. comprendre comment commencer ;
+4. créer un atelier ;
+5. préparer Groupe 1 ;
+6. ajouter Groupe 2 ;
+7. retrouver QR/lien ;
+8. revenir à l’atelier ;
+9. voir la consolidation.
+
+À chaque étape identifier :
+
+- hésitation ;
+- ambiguïté ;
+- clic inutile ;
+- retour en arrière ;
+- vocabulaire confus ;
+- élément visuel parasite.
+
+Corriger les problèmes réels.
+
+==================================================
+16. TEST « PÈRE EXIGEANT »
+==================================================
+
+À la fin, poser explicitement ces questions :
+
+- Un utilisateur non technicien comprend-il immédiatement quoi faire ?
+- Existe-t-il encore un bouton dont le rôle n’est pas évident ?
+- Une fonction apparaît-elle avant d’être utile ?
+- Une information importante est-elle noyée ?
+- Y a-t-il deux termes différents pour désigner la même chose ?
+- Un écran paraît-il plus technique que nécessaire ?
+- Les ajouts multi-groupes semblent-ils greffés à l’ancienne application ?
+- L’outil donne-t-il une impression de version bêta ?
+- Une erreur utilisateur peut-elle produire du silence ?
+- Le premier contact visuel est-il rassurant et professionnel ?
+
+Ne valide pas tant qu’un défaut évident subsiste.
+
+==================================================
+17. NON-RÉGRESSION
+==================================================
+
+Après modifications vérifier :
+
+- atelier 1 groupe ;
+- atelier 4 groupes ;
+- ajout groupe ;
+- modification ;
+- QR ;
+- lien ;
+- participant ;
+- temps réel ;
+- dashboard ;
+- consolidation ;
+- filtres ;
+- présentation ;
+- analyse ;
+- matrice ;
+- ancien ?session= ;
+- smartphone.
+
+==================================================
+18. DÉPLOIEMENT
+==================================================
+
+Après validation locale :
+
+- build ;
+- commit sur feature/multigroupes ;
+- push ;
+- pull/rebuild sur l’instance VPS existante ;
+- ne modifier ni main ni baseline ;
+- tester directement :
+  http://187.124.34.82:8830/AFOM/
+
+Supprimer/nettoyer les données de recette créées uniquement si elles sont clairement identifiées comme données de test.
+
+Ne supprimer aucune donnée dont l’origine est incertaine.
+
+==================================================
+19. INTERDICTIONS
+==================================================
+
+Ne pas :
+
+- ajouter de nouvelles fonctions métier ;
+- développer les grilles suivantes ;
+- ajouter une nouvelle IA ;
+- refaire l’architecture ;
+- changer de charte graphique ;
+- supprimer des capacités existantes ;
+- modifier main ;
+- fusionner feature/multigroupes dans main ;
+- transformer cette mission en refonte générale.
+
+==================================================
+20. CRITÈRE FINAL
+==================================================
+
+Le résultat doit donner l’impression suivante :
+
+« Je comprends immédiatement comment préparer mon atelier.
+Je peux commencer avec un groupe.
+J’en ajoute d’autres si nécessaire.
+Tout est au même endroit.
+Je ne vois aucune complexité technique.
+L’outil est propre, cohérent et abouti. »
+
+==================================================
+21. RETOUR FINAL
+==================================================
+
+Répondre uniquement :
+
+AFOM ULTIMATE — POLISSAGE UX/UI FINAL
+
+Audit première minute :
+PASS/FAIL
+
+Bouton flottant multi-groupes supprimé :
+OUI/NON
+
+Entrée atelier repositionnée :
+OUI/NON
+Emplacement :
+...
+
+Choix artificiel mono/multi supprimé :
+OUI/NON
+
+Parcours atelier unifié :
+PASS/FAIL
+
+Ajout libre de groupes :
+PASS/FAIL
+
+Vocabulaire :
+PASS/FAIL
+
+Hiérarchie visuelle :
+PASS/FAIL
+
+Présentation :
+PASS/FAIL
+
+Dashboard :
+PASS/FAIL
+
+Cartes groupes :
+PASS/FAIL
+
+QR/partage :
+PASS/FAIL
+
+Validation formulaires :
+PASS/FAIL
+
+Protection double-clic :
+PASS/FAIL
+
+Lien invalide :
+PASS/FAIL
+
+Smartphone :
+PASS/FAIL
+
+Non-régression fonctionnelle :
+X/Y PASS
+
+Build :
+PASS/FAIL
+
+VPS :
+PASS/FAIL
+
+URL :
+http://187.124.34.82:8830/AFOM/
+
+Branche :
+feature/multigroupes
+
+Commit :
+...
+
+Main modifiée :
+NON
+
+Améliorations UX réellement appliquées :
+- ...
+
+Défauts UX restant éventuellement :
+- ...
+
+VERDICT FINAL :
+PRÊT À ÊTRE PRÉSENTÉ À MOUHAMED BA : OUI/NON
+
+STOP.
+
+Ne propose aucune fonctionnalité supplémentaire.

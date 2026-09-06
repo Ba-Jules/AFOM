@@ -29,6 +29,7 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
     const [meta, setMeta] = useState<BoardMeta | null>(null);
     const [workshopTitle, setWorkshopTitle] = useState('');
     const [groupName, setGroupName] = useState('');
+    const [linkInvalid, setLinkInvalid] = useState(false);
 
     useEffect(() => {
         const savedName = localStorage.getItem('afom_user_name') || '';
@@ -59,13 +60,18 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
                     getDoc(fsDoc(db, 'workshops', workshopId)),
                     getDoc(fsDoc(db, 'workshops', workshopId, 'groups', groupId)),
                 ]);
-                if (workshopSnap.exists()) setWorkshopTitle(String(workshopSnap.data().title || ''));
-                if (groupSnap.exists()) {
-                    const data = groupSnap.data();
-                    setGroupName(String(data.name || data.number || ''));
-                    setMeta(current => ({ ...current, projectName: String(data.name || data.number || current?.projectName || ''), themeName: String(data.theme || current?.themeName || '') }));
+                if (!workshopSnap.exists() || !groupSnap.exists() || groupSnap.data()?.active === false) {
+                    setLinkInvalid(true);
+                    return;
                 }
-            } catch (e) { console.error('Unable to load workshop/group', e); }
+                setWorkshopTitle(String(workshopSnap.data().title || ''));
+                const data = groupSnap.data();
+                setGroupName(String(data.name || data.number || ''));
+                setMeta(current => ({ ...current, projectName: String(data.name || data.number || current?.projectName || ''), themeName: String(data.theme || current?.themeName || '') }));
+            } catch (e) {
+                console.error('Unable to load workshop/group', e);
+                setLinkInvalid(true);
+            }
         })();
     }, [workshopId, groupId]);
 
@@ -128,6 +134,26 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
     };
 
     const charsLeft = useMemo(() => Math.max(0, MAX_LEN - content.length), [content]);
+
+    if (linkInvalid) {
+        return (
+            <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50">
+                <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border p-8 text-center">
+                    <div className="text-4xl mb-3">🔗</div>
+                    <h2 className="text-lg font-black text-gray-900 mb-2">Lien non disponible</h2>
+                    <p className="text-sm text-gray-600 mb-6">
+                        Ce lien d'atelier n'est pas valide ou n'est plus disponible.
+                    </p>
+                    <a
+                        href={window.location.origin + window.location.pathname}
+                        className="inline-block px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors"
+                    >
+                        Retour à l'accueil
+                    </a>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50">

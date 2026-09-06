@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { createGroup, createWorkshop, participantLink } from "../services/workshopService";
+import { createGroup, createWorkshop } from "../services/workshopService";
 import { PostIt, Workshop, WorkshopGroup } from "../types";
 import QRCodeModal from "./QRCodeModal";
 
@@ -49,9 +49,8 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onCount }:
     </div>
     <div className="mt-4 flex flex-wrap gap-2">
       <button onClick={onOpen} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white">Ouvrir</button>
-      <button onClick={() => setQr(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold">QR / lien</button>
+      <button onClick={() => setQr(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Partager</button>
       <button onClick={onEdit} className="rounded-lg border px-3 py-2 text-sm font-semibold">Modifier</button>
-      <button onClick={async () => { await navigator.clipboard.writeText(participantLink(group.sessionId, group.workshopId, group.id)); alert("Lien copié !"); }} className="rounded-lg border px-3 py-2 text-sm font-semibold">Copier le lien</button>
       <button onClick={onArchive} className="ml-auto rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600">Archiver</button>
     </div>
     <QRCodeModal isOpen={qr} onClose={() => setQr(false)} sessionId={group.sessionId} workshopId={group.workshopId} groupId={group.id} workshopTitle={workshopTitle} groupName={group.name} groupTheme={group.theme} />
@@ -62,9 +61,13 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onConsoli
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [groups, setGroups] = useState<WorkshopGroup[]>([]);
   const [title, setTitle] = useState("Atelier du 7 septembre 2026");
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(blank);
+  const [formErrors, setFormErrors] = useState<{ number?: string; theme?: string }>({});
   const [editing, setEditing] = useState<WorkshopGroup | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [groupCounts, setGroupCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -77,33 +80,82 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onConsoli
   if (!workshopId) return <main className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-4 flex items-center justify-center">
     <section className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-xl">
       <button onClick={onBack} className="mb-5 text-sm text-indigo-700">← Retour à AFOM</button>
-      <h1 className="text-3xl font-black">Créer un atelier multi-groupes</h1>
+      <h1 className="text-3xl font-black">Préparer votre atelier AFOM</h1>
+      <p className="mt-2 text-gray-500">Donnez un titre à l'atelier et organisez les participants selon vos besoins.</p>
       <label className="mt-6 block text-sm font-bold">Nom de l’atelier</label>
-      <input aria-label="Nom de l’atelier" value={title} onChange={e => setTitle(e.target.value)} className="mt-2 w-full rounded-xl border px-4 py-3" />
-      <button disabled={!title.trim()} onClick={async () => { const ref = await createWorkshop(title); window.location.href = `${window.location.pathname}?v=workshop&workshop=${ref.id}`; }} className="mt-5 w-full rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white disabled:opacity-40">Créer l’atelier</button>
+      <input aria-label="Nom de l’atelier" value={title} onChange={e => setTitle(e.target.value)} onBlur={() => setTitleTouched(true)} className="mt-2 w-full rounded-xl border px-4 py-3" />
+      {titleTouched && !title.trim() && <p className="mt-1.5 text-sm text-red-600">Indiquez un nom pour continuer.</p>}
+      <button
+        disabled={!title.trim() || creating}
+        onClick={async () => {
+          setTitleTouched(true);
+          if (!title.trim()) return;
+          setCreating(true);
+          try {
+            const ref = await createWorkshop(title);
+            window.location.href = `${window.location.pathname}?v=workshop&workshop=${ref.id}`;
+          } catch (e) {
+            console.error(e);
+            alert("Impossible de créer l’atelier.");
+            setCreating(false);
+          }
+        }}
+        className="mt-5 w-full rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white disabled:opacity-40"
+      >
+        {creating ? "Création…" : "Créer l’atelier"}
+      </button>
     </section>
   </main>;
 
   const total = groups.reduce((sum, group) => sum + (groupCounts[group.id] || 0), 0);
   const save = async () => {
-    if (!form.number.trim() || !form.theme.trim()) return;
-    if (editing) {
-      await updateDoc(doc(db, "workshops", workshopId, "groups", editing.id), { number: form.number.trim(), name: form.number.trim(), theme: form.theme.trim(), updatedAt: serverTimestamp() });
-      await updateDoc(doc(db, "boards", editing.sessionId), { projectName: form.number.trim(), themeName: form.theme.trim(), updatedAt: serverTimestamp() });
-    } else await createGroup(workshopId, { number: form.number, name: form.number, theme: form.theme, order: groups.length + 1 });
-    setForm(blank); setEditing(null); setShowForm(false);
+    const errors: { number?: string; theme?: string } = {};
+    if (!form.number.trim()) errors.number = "Indiquez un nom pour continuer.";
+    if (!form.theme.trim()) errors.theme = "Indiquez une thématique pour continuer.";
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0 || saving) return;
+    setSaving(true);
+    try {
+      if (editing) {
+        await updateDoc(doc(db, "workshops", workshopId, "groups", editing.id), { number: form.number.trim(), name: form.number.trim(), theme: form.theme.trim(), updatedAt: serverTimestamp() });
+        await updateDoc(doc(db, "boards", editing.sessionId), { projectName: form.number.trim(), themeName: form.theme.trim(), updatedAt: serverTimestamp() });
+      } else {
+        await createGroup(workshopId, { number: form.number, name: form.number, theme: form.theme, order: groups.length + 1 });
+      }
+      setForm(blank); setFormErrors({}); setEditing(null); setShowForm(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return <main className="min-h-screen bg-gray-50">
     <header className="border-b bg-gradient-to-r from-indigo-700 to-purple-700 text-white"><div className="mx-auto max-w-7xl px-4 py-6">
-      <button onClick={onBack} className="text-sm text-indigo-100">← AFOM classique</button>
+      <button onClick={onBack} className="text-sm text-indigo-100">← Accueil AFOM</button>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><div className="text-sm font-bold uppercase text-indigo-200">Tableau de bord atelier</div><h1 className="text-3xl font-black">{workshop?.title || "Chargement…"}</h1></div>
-      <div className="flex gap-2"><button onClick={() => onConsolidate(workshopId)} className="rounded-xl bg-white px-4 py-2 font-bold text-indigo-700">Consolidation AFOM</button><button onClick={() => { setEditing(null); setForm({ number: `Groupe ${groups.length + 1}`, theme: "" }); setShowForm(true); }} className="rounded-xl bg-emerald-400 px-4 py-2 font-bold text-emerald-950">+ Ajouter un groupe AFOM</button></div></div>
+      <div className="flex gap-2"><button onClick={() => onConsolidate(workshopId)} className="rounded-xl bg-white px-4 py-2 font-bold text-indigo-700">Consolider les productions</button><button onClick={() => { setEditing(null); setForm({ number: `Groupe ${groups.length + 1}`, theme: "" }); setFormErrors({}); setShowForm(true); }} className="rounded-xl bg-emerald-400 px-4 py-2 font-bold text-emerald-950">+ Ajouter un groupe</button></div></div>
     </div></header>
     <section className="mx-auto max-w-7xl p-4">
       <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-md"><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{groups.length}</b><span className="ml-2 text-gray-500">groupes</span></div><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{total || "—"}</b><span className="ml-2 text-gray-500">contributions</span></div></div>
-      {showForm && <div className="mb-6 rounded-2xl border bg-white p-5 shadow"><h2 className="text-lg font-black">{editing ? "Modifier le groupe" : "Nouveau groupe AFOM"}</h2><div className="mt-3 grid gap-3 sm:grid-cols-2"><input aria-label="Numéro ou nom du groupe" placeholder="Groupe 1" value={form.number} onChange={e => setForm({ ...form, number: e.target.value })} className="rounded-lg border px-3 py-2"/><input aria-label="Thématique du groupe" placeholder="Thématique" value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} className="rounded-lg border px-3 py-2"/></div><div className="mt-3 flex gap-2"><button onClick={save} className="rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white">Enregistrer</button><button onClick={() => setShowForm(false)} className="rounded-lg border px-4 py-2">Annuler</button></div></div>}
-      <div className="grid gap-4 lg:grid-cols-2">{groups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Les contributions seront conservées.`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
+      {showForm && <div className="mb-6 rounded-2xl border bg-white p-5 shadow">
+        <h2 className="text-lg font-black">{editing ? "Modifier le groupe" : "Nouveau groupe"}</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-gray-600">Nom du groupe</label>
+            <input aria-label="Numéro ou nom du groupe" placeholder="Groupe 1" value={form.number} onChange={e => setForm({ ...form, number: e.target.value })} className="w-full rounded-lg border px-3 py-2"/>
+            {formErrors.number && <p className="mt-1 text-xs text-red-600">{formErrors.number}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-gray-600">Thématique</label>
+            <input aria-label="Thématique du groupe" placeholder="Thématique" value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })} className="w-full rounded-lg border px-3 py-2"/>
+            {formErrors.theme && <p className="mt-1 text-xs text-red-600">{formErrors.theme}</p>}
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button onClick={save} disabled={saving} className="rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white disabled:opacity-50">{saving ? "Enregistrement…" : "Enregistrer"}</button>
+          <button onClick={() => { setShowForm(false); setFormErrors({}); }} className="rounded-lg border px-4 py-2">Annuler</button>
+        </div>
+      </div>}
+      <div className="grid gap-4 lg:grid-cols-2">{groups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setFormErrors({}); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Les contributions seront conservées.`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
     </section>
   </main>;
 }

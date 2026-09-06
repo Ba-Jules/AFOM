@@ -108,9 +108,9 @@ const App: React.FC = () => {
     case "presentation":
       return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 font-sans">
-          <button onClick={openWorkshop} className="fixed right-4 top-4 z-50 rounded-xl bg-indigo-700 px-4 py-2 font-bold text-white shadow-lg">Ateliers multi-groupes</button>
           <PresentationMode
             onLaunchSession={handleLaunchSession}
+            onPrepareWorkshop={openWorkshop}
             initialSessionId={sessionId || ""}
           />
         </div>
