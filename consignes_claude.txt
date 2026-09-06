@@ -1,159 +1,202 @@
-MISSION COURTE — COMPATIBILITÉ VERSION HISTORIQUE APRÈS MODIFICATION FIRESTORE
+MISSION — AFOM ULTIMATE — FIGER ET PRÉPARER LA REPRISE SUR PC BUREAU
 
-IMPORTANT :
-Ne modifie rien.
-Ne publie aucune nouvelle règle.
-Ne corrige rien.
-Ne commit rien.
-Ne push rien.
+OBJECTIF
 
-CONTEXTE
+Je dois pouvoir reprendre AFOM Ultimate demain depuis mon PC de bureau en urgence, sans perdre de temps et sans dépendre de ce PC.
 
-Aujourd'hui tu as :
+La branche de référence opérationnelle est :
 
-- laissé `main` intacte ;
-- travaillé sur `feature/multigroupes` ;
-- activé Firebase Authentication sur `afom-e475f` ;
-- créé les comptes moderator/admin ;
-- publié de nouvelles règles Firestore ;
-- constaté que les accès anonymes génériques sont désormais refusés ;
-- laissé la création de contribution participant publique.
+feature/multigroupes
 
-Je veux maintenant savoir si ces modifications globales Firebase ont affecté LA VERSION HISTORIQUE AFOM que Mouhamed BA utilisait avant le développement multi-groupes.
-
-SOURCE DE VÉRITÉ GIT
-
-Baseline historique :
-branche main
-
-Commit historique attendu :
-be2df48ffb4847da55c6a3e417057a1bf8636b9b
+NE CRÉE PAS une nouvelle branche.
 
 ==================================================
-1. CONFIRMER LE CODE
+1. FINALISER L'ÉTAT ACTUEL
 ==================================================
 
-Vérifie :
+Avant de figer :
 
-- HEAD de main ;
-- absence de commit auth/multigroupes sur main ;
-- différences entre main et feature/multigroupes concernant Firebase.
+- termine le test Analyse et Matrice demandé ;
+- vérifie le build ;
+- vérifie que la branche active est bien feature/multigroupes ;
+- vérifie l'état Git ;
+- vérifie que main est toujours intacte à :
+  be2df48ffb4847da55c6a3e417057a1bf8636b9b
 
-Retour :
-Main intacte : OUI/NON
-
-==================================================
-2. IDENTIFIER LE FIREBASE DE MAIN
-==================================================
-
-Depuis le code exact de main, détermine :
-
-- projectId Firebase ;
-- collections utilisées ;
-- opérations Firestore anonymes nécessaires au parcours historique :
-  - lecture board ;
-  - lecture postits ;
-  - création postit ;
-  - modification éventuelle ;
-  - suppression éventuelle ;
-  - temps réel onSnapshot ;
-  - analyse ;
-  - matrice.
-
-Ne suppose rien.
+Ne modifie pas main.
 
 ==================================================
-3. COMPARER AVEC LES RÈGLES ACTUELLES
+2. NETTOYER AVANT VERSIONNEMENT
 ==================================================
 
-Prends les règles Firestore ACTUELLEMENT publiées.
+Ne doivent PAS être poussés :
 
-Pour chaque opération nécessaire à main, indique :
+- mots de passe ;
+- fichiers temporaires ;
+- scripts de seed ;
+- tokens ;
+- clés privées ;
+- fichiers contenant les identifiants + mots de passe en clair ;
+- consignes_claude.txt si elle contient encore les mots de passe provisoires.
 
-AUTORISÉ
-REFUSÉ
-INDÉTERMINÉ
-
-Construis un tableau :
-
-Fonction historique | Opération Firestore | Règle actuelle | Compatible OUI/NON
-
-==================================================
-4. TEST RÉEL VERSION HISTORIQUE
-==================================================
-
-Teste réellement la version `main` dans un environnement local ou de recette sans modifier les données historiques.
-
-Créer si nécessaire UNE session de test clairement identifiable :
-
-COMPAT-MAIN-2026-09-06
-
-Tester comme utilisateur NON CONNECTÉ :
-
-1. ouverture présentation ;
-2. création/ouverture session historique ;
-3. ouverture participant via `?session=...` ;
-4. lecture Projet/Thème ;
-5. ajout d’une contribution ;
-6. apparition temps réel côté modérateur historique ;
-7. lecture des contributions ;
-8. analyse ;
-9. matrice ;
-10. QR historique si disponible.
-
-PASS uniquement si réellement testé APRÈS les nouvelles règles Firestore.
+Vérifie explicitement le diff avant commit.
 
 ==================================================
-5. NE PAS CONFONDRE
+3. CRÉER UN FICHIER DE REPRISE
 ==================================================
 
-Le fait que :
+Créer :
 
-- main Git soit intacte
-- ou que feature/multigroupes fonctionne
+REPRISE_PC_BUREAU.md
 
-NE PROUVE PAS que la version historique fonctionne encore.
+Ce fichier doit permettre à Claude Code, Codex ou moi-même de reprendre le chantier immédiatement demain.
 
-La question porte spécifiquement sur l'effet des nouvelles règles Firebase globales.
+Y inscrire sans secret :
+
+- dépôt GitHub :
+  https://github.com/Ba-Jules/AFOM.git
+
+- branche :
+  feature/multigroupes
+
+- commit HEAD exact après finalisation ;
+
+- baseline historique :
+  main / be2df48ff...
+
+- tag de baseline existant :
+  baseline-avant-multigroupes-2026-09-04
+
+- URL production :
+  http://187.124.34.82:8830/AFOM/
+
+- chemin VPS :
+  /opt/afom-multigroupes
+
+- méthode de déploiement :
+  git pull + npm ci si nécessaire + npm run build
+
+- conteneur :
+  afom-multigroupes
+  nginx servant dist/ en bind-mount
+
+- projet Firebase :
+  afom-e475f
+
+- architecture auth :
+  Firebase Authentication email/password
+  + users/{uid}
+  + rôles moderator/admin
+
+- comptes existants, SANS MOT DE PASSE :
+  Mouhamed BA : mouhba@gmail.com
+  Administrateur : bapamadou@gmail.com
+
+- état actuel des règles Firestore :
+  boards/postits/confrontations ouverts pour compatibilité main ;
+  workshops/groups/users protégés ;
+  expliquer brièvement pourquoi.
+
+- fonctionnalités validées :
+  présentation
+  préparation atelier
+  multi-groupes
+  QR/liens
+  participant public
+  temps réel
+  consolidation
+  authentification
+  compte Mouhamed
+  compte admin
+  compatibilité main
+  Analyse
+  Matrice
+  avec PASS/FAIL réel selon les derniers tests.
+
+- limites connues éventuelles.
+
+- procédure de reprise sur un autre PC.
 
 ==================================================
-6. NETTOYAGE
+4. PROCÉDURE PC BUREAU À INSCRIRE
+==================================================
 
-Si tu crées des données `COMPAT-MAIN-2026-09-06`, supprime uniquement ces données de test après vérification.
+Prévoir deux cas.
 
-Ne touche à aucune autre donnée.
+CAS A — dépôt déjà présent :
+
+git fetch origin
+git checkout feature/multigroupes
+git pull --ff-only origin feature/multigroupes
+git status
+
+CAS B — dépôt absent :
+
+git clone https://github.com/Ba-Jules/AFOM.git
+cd AFOM
+git checkout feature/multigroupes
+npm ci
+npm run build
+
+Ne mets aucun chemin Windows spécifique au PC actuel comme exigence absolue.
 
 ==================================================
-7. RETOUR FINAL
+5. FIGER UNE VERSION PRÊTE ATELIER
+==================================================
 
-AFOM — COMPATIBILITÉ VERSION HISTORIQUE APRÈS AUTH
+Une fois tous les tests terminés et PASS :
 
-Main intacte :
-OUI/NON
+- commit toutes les modifications utiles ;
+- push feature/multigroupes ;
+- vérifier origin/feature/multigroupes identique au local.
 
-Commit main :
-...
+Créer ensuite un tag annoté :
 
-Même projet Firebase que la nouvelle version :
-OUI/NON
+atelier-2026-09-07-ready
 
-Règles Firestore globales modifiées aujourd'hui :
-OUI/NON
+sur le commit final réellement validé.
 
-Fonctions historiques testées :
-X/Y PASS
+Pousser ce tag sur GitHub.
 
-Participant historique sans connexion :
-PASS/FAIL
+Ce tag doit être un point de retour stable si une correction urgente demain introduit une régression.
 
-Création contribution :
-PASS/FAIL
+==================================================
+6. NE PAS TOUCHER FIREBASE INUTILEMENT
+==================================================
 
-Lecture contribution :
-PASS/FAIL
+Cette mission est une mission de continuité/versionnement.
 
-Temps réel :
-PASS/FAIL
+Ne modifie plus les règles Firebase ni les comptes sauf si le test Analyse/Matrice met en évidence une régression réelle.
+
+==================================================
+7. TEST FINAL DE SYNCHRONISATION
+==================================================
+
+À la fin vérifier :
+
+git status
+git log -1
+git branch --show-current
+git rev-list --left-right --count HEAD...origin/feature/multigroupes
+
+Attendu :
+
+- branche feature/multigroupes
+- working tree clean
+- ahead/behind 0/0
+
+Vérifier aussi que le tag :
+
+atelier-2026-09-07-ready
+
+pointe exactement sur HEAD.
+
+==================================================
+8. RETOUR FINAL
+
+Répondre uniquement :
+
+AFOM ULTIMATE — REPRISE PC BUREAU PRÊTE
 
 Analyse :
 PASS/FAIL
@@ -161,22 +204,40 @@ PASS/FAIL
 Matrice :
 PASS/FAIL
 
-QR historique :
-PASS/FAIL/N/A
+Build :
+PASS/FAIL
 
-Version historique encore utilisable telle quelle :
+Branche :
+feature/multigroupes
+
+Commit final :
+...
+
+Push :
+PASS/FAIL
+
+Local / origin :
+0/0 ou autre
+
+Tag :
+atelier-2026-09-07-ready
+
+Tag poussé :
 OUI/NON
 
-Impact des nouvelles règles Firebase :
-AUCUN / MINEUR / MAJEUR / BLOQUANT
+Main intacte :
+OUI/NON
 
-Données historiques modifiées pendant ce test :
-NON
+REPRISE_PC_BUREAU.md :
+CRÉÉ/OUI-NON
 
-Main modifiée :
-NON
+Secrets dans Git :
+NON/OUI
 
-CONCLUSION :
-...
+Production actuelle :
+http://187.124.34.82:8830/AFOM/
+
+Prêt pour reprise immédiate depuis un autre PC :
+OUI/NON
 
 STOP.
