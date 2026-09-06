@@ -7,7 +7,7 @@ Ce fichier permet de reprendre le chantier AFOM Ultimate immédiatement depuis u
 - Dépôt GitHub : https://github.com/Ba-Jules/AFOM.git
 - Branche de référence opérationnelle : `feature/multigroupes`
 - Ne PAS créer de nouvelle branche, ne PAS travailler sur `main`.
-- Commit HEAD figé pour cette reprise : voir section « Commit final » ci-dessous (renseigné après le tag).
+- Commit HEAD figé pour cette reprise : voir le tag `atelier-2026-09-07-ready` (pointe exactement sur ce commit)
 - Baseline historique intacte : branche `main` au commit `be2df48ffb4847da55c6a3e417057a1bf8636b9b`
 - Tag de baseline existant (avant tout travail multi-groupes) : `baseline-avant-multigroupes-2026-09-04`
 - Tag de reprise créé pour cette mission : `atelier-2026-09-07-ready`
