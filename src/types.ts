@@ -69,6 +69,16 @@ export interface WorkshopGroup {
   updatedAt?: any;
 }
 
+export type UserRole = "admin" | "moderator";
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  mustChangePassword?: boolean;
+}
+
 export interface Insight { title: string; content: string; }
 export type RecommendationPriority = "URGENT" | "HIGH" | "MEDIUM" | "LOW";
 

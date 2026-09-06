@@ -376,9 +376,13 @@ const PresentationMode: React.FC<Props> = ({
       setShowContextModal(false);
       setMetaSaved(true);
       setTimeout(() => setMetaSaved(false), 2000);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Impossible d’enregistrer.");
+      if (e?.code === "permission-denied") {
+        alert("Connectez-vous en tant que modérateur (via « Préparer l’atelier ») pour enregistrer ces informations.");
+      } else {
+        alert("Impossible d’enregistrer.");
+      }
     } finally {
       setSavingMeta(false);
     }

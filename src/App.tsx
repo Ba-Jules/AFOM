@@ -6,19 +6,24 @@ import AnalysisMode from "./components/AnalysisMode";
 import MatrixMode from "./components/MatrixMode";
 import WorkshopDashboard from "./components/WorkshopDashboard";
 import ConsolidatedAFOM from "./components/ConsolidatedAFOM";
+import LoginScreen from "./components/LoginScreen";
 
 // 🔥 on récupère les Post-its ici pour les passer à AnalysisMode
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./services/firebase";
+import { useAuth } from "./hooks/useAuth";
 import { PostIt, WorkshopGroup } from "./types";
 
 type View = "presentation" | "work" | "participant" | "analysis" | "matrix" | "workshop" | "consolidation";
+
+const PROTECTED_VIEWS: View[] = ["work", "analysis", "matrix", "workshop", "consolidation"];
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>("presentation");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [workshopId, setWorkshopId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState<string | null>(null);
+  const { appUser, loading: authLoading } = useAuth();
 
   // Post-its pour AnalysisMode
   const [analysisPostIts, setAnalysisPostIts] = useState<PostIt[]>([]);
@@ -103,6 +108,16 @@ const App: React.FC = () => {
     setView("work");
   };
 
+  // Protection des écrans de gestion : une URL directe ne doit pas contourner la connexion
+  if (PROTECTED_VIEWS.includes(view)) {
+    if (authLoading) {
+      return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Chargement…</div>;
+    }
+    if (!appUser) {
+      return <LoginScreen onCancel={handleBackToPresentation} />;
+    }
+  }
+
   // Rendu par vue
   switch (view) {
     case "presentation":
@@ -125,6 +140,7 @@ const App: React.FC = () => {
             onNavigate={(v) => setView(v)}
             workshopId={workshopId || undefined}
             groupId={groupId || undefined}
+            user={appUser!}
           />
         </div>
       ) : (
@@ -157,10 +173,10 @@ const App: React.FC = () => {
       );
 
     case "workshop":
-      return <WorkshopDashboard workshopId={workshopId || undefined} onOpenSession={openGroup} onConsolidate={(id) => { setWorkshopId(id); window.history.replaceState({}, "", `${window.location.pathname}?v=consolidation&workshop=${encodeURIComponent(id)}`); setView("consolidation"); }} onBack={handleBackToPresentation} />;
+      return <WorkshopDashboard workshopId={workshopId || undefined} onOpenSession={openGroup} onConsolidate={(id) => { setWorkshopId(id); window.history.replaceState({}, "", `${window.location.pathname}?v=consolidation&workshop=${encodeURIComponent(id)}`); setView("consolidation"); }} onBack={handleBackToPresentation} user={appUser!} />;
 
     case "consolidation":
-      return workshopId ? <ConsolidatedAFOM workshopId={workshopId} onBack={() => { window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`); setView("workshop"); }} /> : <div>Atelier introuvable.</div>;
+      return workshopId ? <ConsolidatedAFOM workshopId={workshopId} onBack={() => { window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`); setView("workshop"); }} user={appUser!} /> : <div>Atelier introuvable.</div>;
   }
 };
 

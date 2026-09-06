@@ -2,14 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { createGroup, createWorkshop } from "../services/workshopService";
-import { PostIt, Workshop, WorkshopGroup } from "../types";
+import { AppUser, PostIt, Workshop, WorkshopGroup } from "../types";
 import QRCodeModal from "./QRCodeModal";
+import UserBadge from "./UserBadge";
 
 interface Props {
   workshopId?: string;
   onOpenSession: (group: WorkshopGroup) => void;
   onConsolidate: (workshopId: string) => void;
   onBack: () => void;
+  user: AppUser;
 }
 
 const blank = { number: "", theme: "" };
@@ -57,7 +59,7 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onCount }:
   </article>;
 }
 
-export default function WorkshopDashboard({ workshopId, onOpenSession, onConsolidate, onBack }: Props) {
+export default function WorkshopDashboard({ workshopId, onOpenSession, onConsolidate, onBack, user }: Props) {
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [groups, setGroups] = useState<WorkshopGroup[]>([]);
   const [title, setTitle] = useState("Atelier du 7 septembre 2026");
@@ -79,7 +81,10 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onConsoli
 
   if (!workshopId) return <main className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-4 flex items-center justify-center">
     <section className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-xl">
-      <button onClick={onBack} className="mb-5 text-sm text-indigo-700">← Retour à AFOM</button>
+      <div className="mb-5 flex items-center justify-between gap-2">
+        <button onClick={onBack} className="text-sm text-indigo-700">← Retour à AFOM</button>
+        <UserBadge user={user} className="text-gray-500" />
+      </div>
       <h1 className="text-3xl font-black">Préparer votre atelier AFOM</h1>
       <p className="mt-2 text-gray-500">Donnez un titre à l'atelier et organisez les participants selon vos besoins.</p>
       <label className="mt-6 block text-sm font-bold">Nom de l’atelier</label>
@@ -130,7 +135,10 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onConsoli
 
   return <main className="min-h-screen bg-gray-50">
     <header className="border-b bg-gradient-to-r from-indigo-700 to-purple-700 text-white"><div className="mx-auto max-w-7xl px-4 py-6">
-      <button onClick={onBack} className="text-sm text-indigo-100">← Accueil AFOM</button>
+      <div className="flex items-center justify-between gap-2">
+        <button onClick={onBack} className="text-sm text-indigo-100">← Accueil AFOM</button>
+        <UserBadge user={user} className="text-indigo-100" />
+      </div>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><div className="text-sm font-bold uppercase text-indigo-200">Tableau de bord atelier</div><h1 className="text-3xl font-black">{workshop?.title || "Chargement…"}</h1></div>
       <div className="flex gap-2"><button onClick={() => onConsolidate(workshopId)} className="rounded-xl bg-white px-4 py-2 font-bold text-indigo-700">Consolider les productions</button><button onClick={() => { setEditing(null); setForm({ number: `Groupe ${groups.length + 1}`, theme: "" }); setFormErrors({}); setShowForm(true); }} className="rounded-xl bg-emerald-400 px-4 py-2 font-bold text-emerald-950">+ Ajouter un groupe</button></div></div>
     </div></header>

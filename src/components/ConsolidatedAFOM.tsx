@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, doc, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { PostIt, QuadrantKey, Workshop, WorkshopGroup } from "../types";
+import { AppUser, PostIt, QuadrantKey, Workshop, WorkshopGroup } from "../types";
+import UserBadge from "./UserBadge";
 
 interface OriginPost extends PostIt { groupId: string; groupName: string; groupTheme: string; }
 const labels: Record<QuadrantKey, string> = { acquis: "Forces", faiblesses: "Faiblesses", opportunites: "Opportunités", menaces: "Menaces" };
 const colors: Record<QuadrantKey, string> = { acquis: "border-green-300 bg-green-50", faiblesses: "border-red-300 bg-red-50", opportunites: "border-emerald-300 bg-emerald-50", menaces: "border-orange-300 bg-orange-50" };
 
-export default function ConsolidatedAFOM({ workshopId, onBack }: { workshopId: string; onBack: () => void }) {
+export default function ConsolidatedAFOM({ workshopId, onBack, user }: { workshopId: string; onBack: () => void; user: AppUser }) {
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [groups, setGroups] = useState<WorkshopGroup[]>([]);
   const [postsByGroup, setPostsByGroup] = useState<Record<string, PostIt[]>>({});
@@ -27,7 +28,7 @@ export default function ConsolidatedAFOM({ workshopId, onBack }: { workshopId: s
   const quadrants: QuadrantKey[] = quadrantFilter === "all" ? ["acquis", "faiblesses", "opportunites", "menaces"] : [quadrantFilter];
 
   return <main className="min-h-screen bg-slate-50 print:bg-white">
-    <header className="border-b bg-white print:border-0"><div className="mx-auto max-w-7xl px-4 py-5"><button onClick={onBack} className="text-sm font-semibold text-indigo-700 print:hidden">← Tableau de bord</button><div className="mt-2 flex items-end justify-between gap-3"><div><div className="text-xs font-bold uppercase text-indigo-600">Consolidation AFOM</div><h1 className="text-3xl font-black">{workshop?.title || "Atelier"}</h1><p className="text-gray-500">{visible.length} contribution(s), origine conservée</p></div><button onClick={() => window.print()} className="rounded-lg border px-4 py-2 font-semibold print:hidden">Mode projection / imprimer</button></div></div></header>
+    <header className="border-b bg-white print:border-0"><div className="mx-auto max-w-7xl px-4 py-5"><div className="flex items-center justify-between gap-2 print:hidden"><button onClick={onBack} className="text-sm font-semibold text-indigo-700">← Tableau de bord</button><UserBadge user={user} className="text-gray-500" /></div><div className="mt-2 flex items-end justify-between gap-3"><div><div className="text-xs font-bold uppercase text-indigo-600">Consolidation AFOM</div><h1 className="text-3xl font-black">{workshop?.title || "Atelier"}</h1><p className="text-gray-500">{visible.length} contribution(s), origine conservée</p></div><button onClick={() => window.print()} className="rounded-lg border px-4 py-2 font-semibold print:hidden">Mode projection / imprimer</button></div></div></header>
     <section className="mx-auto max-w-7xl p-4">
       <div className="mb-5 grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-3 print:hidden"><label className="text-sm font-bold">Groupe<select aria-label="Filtrer par groupe" value={groupFilter} onChange={e => setGroupFilter(e.target.value)} className="mt-1 block w-full rounded-lg border p-2 font-normal"><option value="all">Tous les groupes</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name || group.number}</option>)}</select></label><label className="text-sm font-bold">Quadrant<select aria-label="Filtrer par quadrant" value={quadrantFilter} onChange={e => setQuadrantFilter(e.target.value as any)} className="mt-1 block w-full rounded-lg border p-2 font-normal"><option value="all">Tous les quadrants</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="text-sm font-bold">Recherche<input aria-label="Rechercher" value={search} onChange={e => setSearch(e.target.value)} className="mt-1 block w-full rounded-lg border p-2 font-normal" placeholder="Texte ou auteur" /></label></div>
       <div className="grid gap-5 lg:grid-cols-2">{quadrants.map(quadrant => <section key={quadrant} className={`rounded-2xl border-2 p-4 ${colors[quadrant]}`}><h2 className="mb-3 text-xl font-black uppercase">{labels[quadrant]} <span className="text-sm font-normal">({visible.filter(p => p.quadrant === quadrant).length})</span></h2><div className="space-y-3">{visible.filter(p => p.quadrant === quadrant).map(post => <article key={post.id} className="rounded-xl bg-white p-4 shadow-sm"><p className="font-semibold text-gray-900">{post.content}</p><p className="mt-2 text-xs font-bold text-indigo-700">{post.groupName} — {post.groupTheme}</p>{post.author && <p className="text-xs text-gray-500">par {post.author}</p>}</article>)}{!visible.some(p => p.quadrant === quadrant) && <p className="text-sm text-gray-500">Aucune contribution.</p>}</div></section>)}</div>

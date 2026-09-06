@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// AFOM Ultimate — règles Firestore
+//
+// Principe : le participant public (sans compte) peut uniquement lire le
+// contexte nécessaire à sa contribution (atelier/groupe/session) et créer un
+// post-it. Toute opération de gestion (création/modification/suppression
+// d'ateliers, groupes, post-its, confrontations) exige un compte moderator/admin
+// authentifié via Firebase Authentication (document users/{uid} existant).
+//
+// À déployer manuellement dans la console Firebase :
+// https://console.firebase.google.com/project/afom-e475f/firestore/rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isModerator() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Comptes moderator/admin : chacun ne lit que son propre profil.
+    // Seule écriture cliente autorisée : soi-même levant son propre
+    // indicateur mustChangePassword après un changement de mot de passe.
+    // Aucun autre champ (role, email...) n'est modifiable côté client.
+    match /users/{uid} {
+      allow get: if isSignedIn() && request.auth.uid == uid;
+      allow list: if false;
+      allow update: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);
+      allow create, delete: if false;
+    }
+
+    // Contexte de session (Projet/Thème) : lecture publique nécessaire au
+    // participant, écriture réservée à la gestion.
+    match /boards/{sessionId} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isModerator();
+    }
+
+    // Post-its : le participant peut uniquement créer une contribution.
+    // Lecture/modification/suppression réservées à la gestion (tableau de
+    // bord, panier, déplacement entre quadrants, consolidation).
+    match /postits/{postitId} {
+      allow create: if true;
+      allow get, list: if isModerator();
+      allow update, delete: if isModerator();
+    }
+
+    // Atelier : lecture publique nécessaire au participant (titre affiché),
+    // écriture réservée à la gestion.
+    match /workshops/{workshopId} {
+      allow get: if true;
+      allow list: if isModerator();
+      allow write: if isModerator();
+
+      match /groups/{groupId} {
+        allow get: if true;
+        allow list: if isModerator();
+        allow write: if isModerator();
+      }
+    }
+
+    // Confrontations (matrice) : fonction de gestion uniquement.
+    match /confrontations/{sessionId} {
+      allow read, write: if isModerator();
+    }
+  }
+}

@@ -17,8 +17,9 @@ import { db } from "../services/firebase";
 import Quadrant from "./Quadrant";
 import BinPanel from "./BinPanel";
 import QRCodeModal from "./QRCodeModal";
+import UserBadge from "./UserBadge";
 
-import { PostIt, QuadrantKey, BoardMeta } from "../types";
+import { PostIt, QuadrantKey, BoardMeta, AppUser } from "../types";
 import { QUADRANTS } from "../constants";
 
 /* Palette minimale pour Quadrant */
@@ -54,6 +55,7 @@ interface WorkInterfaceProps {
   onNavigate?: (view: "analysis" | "matrix") => void;
   workshopId?: string;
   groupId?: string;
+  user: AppUser;
 }
 
 const WorkInterface: React.FC<WorkInterfaceProps> = ({
@@ -62,6 +64,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
   onNavigate,
   workshopId,
   groupId,
+  user,
 }) => {
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
@@ -189,6 +192,8 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
               <div className="text-[11px] text-gray-600 hidden sm:block">Interface de Travail</div>
             </div>
           </div>
+
+          <UserBadge user={user} className="hidden sm:flex text-gray-600 flex-shrink-0" />
 
           {/* Nav — scrollable horizontalement sur mobile */}
           <nav
