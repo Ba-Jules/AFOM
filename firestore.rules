@@ -2,11 +2,17 @@ rules_version = '2';
 
 // AFOM Ultimate — règles Firestore
 //
-// Principe : le participant public (sans compte) peut uniquement lire le
-// contexte nécessaire à sa contribution (atelier/groupe/session) et créer un
-// post-it. Toute opération de gestion (création/modification/suppression
-// d'ateliers, groupes, post-its, confrontations) exige un compte moderator/admin
-// authentifié via Firebase Authentication (document users/{uid} existant).
+// Contrainte de compatibilité : la branche historique `main` (que Mouhamed BA
+// utilisait déjà) partage le même projet Firebase et les mêmes collections
+// (boards, postits, confrontations) que feature/multigroupes, mais n'a et
+// n'aura jamais de notion de compte. Restreindre ces collections casserait
+// main (vérifié le 2026-09-06 : lecture/écriture/temps réel/analyse/matrice
+// tous en échec pour un utilisateur anonyme). Elles restent donc ouvertes,
+// exactement comme avant l'ajout de l'authentification.
+//
+// Seules les collections strictement nouvelles et absentes de main
+// (workshops, groups, users) sont protégées derrière un compte
+// moderator/admin authentifié via Firebase Authentication.
 //
 // À déployer manuellement dans la console Firebase :
 // https://console.firebase.google.com/project/afom-e475f/firestore/rules
@@ -35,21 +41,14 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
-    // Contexte de session (Projet/Thème) : lecture publique nécessaire au
-    // participant, écriture réservée à la gestion.
+    // Contexte de session (Projet/Thème) : partagé avec main, ouvert.
     match /boards/{sessionId} {
-      allow get: if true;
-      allow list: if false;
-      allow write: if isModerator();
+      allow read, write: if true;
     }
 
-    // Post-its : le participant peut uniquement créer une contribution.
-    // Lecture/modification/suppression réservées à la gestion (tableau de
-    // bord, panier, déplacement entre quadrants, consolidation).
+    // Post-its : partagés avec main, ouverts (comme avant l'authentification).
     match /postits/{postitId} {
-      allow create: if true;
-      allow get, list: if isModerator();
-      allow update, delete: if isModerator();
+      allow read, write: if true;
     }
 
     // Atelier : lecture publique nécessaire au participant (titre affiché),
@@ -66,9 +65,9 @@ service cloud.firestore {
       }
     }
 
-    // Confrontations (matrice) : fonction de gestion uniquement.
+    // Confrontations (matrice) : partagées avec main, ouvertes.
     match /confrontations/{sessionId} {
-      allow read, write: if isModerator();
+      allow read, write: if true;
     }
   }
 }
