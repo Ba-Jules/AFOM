@@ -9,9 +9,16 @@ import UserBadge from "./UserBadge";
 interface Props {
   workshopId?: string;
   onOpenSession: (group: WorkshopGroup) => void;
+  onSelectWorkshop: (workshopId: string) => void;
   onConsolidate: (workshopId: string) => void;
   onBack: () => void;
   user: AppUser;
+}
+
+function formatWorkshopDate(value: any): string {
+  const date = value?.toDate ? value.toDate() : null;
+  if (!date) return "";
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
 const blank = { number: "", theme: "" };
@@ -59,9 +66,10 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onCount }:
   </article>;
 }
 
-export default function WorkshopDashboard({ workshopId, onOpenSession, onConsolidate, onBack, user }: Props) {
+export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectWorkshop, onConsolidate, onBack, user }: Props) {
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [groups, setGroups] = useState<WorkshopGroup[]>([]);
+  const [existingWorkshops, setExistingWorkshops] = useState<Workshop[]>([]);
   const [title, setTitle] = useState("Atelier du 7 septembre 2026");
   const [titleTouched, setTitleTouched] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -79,13 +87,29 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onConsoli
     return () => { stopWorkshop(); stopGroups(); };
   }, [workshopId]);
 
+  useEffect(() => {
+    if (workshopId) return;
+    return onSnapshot(query(collection(db, "workshops"), orderBy("updatedAt", "desc")), snap => setExistingWorkshops(snap.docs.map(d => ({ id: d.id, ...d.data() } as Workshop))));
+  }, [workshopId]);
+
   if (!workshopId) return <main className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-4 flex items-center justify-center">
     <section className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-xl">
       <div className="mb-5 flex items-center justify-between gap-2">
         <button onClick={onBack} className="text-sm text-indigo-700">← Retour à AFOM</button>
         <UserBadge user={user} className="text-gray-500" />
       </div>
-      <h1 className="text-3xl font-black">Préparer votre atelier AFOM</h1>
+      {existingWorkshops.length > 0 && <div className="mb-6">
+        <h1 className="text-2xl font-black text-gray-900">Reprendre un atelier</h1>
+        <p className="mt-1 text-sm text-gray-500">Un ou plusieurs ateliers existent déjà. Ouvrez-en un pour continuer là où vous vous étiez arrêté.</p>
+        <div className="mt-3 space-y-2">
+          {existingWorkshops.map(w => <button key={w.id} onClick={() => onSelectWorkshop(w.id)} className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left hover:border-indigo-400 hover:bg-indigo-50">
+            <span><span className="block font-bold text-gray-900">{w.title}</span>{formatWorkshopDate(w.updatedAt) && <span className="block text-xs text-gray-500">Modifié le {formatWorkshopDate(w.updatedAt)}</span>}</span>
+            <span className="text-sm font-semibold text-indigo-600">Ouvrir →</span>
+          </button>)}
+        </div>
+        <div className="mt-6 border-t pt-6" />
+      </div>}
+      <h2 className={existingWorkshops.length > 0 ? "text-xl font-black" : "text-3xl font-black"}>{existingWorkshops.length > 0 ? "Créer un nouvel atelier" : "Préparer votre atelier AFOM"}</h2>
       <p className="mt-2 text-gray-500">Donnez un titre à l'atelier et organisez les participants selon vos besoins.</p>
       <label className="mt-6 block text-sm font-bold">Nom de l’atelier</label>
       <input aria-label="Nom de l’atelier" value={title} onChange={e => setTitle(e.target.value)} onBlur={() => setTitleTouched(true)} className="mt-2 w-full rounded-xl border px-4 py-3" />

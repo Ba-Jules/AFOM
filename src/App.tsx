@@ -102,6 +102,11 @@ const App: React.FC = () => {
     setView("workshop");
   };
 
+  const selectWorkshop = (id: string) => {
+    setWorkshopId(id);
+    window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(id)}`);
+  };
+
   const openGroup = (group: WorkshopGroup) => {
     setSessionId(group.sessionId); setWorkshopId(group.workshopId); setGroupId(group.id);
     window.history.replaceState({}, "", `${window.location.pathname}?v=work&session=${encodeURIComponent(group.sessionId)}&workshop=${encodeURIComponent(group.workshopId)}&group=${encodeURIComponent(group.id)}`);
@@ -173,7 +178,7 @@ const App: React.FC = () => {
       );
 
     case "workshop":
-      return <WorkshopDashboard workshopId={workshopId || undefined} onOpenSession={openGroup} onConsolidate={(id) => { setWorkshopId(id); window.history.replaceState({}, "", `${window.location.pathname}?v=consolidation&workshop=${encodeURIComponent(id)}`); setView("consolidation"); }} onBack={handleBackToPresentation} user={appUser!} />;
+      return <WorkshopDashboard workshopId={workshopId || undefined} onOpenSession={openGroup} onSelectWorkshop={selectWorkshop} onConsolidate={(id) => { setWorkshopId(id); window.history.replaceState({}, "", `${window.location.pathname}?v=consolidation&workshop=${encodeURIComponent(id)}`); setView("consolidation"); }} onBack={handleBackToPresentation} user={appUser!} />;
 
     case "consolidation":
       return workshopId ? <ConsolidatedAFOM workshopId={workshopId} onBack={() => { window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`); setView("workshop"); }} user={appUser!} /> : <div>Atelier introuvable.</div>;
