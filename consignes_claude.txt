@@ -1,104 +1,148 @@
-Traite maintenant les retours réels de Mouhamed sur l’atelier d’aujourd’hui.
+Nous passons maintenant aux demandes IA formulées par Mouhamed après son utilisation réelle d’AFOM Ultimate lors de l’atelier.
 
-Travaille sur `feature/multigroupes`. Ne touche pas à `main` ni à la compatibilité Firestore historique.
+Tu n’as pas vu son message initial. Voici donc précisément ce qu’il demande.
 
-## 1. RAPPORT / RESTITUTION
+## CONTEXTE
 
-Mouhamed constate qu’il manque dans le rapport :
+Les groupes ont produit leurs FFOM et l’application contient maintenant les contributions réelles dans les quatre quadrants :
 
-* le numéro/nom du groupe ;
-* la thématique ;
-* les idées retenues : il ne voit actuellement que les chiffres.
+* Acquis
+* Faiblesses
+* Opportunités
+* Menaces
 
-Vérifie le rapport réellement généré et corrige pour que ces informations apparaissent clairement.
+Mouhamed souhaite maintenant pouvoir **exploiter ces contenus avec l’IA**, et pas seulement obtenir des statistiques ou des commentaires génériques.
 
-Les idées retenues doivent être lisibles et rattachées à leur quadrant, pas remplacées par de simples totaux.
+Il a formulé quatre besoins.
 
-## 2. HISTOGRAMMES
+### 1. Problème central à partir de l’ensemble du FFOM
 
-L’ordre demandé est impérativement :
+À partir de toutes les contributions du FFOM — Acquis, Faiblesses, Opportunités et Menaces — l’IA doit pouvoir proposer un **problème central synthétique** qui ressort du diagnostic.
 
-**Acquis → Faiblesses → Opportunités → Menaces**
+Le résultat doit être directement exploitable par un animateur : formulation claire, concise, professionnelle et fidèle aux contributions réellement présentes.
 
-Vérifie tous les histogrammes concernés et impose cet ordre.
+L’IA ne doit pas inventer d’informations absentes du FFOM.
 
-## 3. EXPORT PDF
+### 2. Problème central à partir des Faiblesses et Menaces
 
-Mouhamed indique :
+Mouhamed souhaite également une seconde analyse, distincte de la précédente :
 
-« Je cherche le rapport PDF, mais quand j’appuie, c’est ce produit Excel que j’obtiens, impossible à télécharger et à garder dans un dossier. »
+**identifier/formuler le problème central en utilisant uniquement les Faiblesses et les Menaces du FFOM.**
 
-Reproduis le problème sur la version réellement déployée.
+Il faut donc clairement distinguer dans l’interface :
 
-Identifie ce que fait réellement le bouton concerné.
+* problème central issu de l’ensemble du FFOM ;
+* problème central issu uniquement de Faiblesses + Menaces.
 
-Corrige pour que l’action annoncée comme PDF permette effectivement d’obtenir/conserver un **rapport PDF**, et qu’il n’y ait aucune ambiguïté avec l’export Excel.
+Ne fusionne pas les deux analyses.
 
-Teste réellement le résultat.
+### 3. Implications organisationnelles et enjeux
 
-## 4. ARCHIVER
+À partir du contenu du FFOM, l’IA doit également pouvoir produire :
 
-Mouhamed demande :
+* les **implications organisationnelles** qui ressortent du diagnostic ;
+* les **enjeux** qui ressortent du diagnostic.
 
-« Quand on appuie sur Archiver, où va le document ? »
+Ces productions doivent être structurées, lisibles et fondées exclusivement sur les données du FFOM concerné.
 
-Nous savons désormais que `Archiver` passe le groupe en `active:false` et le rend invisible, ce qui a provoqué la panique autour de 1A.
+Le but n’est pas d’obtenir du texte IA générique mais une véritable exploitation du diagnostic réalisé pendant l’atelier.
 
-Corrige cette UX.
+### 4. Demande libre à l’IA
 
-Un élément archivé doit être :
+C’est un besoin important de Mouhamed.
 
-* conservé ;
-* retrouvable depuis l’interface ;
-* identifiable comme archivé ;
-* restaurable facilement.
+Il veut disposer d’un **champ de consigne libre** permettant à l’animateur d’écrire lui-même ce qu’il souhaite obtenir à partir du FFOM.
 
-Ne mélange pas conceptuellement **Archives** et **Corbeille** :
+Exemples uniquement pour comprendre le fonctionnement :
 
-* Archiver = conserver volontairement hors des productions actives ;
-* Corbeille = élément destiné à être supprimé, mais récupérable avant suppression définitive.
+« À partir de ce FFOM, propose trois priorités d’action. »
 
-Les libellés et l’interface doivent rendre cette différence évidente.
+« À partir de ce FFOM, identifie les principaux risques. »
 
-## 5. SUPPRESSION D’UN ATELIER
+« À partir de ce FFOM, prépare une synthèse destinée à la direction. »
 
-Mouhamed indique :
+L’application transmet alors à Gemini :
 
-« Je n’arrive toujours pas à supprimer un atelier déjà existant. »
+1. le contenu du FFOM concerné ;
+2. la consigne saisie par l’animateur.
 
-Reproduis d’abord le problème.
+Puis elle affiche clairement le résultat.
 
-Identifie la cause exacte puis corrige.
+Ce mécanisme doit rester générique : **ne code pas une liste fermée de demandes possibles**.
 
-Attention : maintenant que nous avons une logique de corbeille, évite toute suppression irréversible accidentelle d’un atelier contenant des productions réelles.
+## INTÉGRATION
 
-La suppression doit être explicite, sécurisée et cohérente avec le mécanisme de récupération existant.
+Analyse d’abord l’architecture actuelle avant de modifier quoi que ce soit.
+
+Réutilise autant que possible le mécanisme Gemini déjà existant dans `geminiService.ts` et l’interface d’analyse actuelle.
+
+Conserve impérativement :
+
+* la compatibilité avec les données existantes ;
+* le fonctionnement des groupes et ateliers ;
+* la collecte ;
+* la consolidation ;
+* la matrice ;
+* les rapports et exports ;
+* Archives et Corbeille ;
+* le fallback actuel lorsque `VITE_GEMINI_API_KEY` est absente.
+
+Ne touche pas à `main`. Travaille uniquement sur `feature/multigroupes`.
+
+Si `geminiService.ts` impose actuellement `responseMimeType: "application/json"` et un schéma structuré, conserve cette architecture proprement.
+
+## UX ATTENDUE
+
+L’animateur doit comprendre immédiatement ce qu’il peut demander.
+
+Regroupe ces fonctions dans une zone clairement identifiable d’**Analyse IA du FFOM**, avec quatre possibilités compréhensibles :
+
+* Problème central — FFOM complet
+* Problème central — Faiblesses + Menaces
+* Implications organisationnelles et enjeux
+* Analyse personnalisée
+
+Pour l’analyse personnalisée : champ de saisie + bouton explicite de génération + résultat affiché proprement.
+
+Évite une accumulation de boutons ou une interface technique.
+
+Les résultats IA doivent pouvoir être lus et utilisés pendant ou après l’atelier.
+
+## GARDE-FOUS
+
+L’IA doit travailler sur le **FFOM effectivement sélectionné** et ses contributions réelles.
+
+Elle ne doit jamais mélanger silencieusement les données de plusieurs groupes ou sessions.
+
+Dans chaque appel, vérifie précisément quelles contributions sont envoyées à Gemini.
+
+Si aucune donnée suffisante n’existe, afficher un message compréhensible plutôt que produire artificiellement une réponse.
+
+Ne modifie ni ne supprime automatiquement les contributions originales : les productions IA sont une analyse des données, pas une réécriture de la collecte.
 
 ## VALIDATION
 
-Après corrections :
+Après développement :
 
-* `npm run build` ;
-* tests fonctionnels ;
-* commit sur `feature/multigroupes` ;
-* push GitHub ;
-* déploiement VPS ;
-* recette réelle sur `http://187.124.34.82:8830/AFOM/`.
+1. `npm run build`
+2. tests TypeScript
+3. teste les quatre fonctions IA avec un FFOM de test comportant réellement A/F/O/M ;
+4. vérifie spécifiquement que l’analyse « Faiblesses + Menaces » n’envoie réellement que F+M à Gemini ;
+5. vérifie que la demande personnalisée utilise bien la consigne saisie ;
+6. vérifie qu’aucune donnée d’un autre groupe/session n’est injectée ;
+7. vérifie le comportement sans clé Gemini ;
+8. vérifie qu’aucune fonction existante n’a régressé.
 
-Teste réellement dans le navigateur :
+Ensuite seulement : commit, push sur `feature/multigroupes`, déploiement VPS et vérification réelle de la version déployée.
 
-* rapport avec groupe + thématique + idées ;
-* ordre A/F/O/M des histogrammes ;
-* génération/conservation du PDF ;
-* archivage ;
-* consultation des archives ;
-* restauration d’une archive ;
-* corbeille toujours fonctionnelle ;
-* suppression sécurisée d’un atelier de TEST ;
-* absence de régression sur les productions réelles.
+À la fin, rends-moi un rapport court :
 
-Utilise uniquement des données de recette clairement identifiables et nettoie-les après validation.
-
-**Ne traite pas encore les demandes IA** (problème central, enjeux, implications organisationnelles, demande libre). Ce sera l’étape suivante.
-
-À la fin, donne-moi uniquement le résultat synthétique PASS/FAIL de chaque point, le commit déployé et les éventuels blocages.
+* Problème central FFOM complet : PASS/FAIL
+* Problème central F+M : PASS/FAIL
+* Implications organisationnelles : PASS/FAIL
+* Enjeux : PASS/FAIL
+* Demande IA personnalisée : PASS/FAIL
+* Isolation des données par FFOM/session : PASS/FAIL
+* Fallback sans Gemini : PASS/FAIL
+* Commit déployé
+* Blocages éventuels

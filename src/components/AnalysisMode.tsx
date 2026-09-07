@@ -9,7 +9,7 @@ import {
   QuadrantAnalysis,
   QuadrantKey,
 } from '../types';
-import { getAIAnalysis, decodeMatrixInteractions, MatrixInteraction } from '../services/geminiService';
+import { getAIAnalysis, decodeMatrixInteractions, MatrixInteraction, proposeCentralProblem, proposeImplicationsEnjeux, runCustomFFOMQuery } from '../services/geminiService';
 import AIConfigPanel from './AIConfigPanel';
 import { useAIConfig } from '../hooks/useAIConfig';
 import { isAIAvailable } from '../services/aiProviderService';
@@ -32,6 +32,19 @@ type CentralProblem = {
   rationale?: string;
   updatedAt?: any;
 };
+
+// Zone "Analyse IA du FFOM" (4 fonctions demandées par Mouhamed) — distincte du
+// problème central manuel ci-dessus : chaque résultat a son propre emplacement,
+// aucun des quatre ne doit écraser un autre.
+type AIRunResult = { text: string; rationale?: string; generatedAt?: any };
+type AICustomRun = { prompt: string; result: string; generatedAt?: any };
+type AIExploration = {
+  problemFull?: AIRunResult;
+  problemFM?: AIRunResult;
+  implicationsEnjeux?: { implications: string[]; enjeux: string[]; rationale?: string; generatedAt?: any };
+  customRuns: AICustomRun[];
+};
+const blankExploration: AIExploration = { customRuns: [] };
 
 const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
@@ -98,6 +111,14 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
             const interactions = decodeMatrixInteractions(d.marks, d.selection);
             setMatrixInteractions(interactions);
           }
+          if (d.aiExploration) {
+            setAiExploration({
+              problemFull: d.aiExploration.problemFull || undefined,
+              problemFM: d.aiExploration.problemFM || undefined,
+              implicationsEnjeux: d.aiExploration.implicationsEnjeux || undefined,
+              customRuns: Array.isArray(d.aiExploration.customRuns) ? d.aiExploration.customRuns : [],
+            });
+          }
         }
       } catch (e) {
         console.error('Load confrontation data failed', e);
@@ -157,6 +178,95 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
       alert(`Échec de la génération IA du problème central.\n\nErreur : ${msg}`);
     } finally {
       setAiRunningCentral(null);
+    }
+  };
+
+  // ---- Analyse IA du FFOM (4 fonctions, zone dédiée, distincte du problème central manuel) ----
+  const [aiExploration, setAiExploration] = useState<AIExploration>(blankExploration);
+  const [aiExplorationRunning, setAiExplorationRunning] = useState<'full' | 'fm' | 'implications' | 'custom' | null>(null);
+  const [customPrompt, setCustomPrompt] = useState('');
+
+  // Seules les contributions réelles de CE groupe/session (prop postIts, déjà filtrée par
+  // sessionId côté App.tsx) sont utilisées — jamais celles d'un autre groupe ou atelier.
+  const activePostIts = useMemo(() => postIts.filter((p) => p.status !== 'bin'), [postIts]);
+  const fmPostIts = useMemo(() => activePostIts.filter((p) => p.quadrant === 'faiblesses' || p.quadrant === 'menaces'), [activePostIts]);
+
+  const saveAiExploration = async (patch: Partial<AIExploration>) => {
+    const next = { ...aiExploration, ...patch };
+    setAiExploration(next);
+    await setDoc(fsDoc(db, 'confrontations', sessionId), { aiExploration: next }, { merge: true });
+  };
+
+  const requireAIAndData = (needFM = false): string | null => {
+    if (!isAIAvailable()) return "Aucun provider IA configuré.\n\nOuvrez le bandeau « Assistance IA » ci-dessus pour renseigner votre clé API.";
+    if (needFM ? fmPostIts.length === 0 : activePostIts.length === 0)
+      return needFM
+        ? "Aucune Faiblesse ni Menace n'a été saisie pour ce groupe : impossible de lancer cette analyse."
+        : "Ajoutez des contributions à ce FFOM avant de lancer une analyse IA.";
+    return null;
+  };
+
+  const runExplorationFull = async () => {
+    const err = requireAIAndData();
+    if (err) { alert(err); return; }
+    setAiExplorationRunning('full');
+    try {
+      const res = await proposeCentralProblem(activePostIts, { mode: 'full', context: boardContext, matrixInteractions });
+      if (!res.problem) { alert("L'IA n'a pas renvoyé de problème central exploitable."); return; }
+      await saveAiExploration({ problemFull: { text: res.problem, rationale: res.rationale, generatedAt: new Date() } });
+    } catch (e) {
+      alert(`Échec de la génération.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiExplorationRunning(null);
+    }
+  };
+
+  const runExplorationFM = async () => {
+    const err = requireAIAndData(true);
+    if (err) { alert(err); return; }
+    setAiExplorationRunning('fm');
+    try {
+      // proposeCentralProblem filtre en interne sur Faiblesses+Menaces quand mode==='fm' :
+      // seules ces contributions sont effectivement envoyées à l'IA.
+      const res = await proposeCentralProblem(activePostIts, { mode: 'fm', context: boardContext, matrixInteractions });
+      if (!res.problem) { alert("L'IA n'a pas renvoyé de problème central exploitable."); return; }
+      await saveAiExploration({ problemFM: { text: res.problem, rationale: res.rationale, generatedAt: new Date() } });
+    } catch (e) {
+      alert(`Échec de la génération.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiExplorationRunning(null);
+    }
+  };
+
+  const runExplorationImplications = async () => {
+    const err = requireAIAndData();
+    if (err) { alert(err); return; }
+    setAiExplorationRunning('implications');
+    try {
+      const res = await proposeImplicationsEnjeux(activePostIts, boardContext);
+      if (res.implications.length === 0 && res.enjeux.length === 0) { alert("L'IA n'a renvoyé aucun résultat exploitable."); return; }
+      await saveAiExploration({ implicationsEnjeux: { ...res, generatedAt: new Date() } });
+    } catch (e) {
+      alert(`Échec de la génération.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiExplorationRunning(null);
+    }
+  };
+
+  const runExplorationCustom = async () => {
+    if (!customPrompt.trim()) { alert('Saisissez une consigne avant de générer.'); return; }
+    const err = requireAIAndData();
+    if (err) { alert(err); return; }
+    setAiExplorationRunning('custom');
+    try {
+      const res = await runCustomFFOMQuery(activePostIts, customPrompt, boardContext);
+      const entry: AICustomRun = { prompt: customPrompt.trim(), result: res.result, generatedAt: new Date() };
+      await saveAiExploration({ customRuns: [entry, ...aiExploration.customRuns].slice(0, 5) });
+      setCustomPrompt('');
+    } catch (e) {
+      alert(`Échec de l'analyse personnalisée.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiExplorationRunning(null);
     }
   };
 
@@ -674,6 +784,20 @@ ${sections.join('')}
           </div>
         </div>
 
+        <AIExplorationPanel
+          activeCount={activePostIts.length}
+          fmCount={fmPostIts.length}
+          aiConfigured={isAIAvailable()}
+          exploration={aiExploration}
+          running={aiExplorationRunning}
+          customPrompt={customPrompt}
+          onCustomPromptChange={setCustomPrompt}
+          onRunFull={runExplorationFull}
+          onRunFM={runExplorationFM}
+          onRunImplications={runExplorationImplications}
+          onRunCustom={runExplorationCustom}
+        />
+
         {/* ---- Métriques / Graphs ---- */}
         <MetricGrid metrics={analysisData.metrics} />
 
@@ -760,6 +884,119 @@ const ChartCard: React.FC<{ title: string; children: React.ReactNode }> = ({ tit
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
     <h3 className="text-lg font-black text-gray-700 mb-4">{title}</h3>
     {children}
+  </div>
+);
+
+function formatAIDate(v: any): string {
+  const d = v?.toDate ? v.toDate() : v instanceof Date ? v : null;
+  return d ? d.toLocaleString('fr-FR') : '';
+}
+
+const AIExplorationPanel: React.FC<{
+  activeCount: number;
+  fmCount: number;
+  aiConfigured: boolean;
+  exploration: AIExploration;
+  running: 'full' | 'fm' | 'implications' | 'custom' | null;
+  customPrompt: string;
+  onCustomPromptChange: (v: string) => void;
+  onRunFull: () => void;
+  onRunFM: () => void;
+  onRunImplications: () => void;
+  onRunCustom: () => void;
+}> = ({ activeCount, fmCount, aiConfigured, exploration, running, customPrompt, onCustomPromptChange, onRunFull, onRunFM, onRunImplications, onRunCustom }) => (
+  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+    <h3 className="text-lg font-black text-gray-800">🧠 Analyse IA du FFOM</h3>
+    <p className="mt-1 text-xs text-gray-500">
+      Fondée uniquement sur les {activeCount} contribution{activeCount > 1 ? 's' : ''} réelle{activeCount > 1 ? 's' : ''} de ce groupe — jamais mélangée avec un autre groupe ou atelier.
+    </p>
+    {!aiConfigured && (
+      <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        Aucun provider IA configuré — ouvrez le bandeau « Assistance IA » ci-dessus pour renseigner une clé API.
+      </p>
+    )}
+
+    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="rounded-lg border p-4">
+        <h4 className="font-bold text-gray-800">Problème central — FFOM complet</h4>
+        <p className="text-xs text-gray-500 mt-0.5">À partir de l'ensemble Acquis / Faiblesses / Opportunités / Menaces.</p>
+        <button onClick={onRunFull} disabled={running !== null || activeCount === 0} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
+          {running === 'full' ? 'Génération…' : 'Générer'}
+        </button>
+        {exploration.problemFull && (
+          <div className="mt-3 text-sm bg-indigo-50 border border-indigo-100 rounded-lg p-3">
+            <p className="text-gray-800">{exploration.problemFull.text}</p>
+            {exploration.problemFull.rationale && <p className="mt-1 text-xs text-gray-500">{exploration.problemFull.rationale}</p>}
+            <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(exploration.problemFull.generatedAt)}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border p-4">
+        <h4 className="font-bold text-gray-800">Problème central — Faiblesses + Menaces</h4>
+        <p className="text-xs text-gray-500 mt-0.5">À partir uniquement des Faiblesses et Menaces ({fmCount}).</p>
+        <button onClick={onRunFM} disabled={running !== null || fmCount === 0} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
+          {running === 'fm' ? 'Génération…' : 'Générer'}
+        </button>
+        {fmCount === 0 && <p className="mt-2 text-xs text-gray-400">Aucune Faiblesse ni Menace saisie pour ce groupe.</p>}
+        {exploration.problemFM && (
+          <div className="mt-3 text-sm bg-orange-50 border border-orange-100 rounded-lg p-3">
+            <p className="text-gray-800">{exploration.problemFM.text}</p>
+            {exploration.problemFM.rationale && <p className="mt-1 text-xs text-gray-500">{exploration.problemFM.rationale}</p>}
+            <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(exploration.problemFM.generatedAt)}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border p-4 sm:col-span-2">
+        <h4 className="font-bold text-gray-800">Implications organisationnelles et enjeux</h4>
+        <button onClick={onRunImplications} disabled={running !== null || activeCount === 0} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
+          {running === 'implications' ? 'Génération…' : 'Générer'}
+        </button>
+        {exploration.implicationsEnjeux && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm">
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+              <p className="font-semibold text-blue-800 mb-1">Implications organisationnelles</p>
+              <ul className="list-disc pl-4 space-y-1 text-gray-800">
+                {exploration.implicationsEnjeux.implications.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </div>
+            <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+              <p className="font-semibold text-purple-800 mb-1">Enjeux</p>
+              <ul className="list-disc pl-4 space-y-1 text-gray-800">
+                {exploration.implicationsEnjeux.enjeux.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </div>
+            <p className="sm:col-span-2 text-[10px] text-gray-400">{formatAIDate(exploration.implicationsEnjeux.generatedAt)}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border p-4 sm:col-span-2">
+        <h4 className="font-bold text-gray-800">Analyse personnalisée</h4>
+        <p className="text-xs text-gray-500 mt-0.5">Écrivez votre propre consigne, elle sera appliquée aux données de ce FFOM.</p>
+        <textarea
+          value={customPrompt}
+          onChange={(e) => onCustomPromptChange(e.target.value)}
+          placeholder="Ex : À partir de ce FFOM, propose trois priorités d'action."
+          className="mt-2 w-full min-h-[70px] rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
+        />
+        <button onClick={onRunCustom} disabled={running !== null || activeCount === 0 || !customPrompt.trim()} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
+          {running === 'custom' ? 'Génération…' : 'Générer'}
+        </button>
+        {exploration.customRuns.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {exploration.customRuns.map((run, i) => (
+              <div key={i} className="text-sm bg-gray-50 border rounded-lg p-3">
+                <p className="text-xs font-semibold text-gray-500">« {run.prompt} »</p>
+                <p className="mt-1 whitespace-pre-wrap text-gray-800">{run.result}</p>
+                <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(run.generatedAt)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   </div>
 );
 
