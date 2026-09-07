@@ -113,6 +113,8 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
         setContent('');
     };
 
+    const printProduction = () => { window.print(); };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!quadrant || !content.trim()) {
@@ -179,9 +181,15 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
     }
 
     return (
-        <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50">
-            <div className="w-full max-w-md">
-                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-gray-200">
+        <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50 print:block print:min-h-0 print:p-0 print:bg-white">
+            <style>{`
+                @media print {
+                    .no-print { display: none !important; }
+                    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+            `}</style>
+            <div className="w-full max-w-md print:max-w-none">
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-gray-200 print:shadow-none print:border-0 print:rounded-none">
                     {/* Bandeau Projet / Thème */}
                     <div className="px-6 py-3 bg-gray-100 border-b">
                         {workshopTitle && <div className="mb-1 text-xs font-bold uppercase tracking-wide text-indigo-600">{workshopTitle}</div>}
@@ -193,7 +201,7 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
                     </div>
 
                     {/* Onglets Contribuer / Notre production */}
-                    <div className="flex border-b bg-white">
+                    <div className="no-print flex border-b bg-white">
                         <button
                             type="button"
                             onClick={() => setTab('contribute')}
@@ -211,7 +219,17 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
                     </div>
 
                     {tab === 'view' ? (
-                        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible">
+                            {totalOurPostIts > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={printProduction}
+                                    className="no-print w-full py-2.5 rounded-lg border-2 border-indigo-600 text-indigo-700 text-sm font-bold hover:bg-indigo-50 transition-colors"
+                                    title="Imprimer ou enregistrer en PDF"
+                                >
+                                    🖨️ Imprimer / Enregistrer en PDF
+                                </button>
+                            )}
                             {totalOurPostIts === 0 && (
                                 <p className="text-center text-sm text-gray-500 py-6">Aucune contribution enregistrée pour l'instant.</p>
                             )}
