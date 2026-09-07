@@ -17,10 +17,11 @@ import * as geminiAny from '../services/geminiService';
 import {
   BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts';
-import { QUADRANT_INFO, PRIORITY_STYLES } from '../constants';
+import { QUADRANT_INFO, QUADRANT_ORDER, PRIORITY_STYLES } from '../constants';
 import { doc as fsDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { BoardMeta, BoardContext } from '../types';
+import jsPDF from 'jspdf';
 
 interface AnalysisModeProps { postIts: PostIt[]; onBack?: () => void; }
 
@@ -36,6 +37,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [boardContext, setBoardContext] = useState<BoardContext | undefined>();
+  const [groupMeta, setGroupMeta] = useState<{ name: string; theme: string }>({ name: '', theme: '' });
   const [matrixInteractions, setMatrixInteractions] = useState<MatrixInteraction[]>([]);
   const { config: aiCfg } = useAIConfig();
   const [aiConfigured, setAiConfigured] = useState(aiCfg.configured);
@@ -61,6 +63,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
         if (snap.exists()) {
           const m = snap.data() as BoardMeta;
           if (m.context) setBoardContext(m.context);
+          setGroupMeta({ name: m.projectName || '', theme: m.themeName || '' });
         }
       } catch (e) {
         console.error('Load boardContext failed', e);
@@ -176,6 +179,13 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 
     const rows: string[] = [];
 
+    // Groupe
+    rows.push(sectionTitle('👥 Groupe'));
+    rows.push(hdr('Champ', 'Valeur', '', ''));
+    rows.push(`<tr>${cell('Groupe', true)}${cell(groupMeta.name || '—')}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell('Thématique', true)}${cell(groupMeta.theme || '—')}<td></td><td></td></tr>`);
+    rows.push(`<tr><td colspan="4"></td></tr>`);
+
     // Problème central
     rows.push(sectionTitle('🎯 Problème central'));
     rows.push(hdr('Champ', 'Valeur', '', ''));
@@ -193,13 +203,26 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
     rows.push(`<tr>${cell('Score d\'engagement', true)}${cell(d.metrics.engagementScore)}<td></td><td></td></tr>`);
     rows.push(`<tr><td colspan="4"></td></tr>`);
 
-    // Quadrants AFOM
+    // Quadrants AFOM (totaux, ordre imposé A → F → O → M)
     rows.push(sectionTitle('🔲 Quadrants AFOM'));
     rows.push(hdr('Quadrant', 'Nombre de contributions', 'Nombre de mots', ''));
-    (Object.keys(d.quadrants) as QuadrantKey[]).forEach((k) => {
+    QUADRANT_ORDER.forEach((k) => {
       const q = d.quadrants[k];
-      const labels: Record<string, string> = { acquis: 'Acquis (Forces)', faiblesses: 'Faiblesses', opportunites: 'Opportunités', menaces: 'Menaces' };
-      rows.push(`<tr>${cell(labels[k] || k, true)}${cell(q.count)}${cell(q.wordCount)}<td></td></tr>`);
+      rows.push(`<tr>${cell(QUADRANT_INFO[k].title, true)}${cell(q.count)}${cell(q.wordCount)}<td></td></tr>`);
+    });
+    rows.push(`<tr><td colspan="4"></td></tr>`);
+
+    // Idées retenues, lisibles et rattachées à leur quadrant (ordre imposé A → F → O → M)
+    rows.push(sectionTitle('💬 Idées retenues'));
+    rows.push(hdr('Quadrant', 'Idée', 'Auteur', ''));
+    retainedByQuadrant.forEach(({ label, items }) => {
+      if (items.length === 0) {
+        rows.push(`<tr>${cell(label, true)}${cell('—')}<td></td><td></td></tr>`);
+        return;
+      }
+      items.forEach((item) => {
+        rows.push(`<tr>${cell(label, true)}${cell(item.content)}${cell(item.author)}<td></td></tr>`);
+      });
     });
     rows.push(`<tr><td colspan="4"></td></tr>`);
 
@@ -238,7 +261,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 <head><meta charset="UTF-8">
 <style>table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px}td,th{white-space:pre-wrap;max-width:400px}</style>
 </head><body>
-<h2 style="font-family:Calibri,sans-serif;color:#4f46e5">Rapport AFOM — Session ${sessionId || ''}</h2>
+<h2 style="font-family:Calibri,sans-serif;color:#4f46e5">Rapport AFOM — ${groupMeta.name || `Session ${sessionId || ''}`}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}</h2>
 <table>${rows.join('')}</table>
 </body></html>`;
   };
@@ -250,10 +273,14 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
     const label = (l: string, v: string) =>
       `<p style="margin:4pt 0"><strong>${l} :</strong> ${String(v ?? '').replace(/</g, '&lt;')}</p>`;
 
-    const quadLabels: Record<string, string> = { acquis: 'Acquis (Forces)', faiblesses: 'Faiblesses', opportunites: 'Opportunités', menaces: 'Menaces' };
     const prioColor: Record<string, string> = { HIGH: '#dc2626', URGENT: '#7f1d1d', MEDIUM: '#d97706', LOW: '#16a34a' };
 
     const sections: string[] = [
+      sec('👥 Groupe', [
+        label('Groupe', groupMeta.name || '—'),
+        label('Thématique', groupMeta.theme || '—'),
+      ].join('')),
+
       sec('🎯 Problème central', [
         label('Énoncé', central.text || '—'),
         central.textCourt ? label('Titre court', central.textCourt) : '',
@@ -268,8 +295,17 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
         label("Score d'engagement", String(d.metrics.engagementScore)),
       ].join('')),
 
-      sec('🔲 Quadrants AFOM', (Object.keys(d.quadrants) as QuadrantKey[]).map((k) =>
-        label(quadLabels[k] || k, `${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`)
+      sec('🔲 Quadrants AFOM', QUADRANT_ORDER.map((k) =>
+        label(QUADRANT_INFO[k].title, `${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`)
+      ).join('')),
+
+      sec('💬 Idées retenues', retainedByQuadrant.map(({ label: quadLabel, items }) =>
+        `<p style="margin:10pt 0 2pt"><strong style="color:#4f46e5">${quadLabel}</strong></p>` +
+        (items.length === 0
+          ? p('—')
+          : `<ul style="margin:2pt 0 6pt;padding-left:18pt">${items.map((item) =>
+              `<li style="margin:2pt 0">${String(item.content ?? '').replace(/</g, '&lt;')}${item.author ? ` <span style="color:#6b7280;font-size:9pt">(${String(item.author).replace(/</g, '&lt;')})</span>` : ''}</li>`
+            ).join('')}</ul>`)
       ).join('')),
 
       d.insights.length > 0 ? sec('💡 Insights IA', d.insights.map((ins, i) =>
@@ -291,7 +327,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 h1{color:#4f46e5;font-size:18pt}h2{font-size:13pt}strong{font-weight:600}</style>
 </head><body>
 <h1>Rapport d'analyse AFOM</h1>
-<p style="color:#6b7280;margin-bottom:18pt">Session : ${sessionId || '—'} &nbsp;|&nbsp; Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
+<p style="color:#6b7280;margin-bottom:18pt">${groupMeta.name || `Session ${sessionId || '—'}`}${groupMeta.theme ? ' — ' + groupMeta.theme : ''} &nbsp;|&nbsp; Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
 ${sections.join('')}
 </body></html>`;
   };
@@ -306,7 +342,96 @@ ${sections.join('')}
     const html = toWordHTML(analysisData);
     download(`AFOM_${sessionId || 'session'}.doc`, 'application/msword', html);
   };
-  const exportPDF = () => window.print();
+  // Génère et télécharge un vrai fichier .pdf (pas une impression navigateur à configurer) :
+  // aucune ambiguïté possible avec l'export Excel/Word, le fichier est directement conservable.
+  const exportPDF = () => {
+    if (!analysisData) return;
+    const d = analysisData;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 48;
+    const maxWidth = pageWidth - marginX * 2;
+    let y = 56;
+
+    const ensureSpace = (needed: number) => {
+      if (y + needed > pageHeight - 48) { doc.addPage(); y = 56; }
+    };
+    const title = (text: string) => {
+      ensureSpace(28);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor('#4f46e5');
+      doc.text(text, marginX, y); y += 24;
+    };
+    const heading = (text: string) => {
+      ensureSpace(24);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor('#4f46e5');
+      doc.text(text, marginX, y); y += 6;
+      doc.setDrawColor('#4f46e5'); doc.line(marginX, y, pageWidth - marginX, y); y += 14;
+    };
+    const paragraph = (text: string, opts: { bold?: boolean; indent?: number; color?: string } = {}) => {
+      doc.setFont('helvetica', opts.bold ? 'bold' : 'normal'); doc.setFontSize(10.5);
+      doc.setTextColor(opts.color || '#111111');
+      const lines = doc.splitTextToSize(text || '—', maxWidth - (opts.indent || 0));
+      lines.forEach((line: string) => {
+        ensureSpace(14);
+        doc.text(line, marginX + (opts.indent || 0), y); y += 14;
+      });
+    };
+    const spacer = (h = 8) => { y += h; };
+
+    title('Rapport d\'analyse AFOM');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor('#6b7280');
+    doc.text(`${groupMeta.name || `Session ${sessionId || '—'}`}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}  |  Exporté le ${new Date().toLocaleDateString('fr-FR')}`, marginX, y);
+    y += 22;
+
+    heading('Groupe');
+    paragraph(`Groupe : ${groupMeta.name || '—'}`, { bold: true });
+    paragraph(`Thématique : ${groupMeta.theme || '—'}`);
+    spacer();
+
+    heading('Problème central');
+    paragraph(central.text || '—');
+    if (central.textCourt) paragraph(`Titre court : ${central.textCourt}`);
+    if (central.rationale) paragraph(`Justification IA : ${central.rationale}`);
+    spacer();
+
+    heading('Métriques de session');
+    paragraph(`Total contributions : ${d.metrics.totalContributions}`);
+    paragraph(`Participants uniques : ${d.metrics.uniqueParticipants}`);
+    paragraph(`Durée : ${d.metrics.sessionDuration} min`);
+    paragraph(`Score d'engagement : ${d.metrics.engagementScore}`);
+    spacer();
+
+    heading('Quadrants AFOM');
+    QUADRANT_ORDER.forEach((k) => paragraph(`${QUADRANT_INFO[k].title} : ${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`, { bold: true }));
+    spacer();
+
+    heading('Idées retenues');
+    retainedByQuadrant.forEach(({ label, items }) => {
+      paragraph(label, { bold: true, color: '#4f46e5' });
+      if (items.length === 0) {
+        paragraph('—', { indent: 12 });
+      } else {
+        items.forEach((item) => paragraph(`•  ${item.content}${item.author ? `  (${item.author})` : ''}`, { indent: 12 }));
+      }
+      spacer(4);
+    });
+
+    if (d.insights.length > 0) {
+      heading('Insights IA');
+      d.insights.forEach((ins, i) => { paragraph(`${i + 1}. ${ins.title}`, { bold: true }); paragraph(ins.content, { indent: 12 }); spacer(2); });
+    }
+    if (d.recommendations.length > 0) {
+      heading('Recommandations');
+      d.recommendations.forEach((r, i) => { paragraph(`${i + 1}. ${r.title} [${r.priority || ''}]`, { bold: true }); paragraph(r.content, { indent: 12 }); spacer(2); });
+    }
+    if (d.contributors.length > 0) {
+      heading('Contributeurs');
+      d.contributors.forEach((c) => paragraph(`${c.name} : ${c.count} contributions — ${c.totalWords} mots`));
+    }
+
+    doc.save(`AFOM_${groupMeta.name || sessionId || 'session'}.pdf`);
+  };
 
   // ---- Traitement des données de base ----
   const processData = (rawData: PostIt[]): Omit<AnalysisData, 'insights' | 'recommendations'> => {
@@ -327,9 +452,8 @@ ${sections.join('')}
     metrics.engagementScore = Math.round(
       (metrics.totalContributions * 0.3 + metrics.uniqueParticipants * 0.4 + Math.min(metrics.sessionDuration, 120) * 0.3) * 0.83
     );
-    const quadrantKeys: QuadrantKey[] = ['acquis', 'faiblesses', 'opportunites', 'menaces'];
     const quadrants: Record<QuadrantKey, QuadrantAnalysis> = {} as any;
-    quadrantKeys.forEach((key) => {
+    QUADRANT_ORDER.forEach((key) => {
       const items = rawData.filter((p) => p.quadrant === key);
       quadrants[key] = {
         count: items.length,
@@ -385,12 +509,22 @@ ${sections.join('')}
 
   const doughnutData = useMemo(() => {
     if (!analysisData) return [];
-    return Object.entries(analysisData.quadrants).map(([key, value]) => ({
-      name: QUADRANT_INFO[key as QuadrantKey].title,
-      value: (value as QuadrantAnalysis).count,
-      color: QUADRANT_INFO[key as QuadrantKey].color,
+    return QUADRANT_ORDER.map((key) => ({
+      name: QUADRANT_INFO[key].title,
+      value: analysisData.quadrants[key].count,
+      color: QUADRANT_INFO[key].color,
     }));
   }, [analysisData]);
+
+  // Idées retenues par quadrant, dans l'ordre imposé A → F → O → M
+  const retainedByQuadrant = useMemo(() => {
+    const active = postIts.filter((p) => p.status !== 'bin');
+    return QUADRANT_ORDER.map((key) => ({
+      key,
+      label: QUADRANT_INFO[key].title,
+      items: active.filter((p) => p.quadrant === key),
+    }));
+  }, [postIts]);
 
   if (!analysisData) {
     return (
@@ -399,7 +533,7 @@ ${sections.join('')}
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center gap-2">
             <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">← Retour</button>
-            <div className="text-sm font-semibold text-gray-600">Analyse</div>
+            <div className="text-sm font-semibold text-gray-600">Analyse{groupMeta.name ? ` — ${groupMeta.name}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}` : ''}</div>
           </div>
         </header>
         <div className="p-8 text-center text-gray-500">Commencez à ajouter des post-its pour voir l'analyse.</div>
@@ -414,7 +548,7 @@ ${sections.join('')}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center gap-2 min-w-0">
           <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm flex-shrink-0">← Retour</button>
-          <div className="text-sm font-semibold text-gray-600 flex-shrink-0">Analyse</div>
+          <div className="text-sm font-semibold text-gray-600 flex-shrink-0 truncate">Analyse{groupMeta.name ? ` — ${groupMeta.name}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}` : ''}</div>
           <div className="flex items-center gap-1 sm:gap-2 ml-auto overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             <button
               onClick={() => {
@@ -430,14 +564,14 @@ ${sections.join('')}
             >
               {loadingAI ? 'IA…' : '⟳ Analyse IA'}
             </button>
-            <button onClick={exportExcel} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">Excel</span><span className="hidden sm:inline">Exporter Excel</span>
+            <button onClick={exportExcel} title="Télécharge un fichier .xls" className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">.xls</span><span className="hidden sm:inline">Exporter en Excel (.xls)</span>
             </button>
-            <button onClick={exportWord} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">Word</span><span className="hidden sm:inline">Exporter Word</span>
+            <button onClick={exportWord} title="Télécharge un fichier .doc" className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">.doc</span><span className="hidden sm:inline">Exporter en Word (.doc)</span>
             </button>
-            <button onClick={exportPDF} className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">PDF</span><span className="hidden sm:inline">Exporter PDF</span>
+            <button onClick={exportPDF} title="Télécharge directement un fichier .pdf, prêt à garder dans un dossier" className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">.pdf</span><span className="hidden sm:inline">Télécharger le rapport PDF (.pdf)</span>
             </button>
           </div>
         </div>
@@ -550,14 +684,14 @@ ${sections.join('')}
                 <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
                   {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={(entry as any).color} />)}
                 </Pie>
-                <Tooltip /><Legend />
+                <Tooltip /><Legend content={<QuadrantLegend />} />
               </PieChart>
             </ResponsiveContainer>
           </ChartCard>
           <ChartCard title="Timeline des Contributions">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={analysisData.timeline}>
-                <XAxis dataKey="time" /><YAxis /><Tooltip /><Legend />
+                <XAxis dataKey="time" /><YAxis /><Tooltip /><Legend content={<QuadrantLegend />} />
                 <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} />
                 <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} />
                 <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} />
@@ -566,6 +700,8 @@ ${sections.join('')}
             </ResponsiveContainer>
           </ChartCard>
         </div>
+
+        <RetainedIdeasList groups={retainedByQuadrant} />
 
         <div className="grid lg:grid-cols-5 gap-8">
           <div className="lg:col-span-3"><InsightsList insights={analysisData.insights} loading={loadingAI} /></div>
@@ -577,6 +713,21 @@ ${sections.join('')}
     </div>
   );
 };
+
+// Légende figée dans l'ordre imposé A → F → O → M : Recharts (v3) ne garantit pas
+// l'ordre de sa légende auto-générée pour un PieChart/BarChart empilé, même quand les
+// séries/données sont déjà dans le bon ordre (constaté en recette) — on ignore donc
+// entièrement le payload que Recharts fournit et on rend notre propre légende fixe.
+const QuadrantLegend: React.FC = () => (
+  <ul className="mt-2 flex flex-wrap justify-center gap-4 text-sm text-gray-600">
+    {QUADRANT_ORDER.map((key) => (
+      <li key={key} className="flex items-center gap-1.5">
+        <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: QUADRANT_INFO[key].color }} />
+        {QUADRANT_INFO[key].title}
+      </li>
+    ))}
+  </ul>
+);
 
 /** Styles impression */
 const PrintStyles: React.FC = () => (
@@ -609,6 +760,29 @@ const ChartCard: React.FC<{ title: string; children: React.ReactNode }> = ({ tit
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
     <h3 className="text-lg font-black text-gray-700 mb-4">{title}</h3>
     {children}
+  </div>
+);
+
+const RetainedIdeasList: React.FC<{ groups: { key: QuadrantKey; label: string; items: PostIt[] }[] }> = ({ groups }) => (
+  <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+    <h3 className="text-lg font-black text-gray-700 mb-4">💬 Idées retenues</h3>
+    <div className="grid gap-4 sm:grid-cols-2">
+      {groups.map(({ key, label, items }) => (
+        <div key={key} className={`rounded-lg border-l-4 p-4 ${QUADRANT_INFO[key].bgColor} ${QUADRANT_INFO[key].borderColor}`}>
+          <h4 className={`font-bold mb-2 ${QUADRANT_INFO[key].textColor}`}>{label} <span className="font-normal text-gray-500">({items.length})</span></h4>
+          {items.length === 0
+            ? <p className="text-sm text-gray-500">Aucune idée retenue.</p>
+            : <ul className="space-y-1.5">
+                {items.map((item) => (
+                  <li key={item.id} className="text-sm text-gray-800">
+                    • {item.content}
+                    {item.author && <span className="text-gray-400"> — {item.author}</span>}
+                  </li>
+                ))}
+              </ul>}
+        </div>
+      ))}
+    </div>
   </div>
 );
 

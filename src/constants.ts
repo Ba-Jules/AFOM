@@ -1,5 +1,8 @@
 import { QuadrantKey, RecommendationPriority } from './types';
 
+// Ordre imposé pour tous les histogrammes, graphiques et rapports (consigne atelier 2026-09-07)
+export const QUADRANT_ORDER: QuadrantKey[] = ["acquis", "faiblesses", "opportunites", "menaces"];
+
 interface QuadrantInfo {
   title: string;
   subtitle: string;

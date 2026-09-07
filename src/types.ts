@@ -52,6 +52,7 @@ export interface BoardMeta {
 export interface Workshop {
   id: string;
   title: string;
+  deletedAt?: any;
   createdAt?: any;
   updatedAt?: any;
 }

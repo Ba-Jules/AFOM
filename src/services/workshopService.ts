@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, deleteField, doc, DocumentReference, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 
 export const TRASH_RETENTION_DAYS = 30;
@@ -79,6 +79,50 @@ export async function deleteGroup(workshopId: string, groupId: string, sessionId
   batch.delete(doc(db, "boards", sessionId));
   batch.delete(doc(db, "workshops", workshopId, "groups", groupId));
   await batch.commit();
+}
+
+// ---- Corbeille au niveau atelier (même logique que pour les groupes) ----
+
+export async function trashWorkshop(workshopId: string) {
+  await updateDoc(doc(db, "workshops", workshopId), {
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function restoreWorkshop(workshopId: string) {
+  await updateDoc(doc(db, "workshops", workshopId), {
+    deletedAt: deleteField(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+async function deleteRefsInChunks(refs: DocumentReference[]) {
+  const CHUNK = 400; // marge sous la limite de 500 opérations par batch Firestore
+  for (let i = 0; i < refs.length; i += CHUNK) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + CHUNK).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+}
+
+// Suppression définitive et irréversible d'un atelier entier : tous ses groupes,
+// boards et postits. N'est appelée que depuis la corbeille des ateliers (action
+// manuelle) ou par la purge automatique après le délai de rétention.
+export async function deleteWorkshopCascade(workshopId: string) {
+  const groupsSnap = await getDocs(collection(db, "workshops", workshopId, "groups"));
+  const refsToDelete: DocumentReference[] = [];
+  for (const groupDoc of groupsSnap.docs) {
+    const sessionId = (groupDoc.data() as any).sessionId as string | undefined;
+    if (sessionId) {
+      const postits = await getDocs(query(collection(db, "postits"), where("sessionId", "==", sessionId)));
+      postits.docs.forEach((d) => refsToDelete.push(d.ref));
+      refsToDelete.push(doc(db, "boards", sessionId));
+    }
+    refsToDelete.push(groupDoc.ref);
+  }
+  refsToDelete.push(doc(db, "workshops", workshopId));
+  await deleteRefsInChunks(refsToDelete);
 }
 
 export function participantLink(sessionId: string, workshopId?: string, groupId?: string) {

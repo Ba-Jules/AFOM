@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { createGroup, createWorkshop, deleteGroup, restoreGroup, TRASH_RETENTION_DAYS, trashGroup } from "../services/workshopService";
+import { createGroup, createWorkshop, deleteGroup, deleteWorkshopCascade, restoreGroup, restoreWorkshop, TRASH_RETENTION_DAYS, trashGroup, trashWorkshop } from "../services/workshopService";
 import { AppUser, PostIt, Workshop, WorkshopGroup } from "../types";
 import QRCodeModal from "./QRCodeModal";
 import UserBadge from "./UserBadge";
@@ -109,6 +109,72 @@ function TrashPanel({ groups, onRestore, onPurge, onClose }: {
   </div>;
 }
 
+// Archiver ≠ Corbeille : un groupe archivé est volontairement mis de côté des
+// productions actives, conservé indéfiniment, retrouvable et restaurable — il n'est
+// PAS destiné à être supprimé (contrairement à la corbeille, avec sa purge automatique).
+function ArchivePanel({ groups, onRestore, onTrash, onClose }: {
+  groups: WorkshopGroup[];
+  onRestore: (group: WorkshopGroup) => void;
+  onTrash: (group: WorkshopGroup) => void;
+  onClose: () => void;
+}) {
+  return <div className="mb-6 rounded-2xl border border-slate-300 bg-slate-50 p-5">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-black text-gray-900">Archives</h2>
+        <p className="mt-1 text-sm text-gray-600">Groupes mis de côté volontairement, hors des productions actives. Rien n'est supprimé : ils restent ici tant que vous ne les restaurez pas ou ne les envoyez pas à la corbeille.</p>
+      </div>
+      <button onClick={onClose} className="rounded-lg border px-3 py-2 text-sm font-semibold">Fermer</button>
+    </div>
+    {groups.length === 0
+      ? <p className="mt-4 text-sm text-gray-500">Aucun groupe archivé.</p>
+      : <div className="mt-4 space-y-2">{groups.map(group => <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4">
+          <div>
+            <div className="text-xs font-bold uppercase text-gray-400">{group.number}</div>
+            <div className="font-bold text-gray-900">{group.name}</div>
+            <div className="text-sm text-gray-500">{group.theme}</div>
+            <span className="mt-1 inline-block rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">Archivé</span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => onRestore(group)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white">Restaurer</button>
+            <button onClick={() => onTrash(group)} className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Envoyer à la corbeille</button>
+          </div>
+        </div>)}</div>}
+  </div>;
+}
+
+function WorkshopTrashPanel({ workshops, onRestore, onPurge, onClose }: {
+  workshops: Workshop[];
+  onRestore: (workshop: Workshop) => void;
+  onPurge: (workshop: Workshop) => void;
+  onClose: () => void;
+}) {
+  return <div className="mb-6 rounded-2xl border border-red-200 bg-red-50/50 p-5">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-black text-gray-900">Corbeille des ateliers</h2>
+        <p className="mt-1 text-sm text-gray-600">Les ateliers supprimés restent ici {TRASH_RETENTION_DAYS} jours avant suppression définitive automatique (groupes, productions et post-its inclus).</p>
+      </div>
+      <button onClick={onClose} className="rounded-lg border px-3 py-2 text-sm font-semibold">Fermer</button>
+    </div>
+    {workshops.length === 0
+      ? <p className="mt-4 text-sm text-gray-500">La corbeille des ateliers est vide.</p>
+      : <div className="mt-4 space-y-2">{workshops.map(w => {
+        const remaining = daysRemaining(w.deletedAt);
+        return <div key={w.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4">
+          <div>
+            <div className="font-bold text-gray-900">{w.title}</div>
+            <div className="mt-1 text-xs text-red-600">{remaining === null ? "Suppression imminente" : remaining <= 0 ? "Sera purgé sous peu" : `Purge définitive dans ${remaining} jour${remaining > 1 ? "s" : ""}`}</div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => onRestore(w)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white">Restaurer</button>
+            <button onClick={() => onPurge(w)} className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Supprimer définitivement</button>
+          </div>
+        </div>;
+      })}</div>}
+  </div>;
+}
+
 export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectWorkshop, onConsolidate, onBack, user }: Props) {
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [groups, setGroups] = useState<WorkshopGroup[]>([]);
@@ -123,8 +189,11 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
   const [saving, setSaving] = useState(false);
   const [groupCounts, setGroupCounts] = useState<Record<string, number>>({});
   const [showTrash, setShowTrash] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [showWorkshopTrash, setShowWorkshopTrash] = useState(false);
   const formRef = useRef<HTMLDivElement | null>(null);
   const purgingRef = useRef<Set<string>>(new Set());
+  const purgingWorkshopRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (showForm) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -138,6 +207,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
   }, [workshopId]);
 
   const activeGroups = useMemo(() => groups.filter(g => g.active !== false && !g.deletedAt), [groups]);
+  const archivedGroups = useMemo(() => groups.filter(g => g.active === false && !g.deletedAt), [groups]);
   const trashedGroups = useMemo(() => groups.filter(g => g.deletedAt), [groups]);
 
   // Purge automatique (comme une corbeille d'ordinateur) : au-delà du délai de
@@ -158,24 +228,55 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
     return onSnapshot(query(collection(db, "workshops"), orderBy("updatedAt", "desc")), snap => setExistingWorkshops(snap.docs.map(d => ({ id: d.id, ...d.data() } as Workshop))));
   }, [workshopId]);
 
+  const activeWorkshops = useMemo(() => existingWorkshops.filter(w => !w.deletedAt), [existingWorkshops]);
+  const trashedWorkshops = useMemo(() => existingWorkshops.filter(w => w.deletedAt), [existingWorkshops]);
+
+  useEffect(() => {
+    trashedWorkshops.forEach(w => {
+      const remaining = daysRemaining(w.deletedAt);
+      if (remaining !== null && remaining <= 0 && !purgingWorkshopRef.current.has(w.id)) {
+        purgingWorkshopRef.current.add(w.id);
+        deleteWorkshopCascade(w.id).catch(e => console.error("Purge auto atelier échouée", e));
+      }
+    });
+  }, [trashedWorkshops]);
+
   if (!workshopId) return <main className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-4 flex items-center justify-center">
     <section className="w-full max-w-xl rounded-2xl bg-white p-8 shadow-xl">
       <div className="mb-5 flex items-center justify-between gap-2">
         <button onClick={onBack} className="text-sm text-indigo-700">← Retour à AFOM</button>
-        <UserBadge user={user} className="text-gray-500" />
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowWorkshopTrash(v => !v)} className="text-sm font-semibold text-red-600">Corbeille des ateliers{trashedWorkshops.length > 0 ? ` (${trashedWorkshops.length})` : ""}</button>
+          <UserBadge user={user} className="text-gray-500" />
+        </div>
       </div>
-      {existingWorkshops.length > 0 && <div className="mb-6">
+      {showWorkshopTrash && <WorkshopTrashPanel
+        workshops={trashedWorkshops}
+        onClose={() => setShowWorkshopTrash(false)}
+        onRestore={async (w) => { await restoreWorkshop(w.id); }}
+        onPurge={async (w) => { if (confirm(`Supprimer définitivement l'atelier « ${w.title} » ? Tous ses groupes et productions seront perdus. Cette action est irréversible.`)) await deleteWorkshopCascade(w.id); }}
+      />}
+      {activeWorkshops.length > 0 && <div className="mb-6">
         <h1 className="text-2xl font-black text-gray-900">Reprendre un atelier</h1>
         <p className="mt-1 text-sm text-gray-500">Un ou plusieurs ateliers existent déjà. Ouvrez-en un pour continuer là où vous vous étiez arrêté.</p>
         <div className="mt-3 space-y-2">
-          {existingWorkshops.map(w => <button key={w.id} onClick={() => onSelectWorkshop(w.id)} className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left hover:border-indigo-400 hover:bg-indigo-50">
-            <span><span className="block font-bold text-gray-900">{w.title}</span>{formatWorkshopDate(w.updatedAt) && <span className="block text-xs text-gray-500">Modifié le {formatWorkshopDate(w.updatedAt)}</span>}</span>
-            <span className="text-sm font-semibold text-indigo-600">Ouvrir →</span>
-          </button>)}
+          {activeWorkshops.map(w => <div key={w.id} className="flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-3 hover:border-indigo-400 hover:bg-indigo-50">
+            <button onClick={() => onSelectWorkshop(w.id)} className="flex-1 text-left">
+              <span className="block font-bold text-gray-900">{w.title}</span>{formatWorkshopDate(w.updatedAt) && <span className="block text-xs text-gray-500">Modifié le {formatWorkshopDate(w.updatedAt)}</span>}
+            </button>
+            <button onClick={() => onSelectWorkshop(w.id)} className="text-sm font-semibold text-indigo-600 flex-shrink-0">Ouvrir →</button>
+            <button
+              onClick={(e) => { e.stopPropagation(); if (confirm(`Envoyer l'atelier « ${w.title} » à la corbeille ? Ses groupes et productions seront conservés et vous pourrez le restaurer pendant ${TRASH_RETENTION_DAYS} jours.`)) trashWorkshop(w.id); }}
+              className="flex-shrink-0 rounded-lg border border-red-200 px-2 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+              title="Envoyer à la corbeille"
+            >
+              Supprimer
+            </button>
+          </div>)}
         </div>
         <div className="mt-6 border-t pt-6" />
       </div>}
-      <h2 className={existingWorkshops.length > 0 ? "text-xl font-black" : "text-3xl font-black"}>{existingWorkshops.length > 0 ? "Créer un nouvel atelier" : "Préparer votre atelier AFOM"}</h2>
+      <h2 className={activeWorkshops.length > 0 ? "text-xl font-black" : "text-3xl font-black"}>{activeWorkshops.length > 0 ? "Créer un nouvel atelier" : "Préparer votre atelier AFOM"}</h2>
       <p className="mt-2 text-gray-500">Donnez un titre à l'atelier et organisez les participants selon vos besoins.</p>
       <label className="mt-6 block text-sm font-bold">Nom de l’atelier</label>
       <input aria-label="Nom de l’atelier" value={title} onChange={e => setTitle(e.target.value)} onBlur={() => setTitleTouched(true)} className="mt-2 w-full rounded-xl border px-4 py-3" />
@@ -233,11 +334,18 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
       <div className="flex flex-wrap gap-2">
         <button onClick={() => onConsolidate(workshopId)} className="rounded-xl bg-white px-4 py-2 font-bold text-indigo-700">Consolider les productions</button>
         <button onClick={() => { setEditing(null); setForm({ number: `Groupe ${activeGroups.length + 1}`, theme: "" }); setFormErrors({}); setShowForm(true); }} className="rounded-xl bg-emerald-400 px-4 py-2 font-bold text-emerald-950">+ Ajouter un groupe</button>
+        <button onClick={() => setShowArchive(v => !v)} className="rounded-xl border border-white/40 px-4 py-2 font-bold text-white">Archives{archivedGroups.length > 0 ? ` (${archivedGroups.length})` : ""}</button>
         <button onClick={() => setShowTrash(v => !v)} className="rounded-xl border border-white/40 px-4 py-2 font-bold text-white">Corbeille{trashedGroups.length > 0 ? ` (${trashedGroups.length})` : ""}</button>
       </div></div>
     </div></header>
     <section className="mx-auto max-w-7xl p-4">
       <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-md"><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{activeGroups.length}</b><span className="ml-2 text-gray-500">groupes</span></div><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{total || "—"}</b><span className="ml-2 text-gray-500">contributions</span></div></div>
+      {showArchive && <ArchivePanel
+        groups={archivedGroups}
+        onClose={() => setShowArchive(false)}
+        onRestore={async (group) => { await restoreGroup(workshopId, group.id); }}
+        onTrash={async (group) => { if (confirm(`Envoyer ${group.name} à la corbeille ? Ses contributions seront conservées et vous pourrez le restaurer pendant ${TRASH_RETENTION_DAYS} jours.`)) await trashGroup(workshopId, group.id); }}
+      />}
       {showTrash && <TrashPanel
         groups={trashedGroups}
         onClose={() => setShowTrash(false)}
@@ -263,7 +371,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
           <button onClick={() => { setShowForm(false); setFormErrors({}); }} className="rounded-lg border px-4 py-2">Annuler</button>
         </div>
       </div>}
-      <div className="grid gap-4 lg:grid-cols-2">{activeGroups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setFormErrors({}); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Les contributions seront conservées.`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onDelete={async () => { if (confirm(`Envoyer ${group.name} à la corbeille ? Ses contributions seront conservées et vous pourrez le restaurer pendant ${TRASH_RETENTION_DAYS} jours.`)) await trashGroup(workshopId, group.id); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
+      <div className="grid gap-4 lg:grid-cols-2">{activeGroups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setFormErrors({}); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Le groupe sera mis de côté des productions actives, mais conservé et restaurable depuis « Archives ».`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onDelete={async () => { if (confirm(`Envoyer ${group.name} à la corbeille ? Ses contributions seront conservées et vous pourrez le restaurer pendant ${TRASH_RETENTION_DAYS} jours.`)) await trashGroup(workshopId, group.id); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
     </section>
   </main>;
 }
