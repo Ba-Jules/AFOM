@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { createGroup, createWorkshop } from "../services/workshopService";
+import { createGroup, createWorkshop, deleteGroup } from "../services/workshopService";
 import { AppUser, PostIt, Workshop, WorkshopGroup } from "../types";
 import QRCodeModal from "./QRCodeModal";
 import UserBadge from "./UserBadge";
@@ -23,12 +23,13 @@ function formatWorkshopDate(value: any): string {
 
 const blank = { number: "", theme: "" };
 
-function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onCount }: {
+function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onDelete, onCount }: {
   group: WorkshopGroup;
   workshopTitle: string;
   onOpen: () => void;
   onEdit: () => void;
   onArchive: () => void;
+  onDelete: () => void;
   onCount: (count: number) => void;
 }) {
   const [posts, setPosts] = useState<PostIt[]>([]);
@@ -61,6 +62,7 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onCount }:
       <button onClick={() => setQr(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Partager</button>
       <button onClick={onEdit} className="rounded-lg border px-3 py-2 text-sm font-semibold">Modifier</button>
       <button onClick={onArchive} className="ml-auto rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600">Archiver</button>
+      <button onClick={onDelete} className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Supprimer</button>
     </div>
     <QRCodeModal isOpen={qr} onClose={() => setQr(false)} sessionId={group.sessionId} workshopId={group.workshopId} groupId={group.id} workshopTitle={workshopTitle} groupName={group.name} groupTheme={group.theme} />
   </article>;
@@ -79,6 +81,11 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [groupCounts, setGroupCounts] = useState<Record<string, number>>({});
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (showForm) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showForm]);
 
   useEffect(() => {
     if (!workshopId) return;
@@ -168,7 +175,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
     </div></header>
     <section className="mx-auto max-w-7xl p-4">
       <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-md"><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{groups.length}</b><span className="ml-2 text-gray-500">groupes</span></div><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{total || "—"}</b><span className="ml-2 text-gray-500">contributions</span></div></div>
-      {showForm && <div className="mb-6 rounded-2xl border bg-white p-5 shadow">
+      {showForm && <div ref={formRef} className="mb-6 rounded-2xl border bg-white p-5 shadow">
         <h2 className="text-lg font-black">{editing ? "Modifier le groupe" : "Nouveau groupe"}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
@@ -187,7 +194,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
           <button onClick={() => { setShowForm(false); setFormErrors({}); }} className="rounded-lg border px-4 py-2">Annuler</button>
         </div>
       </div>}
-      <div className="grid gap-4 lg:grid-cols-2">{groups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setFormErrors({}); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Les contributions seront conservées.`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
+      <div className="grid gap-4 lg:grid-cols-2">{groups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setFormErrors({}); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Les contributions seront conservées.`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onDelete={async () => { if (confirm(`Supprimer définitivement ${group.name} ? Ses contributions seront perdues. Cette action est irréversible.`)) await deleteGroup(workshopId, group.id, group.sessionId); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
     </section>
   </main>;
 }

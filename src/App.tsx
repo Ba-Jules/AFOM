@@ -96,6 +96,17 @@ const App: React.FC = () => {
     setView("presentation");
   };
 
+  const returnToActiveGroup = () => {
+    if (!sessionId || !workshopId || !groupId) return;
+    const { origin, pathname } = window.location;
+    window.history.replaceState(
+      {},
+      "",
+      `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}&workshop=${encodeURIComponent(workshopId)}&group=${encodeURIComponent(groupId)}`
+    );
+    setView("work");
+  };
+
   const openWorkshop = () => {
     window.history.replaceState({}, "", `${window.location.pathname}?v=workshop`);
     setWorkshopId(null);
@@ -132,6 +143,7 @@ const App: React.FC = () => {
             onLaunchSession={handleLaunchSession}
             onPrepareWorkshop={openWorkshop}
             initialSessionId={sessionId || ""}
+            onBackToWork={sessionId && workshopId && groupId ? returnToActiveGroup : undefined}
           />
         </div>
       );

@@ -59,6 +59,7 @@ interface Props {
   onLaunchSession: (sessionId: string) => void;
   onPrepareWorkshop: () => void;
   initialSessionId: string;
+  onBackToWork?: () => void;
 }
 
 /* ---------------- Helpers UI ---------------- */
@@ -278,6 +279,7 @@ const PresentationMode: React.FC<Props> = ({
   onLaunchSession,
   onPrepareWorkshop,
   initialSessionId,
+  onBackToWork,
 }) => {
   const [sessionId, setSessionId] = useState<string>(initialSessionId || "");
   useEffect(() => {
@@ -655,6 +657,14 @@ const PresentationMode: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      {onBackToWork && (
+        <button
+          onClick={onBackToWork}
+          className="fixed top-4 left-4 z-[70] inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold shadow-lg hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
+        >
+          ← Retour à l'atelier en cours
+        </button>
+      )}
       {current.render()}
 
       {/* ---- Modal contexte ---- */}

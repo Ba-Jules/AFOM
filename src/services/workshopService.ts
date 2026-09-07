@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 
 function randomHex(length: number): string {
@@ -48,6 +48,15 @@ export async function createGroup(
     updatedAt: serverTimestamp(),
   }, { merge: true });
   return { groupId: groupRef.id, sessionId };
+}
+
+export async function deleteGroup(workshopId: string, groupId: string, sessionId: string) {
+  const postits = await getDocs(query(collection(db, "postits"), where("sessionId", "==", sessionId)));
+  const batch = writeBatch(db);
+  postits.docs.forEach((d) => batch.delete(d.ref));
+  batch.delete(doc(db, "boards", sessionId));
+  batch.delete(doc(db, "workshops", workshopId, "groups", groupId));
+  await batch.commit();
 }
 
 export function participantLink(sessionId: string, workshopId?: string, groupId?: string) {

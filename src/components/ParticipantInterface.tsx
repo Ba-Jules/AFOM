@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, addDoc, serverTimestamp, doc as fsDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, serverTimestamp, where, doc as fsDoc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { QuadrantKey } from '../types';
+import { PostIt, QuadrantKey } from '../types';
 import { QUADRANT_INFO } from '../constants';
 
 interface ParticipantInterfaceProps {
@@ -30,6 +30,8 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
     const [workshopTitle, setWorkshopTitle] = useState('');
     const [groupName, setGroupName] = useState('');
     const [linkInvalid, setLinkInvalid] = useState(false);
+    const [tab, setTab] = useState<'contribute' | 'view'>('contribute');
+    const [ourPostIts, setOurPostIts] = useState<PostIt[]>([]);
 
     useEffect(() => {
         const savedName = localStorage.getItem('afom_user_name') || '';
@@ -50,6 +52,14 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
                 console.error('Unable to load board meta', e);
             }
         })();
+    }, [sessionId]);
+
+    useEffect(() => {
+        if (!sessionId) return;
+        return onSnapshot(
+            query(collection(db, 'postits'), where('sessionId', '==', sessionId)),
+            (snap) => setOurPostIts(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as PostIt[])
+        );
     }, [sessionId]);
 
     useEffect(() => {
@@ -135,6 +145,19 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
 
     const charsLeft = useMemo(() => Math.max(0, MAX_LEN - content.length), [content]);
 
+    const byQuadrant = useMemo(() => {
+        const res: Record<QuadrantKey, PostIt[]> = { acquis: [], faiblesses: [], opportunites: [], menaces: [] };
+        for (const p of ourPostIts) {
+            if ((p as any).status === 'bin') continue;
+            res[p.quadrant]?.push(p);
+        }
+        return res;
+    }, [ourPostIts]);
+    const totalOurPostIts = useMemo(
+        () => (Object.values(byQuadrant) as PostIt[][]).reduce((sum, arr) => sum + arr.length, 0),
+        [byQuadrant]
+    );
+
     if (linkInvalid) {
         return (
             <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50">
@@ -169,6 +192,49 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
                         </div>
                     </div>
 
+                    {/* Onglets Contribuer / Notre production */}
+                    <div className="flex border-b bg-white">
+                        <button
+                            type="button"
+                            onClick={() => setTab('contribute')}
+                            className={`flex-1 py-3 text-sm font-bold transition-colors ${tab === 'contribute' ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            📝 Contribuer
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTab('view')}
+                            className={`flex-1 py-3 text-sm font-bold transition-colors ${tab === 'view' ? 'text-indigo-700 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            👀 Notre production ({totalOurPostIts})
+                        </button>
+                    </div>
+
+                    {tab === 'view' ? (
+                        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                            {totalOurPostIts === 0 && (
+                                <p className="text-center text-sm text-gray-500 py-6">Aucune contribution enregistrée pour l'instant.</p>
+                            )}
+                            {(Object.keys(QUADRANT_INFO) as QuadrantKey[]).map((key) => (
+                                byQuadrant[key].length > 0 && (
+                                    <div key={key} className={`rounded-xl border-2 p-3 ${QUADRANT_INFO[key].borderColor} ${QUADRANT_INFO[key].bgColor}`}>
+                                        <h3 className={`text-sm font-black uppercase mb-2 ${QUADRANT_INFO[key].textColor}`}>
+                                            {QUADRANT_INFO[key].title} <span className="font-normal">({byQuadrant[key].length})</span>
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {byQuadrant[key].map((p) => (
+                                                <div key={p.id} className="rounded-lg bg-white p-2.5 shadow-sm">
+                                                    <p className="text-sm font-semibold text-gray-800">{p.content}</p>
+                                                    {p.author && <p className="mt-0.5 text-xs text-gray-500">par {p.author}</p>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )
+                            ))}
+                        </div>
+                    ) : (
+                    <>
                     {/* En-tête */}
                     <div className="p-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-center">
                         <h2 className="text-2xl font-black">📝 Post-it AFOM</h2>
@@ -257,6 +323,8 @@ const ParticipantInterface: React.FC<ParticipantInterfaceProps> = ({ sessionId, 
                             </button>
                         </div>
                     </form>
+                    </>
+                    )}
 
                     <div className="py-2 text-center text-xs text-gray-500 bg-gray-50">
                         Session : <span className="font-mono">{sessionId}</span>
