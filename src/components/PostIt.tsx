@@ -16,9 +16,9 @@ import { PostIt, QuadrantKey } from "../types";
 /** Couleurs figées par quadrant d’ORIGINE */
 const ORIGIN_BG: Record<QuadrantKey, string> = {
   acquis:       "bg-green-100  border-green-500",
-  opportunites: "bg-emerald-200 border-emerald-700",
+  opportunites: "bg-blue-100   border-blue-500",
   faiblesses:   "bg-red-100    border-red-500",
-  menaces:      "bg-red-200    border-red-700",
+  menaces:      "bg-orange-100 border-orange-500",
 };
 
 const MAX_LEN = 50;

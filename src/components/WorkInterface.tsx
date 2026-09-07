@@ -33,9 +33,9 @@ const PALETTE: Record<
     bgColor: "bg-green-50",
   },
   opportunites: {
-    textColor: "text-teal-700",
-    borderColor: "border-teal-400",
-    bgColor: "bg-emerald-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-400",
+    bgColor: "bg-blue-50",
   },
   faiblesses: {
     textColor: "text-red-700",

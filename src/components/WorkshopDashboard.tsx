@@ -54,7 +54,7 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onDelete, 
       <div className="rounded bg-gray-100 p-2"><b className="block text-lg">{posts.filter(p => p.status !== "bin").length}</b>Total</div>
       <div className="rounded bg-green-50 p-2"><b className="block text-lg">{counts.acquis}</b>Forces</div>
       <div className="rounded bg-red-50 p-2"><b className="block text-lg">{counts.faiblesses}</b>Faib.</div>
-      <div className="rounded bg-emerald-50 p-2"><b className="block text-lg">{counts.opportunites}</b>Opp.</div>
+      <div className="rounded bg-blue-50 p-2"><b className="block text-lg">{counts.opportunites}</b>Opp.</div>
       <div className="rounded bg-orange-50 p-2"><b className="block text-lg">{counts.menaces}</b>Men.</div>
     </div>
     <div className="mt-4 flex flex-wrap gap-2">

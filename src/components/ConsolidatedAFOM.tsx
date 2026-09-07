@@ -6,7 +6,7 @@ import UserBadge from "./UserBadge";
 
 interface OriginPost extends PostIt { groupId: string; groupName: string; groupTheme: string; }
 const labels: Record<QuadrantKey, string> = { acquis: "Forces", faiblesses: "Faiblesses", opportunites: "Opportunités", menaces: "Menaces" };
-const colors: Record<QuadrantKey, string> = { acquis: "border-green-300 bg-green-50", faiblesses: "border-red-300 bg-red-50", opportunites: "border-emerald-300 bg-emerald-50", menaces: "border-orange-300 bg-orange-50" };
+const colors: Record<QuadrantKey, string> = { acquis: "border-green-300 bg-green-50", faiblesses: "border-red-300 bg-red-50", opportunites: "border-blue-300 bg-blue-50", menaces: "border-orange-300 bg-orange-50" };
 
 export default function ConsolidatedAFOM({ workshopId, onBack, user }: { workshopId: string; onBack: () => void; user: AppUser }) {
   const [workshop, setWorkshop] = useState<Workshop | null>(null);

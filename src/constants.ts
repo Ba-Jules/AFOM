@@ -35,11 +35,11 @@ export const QUADRANT_INFO: Record<QuadrantKey, QuadrantInfo> = {
   opportunites: {
     title: "Opportunités",
     subtitle: "Potentialités • Ressources exploitables",
-    color: "#10b981",
-    textColor: "text-emerald-800",
-    borderColor: "border-emerald-500",
-    bgColor: "bg-emerald-50",
-    gradient: "from-emerald-500 to-emerald-400",
+    color: "#3b82f6",
+    textColor: "text-blue-800",
+    borderColor: "border-blue-500",
+    bgColor: "bg-blue-50",
+    gradient: "from-blue-500 to-blue-400",
     description: "Potentialités • Ressources exploitables • Atouts • Ce qu'on peut valoriser",
   },
   menaces: {
@@ -79,9 +79,9 @@ export const QUADRANTS = {
   opportunites: {
     title: "Opportunités",
     subtitle: "Potentialités • Ressources exploitables",
-    textColor: "text-teal-700",
-    borderColor: "border-teal-400",
-    bgColor: "bg-emerald-50",
+    textColor: "text-blue-700",
+    borderColor: "border-blue-400",
+    bgColor: "bg-blue-50",
   },
   menaces: {
     title: "Menaces",
