@@ -65,6 +65,7 @@ export interface WorkshopGroup {
   sessionId: string;
   order: number;
   active: boolean;
+  deletedAt?: any;
   createdAt?: any;
   updatedAt?: any;
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { createGroup, createWorkshop, deleteGroup } from "../services/workshopService";
+import { createGroup, createWorkshop, deleteGroup, restoreGroup, TRASH_RETENTION_DAYS, trashGroup } from "../services/workshopService";
 import { AppUser, PostIt, Workshop, WorkshopGroup } from "../types";
 import QRCodeModal from "./QRCodeModal";
 import UserBadge from "./UserBadge";
@@ -19,6 +19,13 @@ function formatWorkshopDate(value: any): string {
   const date = value?.toDate ? value.toDate() : null;
   if (!date) return "";
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function daysRemaining(deletedAt: any): number | null {
+  const date = deletedAt?.toDate ? deletedAt.toDate() : null;
+  if (!date) return null;
+  const elapsedDays = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.ceil(TRASH_RETENTION_DAYS - elapsedDays));
 }
 
 const blank = { number: "", theme: "" };
@@ -62,10 +69,44 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onDelete, 
       <button onClick={() => setQr(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold">Partager</button>
       <button onClick={onEdit} className="rounded-lg border px-3 py-2 text-sm font-semibold">Modifier</button>
       <button onClick={onArchive} className="ml-auto rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600">Archiver</button>
-      <button onClick={onDelete} className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Supprimer</button>
+      <button onClick={onDelete} className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Mettre à la corbeille</button>
     </div>
     <QRCodeModal isOpen={qr} onClose={() => setQr(false)} sessionId={group.sessionId} workshopId={group.workshopId} groupId={group.id} workshopTitle={workshopTitle} groupName={group.name} groupTheme={group.theme} />
   </article>;
+}
+
+function TrashPanel({ groups, onRestore, onPurge, onClose }: {
+  groups: WorkshopGroup[];
+  onRestore: (group: WorkshopGroup) => void;
+  onPurge: (group: WorkshopGroup) => void;
+  onClose: () => void;
+}) {
+  return <div className="mb-6 rounded-2xl border border-red-200 bg-red-50/50 p-5">
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-black text-gray-900">Corbeille</h2>
+        <p className="mt-1 text-sm text-gray-600">Les groupes supprimés restent ici {TRASH_RETENTION_DAYS} jours avant suppression définitive automatique. Vous pouvez les restaurer à tout moment avant cette échéance.</p>
+      </div>
+      <button onClick={onClose} className="rounded-lg border px-3 py-2 text-sm font-semibold">Fermer</button>
+    </div>
+    {groups.length === 0
+      ? <p className="mt-4 text-sm text-gray-500">La corbeille est vide.</p>
+      : <div className="mt-4 space-y-2">{groups.map(group => {
+        const remaining = daysRemaining(group.deletedAt);
+        return <div key={group.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4">
+          <div>
+            <div className="text-xs font-bold uppercase text-gray-400">{group.number}</div>
+            <div className="font-bold text-gray-900">{group.name}</div>
+            <div className="text-sm text-gray-500">{group.theme}</div>
+            <div className="mt-1 text-xs text-red-600">{remaining === null ? "Suppression imminente" : remaining <= 0 ? "Sera purgé sous peu" : `Purge définitive dans ${remaining} jour${remaining > 1 ? "s" : ""}`}</div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => onRestore(group)} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white">Restaurer</button>
+            <button onClick={() => onPurge(group)} className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">Supprimer définitivement</button>
+          </div>
+        </div>;
+      })}</div>}
+  </div>;
 }
 
 export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectWorkshop, onConsolidate, onBack, user }: Props) {
@@ -81,7 +122,9 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [groupCounts, setGroupCounts] = useState<Record<string, number>>({});
+  const [showTrash, setShowTrash] = useState(false);
   const formRef = useRef<HTMLDivElement | null>(null);
+  const purgingRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (showForm) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -90,9 +133,25 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
   useEffect(() => {
     if (!workshopId) return;
     const stopWorkshop = onSnapshot(doc(db, "workshops", workshopId), snap => setWorkshop(snap.exists() ? { id: snap.id, ...snap.data() } as Workshop : null));
-    const stopGroups = onSnapshot(query(collection(db, "workshops", workshopId, "groups"), orderBy("order")), snap => setGroups(snap.docs.map(d => ({ id: d.id, workshopId, ...d.data() } as WorkshopGroup)).filter(g => g.active !== false)));
+    const stopGroups = onSnapshot(query(collection(db, "workshops", workshopId, "groups"), orderBy("order")), snap => setGroups(snap.docs.map(d => ({ id: d.id, workshopId, ...d.data() } as WorkshopGroup))));
     return () => { stopWorkshop(); stopGroups(); };
   }, [workshopId]);
+
+  const activeGroups = useMemo(() => groups.filter(g => g.active !== false && !g.deletedAt), [groups]);
+  const trashedGroups = useMemo(() => groups.filter(g => g.deletedAt), [groups]);
+
+  // Purge automatique (comme une corbeille d'ordinateur) : au-delà du délai de
+  // rétention, la suppression définitive se déclenche au prochain chargement du
+  // tableau de bord — il n'y a pas de tâche planifiée côté serveur sur ce projet.
+  useEffect(() => {
+    trashedGroups.forEach(group => {
+      const remaining = daysRemaining(group.deletedAt);
+      if (remaining !== null && remaining <= 0 && !purgingRef.current.has(group.id)) {
+        purgingRef.current.add(group.id);
+        deleteGroup(workshopId!, group.id, group.sessionId).catch(e => console.error("Purge auto échouée", e));
+      }
+    });
+  }, [trashedGroups, workshopId]);
 
   useEffect(() => {
     if (workshopId) return;
@@ -143,7 +202,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
     </section>
   </main>;
 
-  const total = groups.reduce((sum, group) => sum + (groupCounts[group.id] || 0), 0);
+  const total = activeGroups.reduce((sum, group) => sum + (groupCounts[group.id] || 0), 0);
   const save = async () => {
     const errors: { number?: string; theme?: string } = {};
     if (!form.number.trim()) errors.number = "Indiquez un nom pour continuer.";
@@ -156,7 +215,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
         await updateDoc(doc(db, "workshops", workshopId, "groups", editing.id), { number: form.number.trim(), name: form.number.trim(), theme: form.theme.trim(), updatedAt: serverTimestamp() });
         await updateDoc(doc(db, "boards", editing.sessionId), { projectName: form.number.trim(), themeName: form.theme.trim(), updatedAt: serverTimestamp() });
       } else {
-        await createGroup(workshopId, { number: form.number, name: form.number, theme: form.theme, order: groups.length + 1 });
+        await createGroup(workshopId, { number: form.number, name: form.number, theme: form.theme, order: activeGroups.length + 1 });
       }
       setForm(blank); setFormErrors({}); setEditing(null); setShowForm(false);
     } finally {
@@ -171,10 +230,20 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
         <UserBadge user={user} className="text-indigo-100" />
       </div>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><div className="text-sm font-bold uppercase text-indigo-200">Tableau de bord atelier</div><h1 className="text-3xl font-black">{workshop?.title || "Chargement…"}</h1></div>
-      <div className="flex gap-2"><button onClick={() => onConsolidate(workshopId)} className="rounded-xl bg-white px-4 py-2 font-bold text-indigo-700">Consolider les productions</button><button onClick={() => { setEditing(null); setForm({ number: `Groupe ${groups.length + 1}`, theme: "" }); setFormErrors({}); setShowForm(true); }} className="rounded-xl bg-emerald-400 px-4 py-2 font-bold text-emerald-950">+ Ajouter un groupe</button></div></div>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => onConsolidate(workshopId)} className="rounded-xl bg-white px-4 py-2 font-bold text-indigo-700">Consolider les productions</button>
+        <button onClick={() => { setEditing(null); setForm({ number: `Groupe ${activeGroups.length + 1}`, theme: "" }); setFormErrors({}); setShowForm(true); }} className="rounded-xl bg-emerald-400 px-4 py-2 font-bold text-emerald-950">+ Ajouter un groupe</button>
+        <button onClick={() => setShowTrash(v => !v)} className="rounded-xl border border-white/40 px-4 py-2 font-bold text-white">Corbeille{trashedGroups.length > 0 ? ` (${trashedGroups.length})` : ""}</button>
+      </div></div>
     </div></header>
     <section className="mx-auto max-w-7xl p-4">
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-md"><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{groups.length}</b><span className="ml-2 text-gray-500">groupes</span></div><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{total || "—"}</b><span className="ml-2 text-gray-500">contributions</span></div></div>
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-md"><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{activeGroups.length}</b><span className="ml-2 text-gray-500">groupes</span></div><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{total || "—"}</b><span className="ml-2 text-gray-500">contributions</span></div></div>
+      {showTrash && <TrashPanel
+        groups={trashedGroups}
+        onClose={() => setShowTrash(false)}
+        onRestore={async (group) => { await restoreGroup(workshopId, group.id); }}
+        onPurge={async (group) => { if (confirm(`Supprimer définitivement ${group.name} ? Ses contributions seront perdues. Cette action est irréversible.`)) await deleteGroup(workshopId, group.id, group.sessionId); }}
+      />}
       {showForm && <div ref={formRef} className="mb-6 rounded-2xl border bg-white p-5 shadow">
         <h2 className="text-lg font-black">{editing ? "Modifier le groupe" : "Nouveau groupe"}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -194,7 +263,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
           <button onClick={() => { setShowForm(false); setFormErrors({}); }} className="rounded-lg border px-4 py-2">Annuler</button>
         </div>
       </div>}
-      <div className="grid gap-4 lg:grid-cols-2">{groups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setFormErrors({}); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Les contributions seront conservées.`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onDelete={async () => { if (confirm(`Supprimer définitivement ${group.name} ? Ses contributions seront perdues. Cette action est irréversible.`)) await deleteGroup(workshopId, group.id, group.sessionId); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
+      <div className="grid gap-4 lg:grid-cols-2">{activeGroups.map(group => <GroupCard key={group.id} group={group} workshopTitle={workshop?.title || ""} onOpen={() => onOpenSession(group)} onEdit={() => { setEditing(group); setForm({ number: group.name || group.number, theme: group.theme }); setFormErrors({}); setShowForm(true); }} onArchive={async () => { if (confirm(`Archiver ${group.name} ? Les contributions seront conservées.`)) await updateDoc(doc(db, "workshops", workshopId, "groups", group.id), { active: false, updatedAt: serverTimestamp() }); }} onDelete={async () => { if (confirm(`Envoyer ${group.name} à la corbeille ? Ses contributions seront conservées et vous pourrez le restaurer pendant ${TRASH_RETENTION_DAYS} jours.`)) await trashGroup(workshopId, group.id); }} onCount={(count) => setGroupCounts(current => current[group.id] === count ? current : { ...current, [group.id]: count })} />)}</div>
     </section>
   </main>;
 }

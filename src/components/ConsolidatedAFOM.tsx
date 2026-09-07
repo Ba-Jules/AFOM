@@ -18,7 +18,7 @@ export default function ConsolidatedAFOM({ workshopId, onBack, user }: { worksho
   const [showIdentity, setShowIdentity] = useState(true);
 
   useEffect(() => onSnapshot(doc(db, "workshops", workshopId), snap => setWorkshop(snap.exists() ? { id: snap.id, ...snap.data() } as Workshop : null)), [workshopId]);
-  useEffect(() => onSnapshot(query(collection(db, "workshops", workshopId, "groups"), orderBy("order")), snap => setGroups(snap.docs.map(d => ({ id: d.id, workshopId, ...d.data() } as WorkshopGroup)).filter(g => g.active !== false))), [workshopId]);
+  useEffect(() => onSnapshot(query(collection(db, "workshops", workshopId, "groups"), orderBy("order")), snap => setGroups(snap.docs.map(d => ({ id: d.id, workshopId, ...d.data() } as WorkshopGroup)).filter(g => g.active !== false && !g.deletedAt))), [workshopId]);
   useEffect(() => {
     const stops = groups.map(group => onSnapshot(query(collection(db, "postits"), where("sessionId", "==", group.sessionId)), snap => setPostsByGroup(current => ({ ...current, [group.id]: snap.docs.map(d => ({ id: d.id, ...d.data() } as PostIt)) }))));
     return () => stops.forEach(stop => stop());
