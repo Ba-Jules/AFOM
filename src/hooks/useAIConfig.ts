@@ -13,7 +13,7 @@ export interface AIConfig {
 const DEFAULT_CONFIG: AIConfig = { provider: '', apiKey: '', model: '', configured: false };
 
 export const PROVIDER_DEFAULTS: Record<string, { model: string; label: string; hint: string }> = {
-  gemini:     { model: 'gemini-3.6-flash',          label: 'Gemini (Google)', hint: 'AIzaSy…'     },
+  gemini:     { model: 'gemini-flash-lite-latest',  label: 'Gemini (Google)', hint: 'AIzaSy…'     },
   openai:     { model: 'gpt-4o-mini',               label: 'OpenAI',          hint: 'sk-…'        },
   anthropic:  { model: 'claude-haiku-4-5-20251001', label: 'Anthropic',       hint: 'sk-ant-…'    },
   openrouter: { model: 'openai/gpt-4o-mini',        label: 'OpenRouter',      hint: 'sk-or-v1-…'  },
@@ -24,8 +24,9 @@ export const PROVIDER_DEFAULTS: Record<string, { model: string; label: string; h
 // Modèles retirés des providers → remplacés automatiquement
 const DEPRECATED_MODELS: Record<string, string> = {
   'google/gemini-flash-1.5': 'openai/gpt-4o-mini',
-  'gemini-1.5-flash': 'gemini-3.6-flash',
-  'gemini-2.5-flash': 'gemini-3.6-flash',
+  'gemini-1.5-flash': 'gemini-flash-lite-latest',
+  'gemini-2.5-flash': 'gemini-flash-lite-latest',
+  'gemini-3.6-flash': 'gemini-flash-lite-latest',
 };
 
 function readFromStorage(): AIConfig {

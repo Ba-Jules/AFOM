@@ -197,10 +197,24 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
   const activePostIts = useMemo(() => postIts.filter((p) => p.status !== 'bin'), [postIts]);
   const fmPostIts = useMemo(() => activePostIts.filter((p) => p.quadrant === 'faiblesses' || p.quadrant === 'menaces'), [activePostIts]);
 
+  // Firestore refuse toute valeur `undefined` (ex: rationale absente d'une reponse IA) :
+  // on la retire recursivement avant setDoc plutot que de laisser planter l'ecriture.
+  const stripUndefined = (value: any): any => {
+    if (Array.isArray(value)) return value.map(stripUndefined);
+    if (value && typeof value === 'object' && !(value instanceof Date)) {
+      const out: Record<string, any> = {};
+      for (const [k, v] of Object.entries(value)) {
+        if (v !== undefined) out[k] = stripUndefined(v);
+      }
+      return out;
+    }
+    return value;
+  };
+
   const saveAiExploration = async (patch: Partial<AIExploration>) => {
     const next = { ...aiExploration, ...patch };
     setAiExploration(next);
-    await setDoc(fsDoc(db, 'confrontations', sessionId), { aiExploration: next }, { merge: true });
+    await setDoc(fsDoc(db, 'confrontations', sessionId), { aiExploration: stripUndefined(next) }, { merge: true });
   };
 
   const requireAIAndData = (needFM = false): string | null => {
@@ -476,6 +490,9 @@ ${sections.join('')}
   const exportPDF = async () => {
     if (!analysisData) return;
     setExportingPDF(true);
+    // Laisse le temps au navigateur de peindre les graphiques (SVG Recharts) avant capture,
+    // pour ne jamais photographier un rendu partiel/vide (ex: page tout juste chargée).
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const [pieImg, barImg] = await Promise.all([captureChart(pieChartRef.current), captureChart(barChartRef.current)]);
     const d = analysisData;
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -846,7 +863,7 @@ ${sections.join('')}
             <div ref={pieChartRef} className="bg-white">
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                  <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label isAnimationActive={false}>
                     {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={(entry as any).color} />)}
                   </Pie>
                   <Tooltip /><Legend content={<QuadrantLegend />} />
@@ -859,10 +876,10 @@ ${sections.join('')}
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={analysisData.timeline}>
                   <XAxis dataKey="time" /><YAxis /><Tooltip /><Legend content={<QuadrantLegend />} />
-                  <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} />
-                  <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} />
-                  <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} />
-                  <Bar dataKey="menaces" stackId="a" fill={QUADRANT_INFO.menaces.color} />
+                  <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} isAnimationActive={false} />
+                  <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} isAnimationActive={false} />
+                  <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} isAnimationActive={false} />
+                  <Bar dataKey="menaces" stackId="a" fill={QUADRANT_INFO.menaces.color} isAnimationActive={false} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
