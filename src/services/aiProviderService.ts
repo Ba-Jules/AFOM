@@ -6,6 +6,8 @@ const STORAGE_KEY = 'afom_ai_config';
 // Modèles retirés → remplacements automatiques (synchronisé avec useAIConfig.ts)
 const DEPRECATED_MODELS: Record<string, string> = {
   'google/gemini-flash-1.5': 'openai/gpt-4o-mini',
+  'gemini-1.5-flash': 'gemini-3.6-flash',
+  'gemini-2.5-flash': 'gemini-3.6-flash',
 };
 
 export function getStoredAIConfig(): { provider: string; key: string; model?: string } | null {
@@ -38,7 +40,7 @@ export async function callAI(prompt: string): Promise<string> {
   if (config) {
     const { provider, key, model } = config;
     if (provider === 'gemini') {
-      const m = model || 'gemini-1.5-flash';
+      const m = model || 'gemini-3.6-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
       return callGeminiRest(prompt, key, url);
     }
@@ -64,7 +66,7 @@ export async function callAI(prompt: string): Promise<string> {
 // ─────────── implémentations REST ───────────
 
 async function callGeminiRest(prompt: string, key: string, url?: string): Promise<string> {
-  const endpoint = url ?? `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+  const endpoint = url ?? `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(key)}`;
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
