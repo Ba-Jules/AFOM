@@ -302,8 +302,7 @@ const PresentationMode: React.FC<Props> = ({
   const [themeName, setThemeName] = useState("");
 
   // Contexte de session
-  const [situationActuelle, setSituationActuelle] = useState("");
-  const [symptomesObservables, setSymptomesObservables] = useState("");
+  const [elementsContexte, setElementsContexte] = useState("");
   const [perimetre, setPerimetre] = useState("");
   const [docs, setDocs] = useState<ContextDocument[]>([]);
   const [showContextModal, setShowContextModal] = useState(false);
@@ -322,8 +321,16 @@ const PresentationMode: React.FC<Props> = ({
           setProjectName(m.projectName || "");
           setThemeName(m.themeName || "");
           if (m.context) {
-            setSituationActuelle(m.context.situationActuelle || "");
-            setSymptomesObservables(m.context.symptomesObservables || "");
+            if (m.context.elementsContexte) {
+              setElementsContexte(m.context.elementsContexte);
+            } else {
+              // Session créée avant la fusion en un champ libre unique : on regroupe
+              // les deux anciens champs pour ne pas perdre ce qui a été saisi.
+              const legacy = [m.context.situationActuelle, m.context.symptomesObservables]
+                .filter(Boolean)
+                .join("\n\n");
+              if (legacy) setElementsContexte(legacy);
+            }
             setPerimetre(m.context.perimetre || "");
             if (m.context.documents && m.context.documents.length > 0) {
               setDocs(m.context.documents);
@@ -381,8 +388,7 @@ const PresentationMode: React.FC<Props> = ({
     setMetaTouched(true);
     if (!sessionId || !projectName.trim() || !themeName.trim() || savingMeta) return;
     const context: BoardContext = {
-      situationActuelle: situationActuelle.trim(),
-      symptomesObservables: symptomesObservables.trim(),
+      elementsContexte: elementsContexte.trim(),
       perimetre: perimetre.trim(),
       ...(docs.length > 0 ? { documents: docs } : {}),
     };
@@ -406,7 +412,7 @@ const PresentationMode: React.FC<Props> = ({
     } finally {
       setSavingMeta(false);
     }
-  }, [sessionId, projectName, themeName, situationActuelle, symptomesObservables, perimetre, docs, savingMeta]);
+  }, [sessionId, projectName, themeName, elementsContexte, perimetre, docs, savingMeta]);
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
@@ -486,12 +492,12 @@ const PresentationMode: React.FC<Props> = ({
                     <button
                       onClick={() => setShowContextModal(true)}
                       className={`px-4 py-2 rounded-md border text-sm font-medium ${
-                        (situationActuelle || perimetre || docs.length > 0)
+                        (elementsContexte || perimetre || docs.length > 0)
                           ? "bg-emerald-50 border-emerald-300 text-emerald-700"
                           : "bg-gray-50 hover:bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {(situationActuelle || perimetre || docs.length > 0)
+                      {(elementsContexte || perimetre || docs.length > 0)
                         ? "Contexte ✓"
                         : "+ Ajouter le contexte"}
                     </button>
@@ -631,7 +637,7 @@ const PresentationMode: React.FC<Props> = ({
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, situationActuelle, perimetre, docs, setShowContextModal, aiConfigured, setAiConfigured]
+    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, elementsContexte, perimetre, docs, setShowContextModal, aiConfigured, setAiConfigured]
   );
 
   /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
@@ -699,31 +705,18 @@ const PresentationMode: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Situation actuelle */}
+            {/* Éléments de contexte (optionnel) */}
             <div className="mb-4">
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Situation actuelle
+                Éléments de contexte
+                <span className="text-xs font-normal text-gray-500 ml-1">(optionnel)</span>
               </label>
               <textarea
-                value={situationActuelle}
-                onChange={(e) => setSituationActuelle(e.target.value)}
+                value={elementsContexte}
+                onChange={(e) => setElementsContexte(e.target.value)}
                 rows={3}
                 className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                placeholder="Ex : Le programme est en phase d'exécution depuis 2 ans, les résultats restent en deçà des objectifs initiaux..."
-              />
-            </div>
-
-            {/* Symptômes observables */}
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Symptômes observables
-              </label>
-              <textarea
-                value={symptomesObservables}
-                onChange={(e) => setSymptomesObservables(e.target.value)}
-                rows={3}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                placeholder="Ex : Faible taux de participation, retards fréquents, conflits entre parties prenantes, budget non consommé..."
+                placeholder="Ex : Le programme est en phase d'exécution depuis 2 ans, résultats en deçà des objectifs, faible taux de participation, budget non consommé..."
               />
             </div>
 

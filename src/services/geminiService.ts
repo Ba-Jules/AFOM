@@ -105,8 +105,13 @@ function buildMatrixBlock(interactions?: MatrixInteraction[]): string {
 function buildContextBlock(ctx?: BoardContext): string {
   if (!ctx) return "";
   const parts: string[] = [];
-  if (ctx.situationActuelle)  parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
-  if (ctx.symptomesObservables) parts.push(`Symptômes observables : ${ctx.symptomesObservables}`);
+  if (ctx.elementsContexte) {
+    parts.push(`Éléments de contexte : ${ctx.elementsContexte}`);
+  } else {
+    // Compatibilité : sessions créées avant la fusion en un champ libre unique.
+    if (ctx.situationActuelle)    parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
+    if (ctx.symptomesObservables) parts.push(`Symptômes observables : ${ctx.symptomesObservables}`);
+  }
   if (ctx.perimetre)          parts.push(`Périmètre : ${ctx.perimetre}`);
 
   if (ctx.documents && ctx.documents.length > 0) {
