@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   PostIt,
   AnalysisData,
@@ -22,6 +22,7 @@ import { doc as fsDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { BoardMeta, BoardContext } from '../types';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface AnalysisModeProps { postIts: PostIt[]; onBack?: () => void; }
 
@@ -180,6 +181,11 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
       setAiRunningCentral(null);
     }
   };
+
+  // ---- Refs pour capturer les graphiques (camembert + histogramme) dans l'export PDF ----
+  const pieChartRef = useRef<HTMLDivElement>(null);
+  const barChartRef = useRef<HTMLDivElement>(null);
+  const [exportingPDF, setExportingPDF] = useState(false);
 
   // ---- Analyse IA du FFOM (4 fonctions, zone dédiée, distincte du problème central manuel) ----
   const [aiExploration, setAiExploration] = useState<AIExploration>(blankExploration);
@@ -452,10 +458,25 @@ ${sections.join('')}
     const html = toWordHTML(analysisData);
     download(`AFOM_${sessionId || 'session'}.doc`, 'application/msword', html);
   };
+  // Capture un graphique Recharts (camembert/histogramme) en image PNG pour l'export PDF.
+  const captureChart = async (el: HTMLDivElement | null): Promise<string | null> => {
+    if (!el) return null;
+    try {
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', logging: false });
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      console.error('Capture graphique échouée', e);
+      return null;
+    }
+  };
+
   // Génère et télécharge un vrai fichier .pdf (pas une impression navigateur à configurer) :
   // aucune ambiguïté possible avec l'export Excel/Word, le fichier est directement conservable.
-  const exportPDF = () => {
+  // Inclut le camembert et l'histogramme (capturés en image), pas seulement le texte.
+  const exportPDF = async () => {
     if (!analysisData) return;
+    setExportingPDF(true);
+    const [pieImg, barImg] = await Promise.all([captureChart(pieChartRef.current), captureChart(barChartRef.current)]);
     const d = analysisData;
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -488,6 +509,17 @@ ${sections.join('')}
       });
     };
     const spacer = (h = 8) => { y += h; };
+    const image = (dataUrl: string | null, caption: string) => {
+      if (!dataUrl) return;
+      const props = doc.getImageProperties(dataUrl);
+      const w = maxWidth;
+      const h = (props.height * w) / props.width;
+      ensureSpace(h + 16);
+      doc.addImage(dataUrl, 'PNG', marginX, y, w, h);
+      y += h + 4;
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor('#6b7280');
+      doc.text(caption, marginX, y); y += 14;
+    };
 
     title('Rapport d\'analyse AFOM');
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor('#6b7280');
@@ -516,6 +548,13 @@ ${sections.join('')}
     QUADRANT_ORDER.forEach((k) => paragraph(`${QUADRANT_INFO[k].title} : ${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`, { bold: true }));
     spacer();
 
+    if (pieImg || barImg) {
+      heading('Graphiques');
+      image(pieImg, 'Répartition AFOM');
+      image(barImg, 'Timeline des contributions');
+      spacer();
+    }
+
     heading('Idées retenues');
     retainedByQuadrant.forEach(({ label, items }) => {
       paragraph(label, { bold: true, color: '#4f46e5' });
@@ -541,6 +580,7 @@ ${sections.join('')}
     }
 
     doc.save(`AFOM_${groupMeta.name || sessionId || 'session'}.pdf`);
+    setExportingPDF(false);
   };
 
   // ---- Traitement des données de base ----
@@ -680,8 +720,8 @@ ${sections.join('')}
             <button onClick={exportWord} title="Télécharge un fichier .doc" className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
               <span className="sm:hidden">.doc</span><span className="hidden sm:inline">Exporter en Word (.doc)</span>
             </button>
-            <button onClick={exportPDF} title="Télécharge directement un fichier .pdf, prêt à garder dans un dossier" className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">.pdf</span><span className="hidden sm:inline">Télécharger le rapport PDF (.pdf)</span>
+            <button onClick={exportPDF} disabled={exportingPDF} title="Télécharge directement un fichier .pdf, prêt à garder dans un dossier" className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0 disabled:opacity-50">
+              <span className="sm:hidden">{exportingPDF ? '…' : '.pdf'}</span><span className="hidden sm:inline">{exportingPDF ? 'Génération du PDF…' : 'Télécharger le rapport PDF (.pdf)'}</span>
             </button>
           </div>
         </div>
@@ -803,25 +843,29 @@ ${sections.join('')}
 
         <div className="grid lg:grid-cols-2 gap-8">
           <ChartCard title="Répartition AFOM">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                  {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={(entry as any).color} />)}
-                </Pie>
-                <Tooltip /><Legend content={<QuadrantLegend />} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div ref={pieChartRef} className="bg-white">
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={doughnutData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                    {doughnutData.map((entry, index) => <Cell key={`cell-${index}`} fill={(entry as any).color} />)}
+                  </Pie>
+                  <Tooltip /><Legend content={<QuadrantLegend />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </ChartCard>
           <ChartCard title="Timeline des Contributions">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analysisData.timeline}>
-                <XAxis dataKey="time" /><YAxis /><Tooltip /><Legend content={<QuadrantLegend />} />
-                <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} />
-                <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} />
-                <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} />
-                <Bar dataKey="menaces" stackId="a" fill={QUADRANT_INFO.menaces.color} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div ref={barChartRef} className="bg-white">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={analysisData.timeline}>
+                  <XAxis dataKey="time" /><YAxis /><Tooltip /><Legend content={<QuadrantLegend />} />
+                  <Bar dataKey="acquis" stackId="a" fill={QUADRANT_INFO.acquis.color} />
+                  <Bar dataKey="faiblesses" stackId="a" fill={QUADRANT_INFO.faiblesses.color} />
+                  <Bar dataKey="opportunites" stackId="a" fill={QUADRANT_INFO.opportunites.color} />
+                  <Bar dataKey="menaces" stackId="a" fill={QUADRANT_INFO.menaces.color} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </ChartCard>
         </div>
 
