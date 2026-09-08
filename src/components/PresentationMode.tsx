@@ -499,7 +499,7 @@ const PresentationMode: React.FC<Props> = ({
                     >
                       {(elementsContexte || perimetre || docs.length > 0)
                         ? "Contexte ✓"
-                        : "+ Ajouter le contexte"}
+                        : "+ Ajouter contexte et documents"}
                     </button>
                     <div className="flex items-center gap-2">
                       {metaSaved && <span className="text-xs font-semibold text-emerald-600">✓ Enregistré</span>}
@@ -735,12 +735,10 @@ const PresentationMode: React.FC<Props> = ({
 
             {/* Upload documents (plusieurs possibles) */}
             <div className="mb-4 border-t pt-5">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Documents de référence
-                <span className="text-xs font-normal text-gray-500 ml-1">
-                  (TDR, cahier du participant… PDF, DOCX, TXT — {docs.length}/{MAX_CONTEXT_DOCUMENTS})
-                </span>
-              </label>
+              <h3 className="text-sm font-semibold text-gray-700">Documents pour l'analyse IA</h3>
+              <p className="text-xs text-gray-500 mt-1 mb-2">
+                Joignez ici les documents utiles à l'IA pour affiner ses analyses : termes de référence, cahier du participant, rapports, etc. ({docs.length}/{MAX_CONTEXT_DOCUMENTS} — PDF, DOCX, TXT)
+              </p>
               <div className="flex items-center gap-3">
                 <label
                   className={`cursor-pointer px-4 py-2 rounded-lg border text-sm font-medium ${
@@ -749,7 +747,7 @@ const PresentationMode: React.FC<Props> = ({
                       : "bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  {extractingDoc ? "Extraction en cours…" : "+ Ajouter un document"}
+                  {extractingDoc ? "Extraction en cours…" : "Ajouter des documents"}
                   <input
                     type="file"
                     accept=".pdf,.docx,.txt"
@@ -765,7 +763,7 @@ const PresentationMode: React.FC<Props> = ({
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Seuls les éléments extraits de chaque document (problématique, acteurs, zone, enjeux) seront utilisés par l'IA — jamais le document brut. {MAX_CONTEXT_DOCUMENTS} documents maximum.
+                Seuls les éléments extraits de chaque document (problématique, acteurs, zone, enjeux) seront utilisés par l'IA — jamais le document brut.
               </p>
             </div>
 
