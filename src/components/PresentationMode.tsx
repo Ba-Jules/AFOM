@@ -8,10 +8,13 @@ import React, {
 import { QRCodeCanvas } from "qrcode.react";
 import { doc as fsDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { BoardMeta, BoardContext } from "../types";
+import { BoardMeta, BoardContext, ContextDocument } from "../types";
 import { extractContextFromDocument } from "../services/geminiService";
 import AIConfigPanel from "./AIConfigPanel";
 import { useAIConfig } from "../hooks/useAIConfig";
+
+// Limite raisonnable pour ne pas envoyer un contexte démesuré à l'API IA.
+const MAX_CONTEXT_DOCUMENTS = 5;
 
 /** Extrait le texte brut d'un fichier TXT, PDF ou DOCX (côté navigateur) */
 async function extractTextFromFile(file: File): Promise<string> {
@@ -302,9 +305,7 @@ const PresentationMode: React.FC<Props> = ({
   const [situationActuelle, setSituationActuelle] = useState("");
   const [symptomesObservables, setSymptomesObservables] = useState("");
   const [perimetre, setPerimetre] = useState("");
-  const [docExtracted, setDocExtracted] = useState<{
-    problematique: string; acteurs: string; zone: string; enjeux: string;
-  } | null>(null);
+  const [docs, setDocs] = useState<ContextDocument[]>([]);
   const [showContextModal, setShowContextModal] = useState(false);
   const [extractingDoc, setExtractingDoc] = useState(false);
   const [savingMeta, setSavingMeta] = useState(false);
@@ -324,13 +325,17 @@ const PresentationMode: React.FC<Props> = ({
             setSituationActuelle(m.context.situationActuelle || "");
             setSymptomesObservables(m.context.symptomesObservables || "");
             setPerimetre(m.context.perimetre || "");
-            if (m.context.problematique || m.context.acteurs || m.context.zone || m.context.enjeux) {
-              setDocExtracted({
+            if (m.context.documents && m.context.documents.length > 0) {
+              setDocs(m.context.documents);
+            } else if (m.context.problematique || m.context.acteurs || m.context.zone || m.context.enjeux) {
+              // Session créée avant le support multi-documents : un seul document, sans nom mémorisé.
+              setDocs([{
+                name: "Document importé",
                 problematique: m.context.problematique || "",
                 acteurs: m.context.acteurs || "",
                 zone: m.context.zone || "",
                 enjeux: m.context.enjeux || "",
-              });
+              }]);
             }
           }
         }
@@ -343,6 +348,11 @@ const PresentationMode: React.FC<Props> = ({
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (docs.length >= MAX_CONTEXT_DOCUMENTS) {
+      alert(`Maximum ${MAX_CONTEXT_DOCUMENTS} documents de contexte par session.`);
+      e.target.value = "";
+      return;
+    }
     setExtractingDoc(true);
     try {
       const rawText = await extractTextFromFile(file);
@@ -350,13 +360,21 @@ const PresentationMode: React.FC<Props> = ({
       // Tronquer à 8000 caractères max — jamais le document brut en analyse finale
       const truncated = rawText.slice(0, 8000);
       const extracted = await extractContextFromDocument(truncated);
-      setDocExtracted(extracted);
+      setDocs((prev) => [...prev, { name: file.name, ...extracted }]);
     } catch (err: any) {
       alert(err?.message || "Erreur lors de l’extraction du document.");
     } finally {
       setExtractingDoc(false);
       e.target.value = "";
     }
+  }, [docs.length]);
+
+  const removeDoc = useCallback((index: number) => {
+    setDocs((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const updateDoc = useCallback((index: number, patch: Partial<ContextDocument>) => {
+    setDocs((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   }, []);
 
   const saveMeta = useCallback(async () => {
@@ -366,7 +384,7 @@ const PresentationMode: React.FC<Props> = ({
       situationActuelle: situationActuelle.trim(),
       symptomesObservables: symptomesObservables.trim(),
       perimetre: perimetre.trim(),
-      ...(docExtracted ?? {}),
+      ...(docs.length > 0 ? { documents: docs } : {}),
     };
     setSavingMeta(true);
     try {
@@ -388,7 +406,7 @@ const PresentationMode: React.FC<Props> = ({
     } finally {
       setSavingMeta(false);
     }
-  }, [sessionId, projectName, themeName, situationActuelle, symptomesObservables, perimetre, docExtracted, savingMeta]);
+  }, [sessionId, projectName, themeName, situationActuelle, symptomesObservables, perimetre, docs, savingMeta]);
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
@@ -468,12 +486,12 @@ const PresentationMode: React.FC<Props> = ({
                     <button
                       onClick={() => setShowContextModal(true)}
                       className={`px-4 py-2 rounded-md border text-sm font-medium ${
-                        (situationActuelle || perimetre || docExtracted)
+                        (situationActuelle || perimetre || docs.length > 0)
                           ? "bg-emerald-50 border-emerald-300 text-emerald-700"
                           : "bg-gray-50 hover:bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {(situationActuelle || perimetre || docExtracted)
+                      {(situationActuelle || perimetre || docs.length > 0)
                         ? "Contexte ✓"
                         : "+ Ajouter le contexte"}
                     </button>
@@ -613,7 +631,7 @@ const PresentationMode: React.FC<Props> = ({
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, situationActuelle, perimetre, docExtracted, setShowContextModal, aiConfigured, setAiConfigured]
+    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, situationActuelle, perimetre, docs, setShowContextModal, aiConfigured, setAiConfigured]
   );
 
   /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
@@ -722,20 +740,28 @@ const PresentationMode: React.FC<Props> = ({
               />
             </div>
 
-            {/* Upload document */}
+            {/* Upload documents (plusieurs possibles) */}
             <div className="mb-4 border-t pt-5">
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Document de référence
-                <span className="text-xs font-normal text-gray-500 ml-1">(TDR, rapport… PDF, DOCX, TXT)</span>
+                Documents de référence
+                <span className="text-xs font-normal text-gray-500 ml-1">
+                  (TDR, cahier du participant… PDF, DOCX, TXT — {docs.length}/{MAX_CONTEXT_DOCUMENTS})
+                </span>
               </label>
               <div className="flex items-center gap-3">
-                <label className={`cursor-pointer px-4 py-2 rounded-lg border text-sm font-medium ${extractingDoc ? "opacity-60 pointer-events-none" : "bg-gray-50 hover:bg-gray-100"}`}>
-                  {extractingDoc ? "Extraction en cours…" : "Choisir un fichier"}
+                <label
+                  className={`cursor-pointer px-4 py-2 rounded-lg border text-sm font-medium ${
+                    extractingDoc || docs.length >= MAX_CONTEXT_DOCUMENTS
+                      ? "opacity-60 pointer-events-none"
+                      : "bg-gray-50 hover:bg-gray-100"
+                  }`}
+                >
+                  {extractingDoc ? "Extraction en cours…" : "+ Ajouter un document"}
                   <input
                     type="file"
                     accept=".pdf,.docx,.txt"
                     className="hidden"
-                    disabled={extractingDoc}
+                    disabled={extractingDoc || docs.length >= MAX_CONTEXT_DOCUMENTS}
                     onChange={handleFileUpload}
                   />
                 </label>
@@ -746,55 +772,65 @@ const PresentationMode: React.FC<Props> = ({
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Seuls les éléments extraits (problématique, acteurs, zone, enjeux) seront utilisés par l'IA — jamais le document brut.
+                Seuls les éléments extraits de chaque document (problématique, acteurs, zone, enjeux) seront utilisés par l'IA — jamais le document brut. {MAX_CONTEXT_DOCUMENTS} documents maximum.
               </p>
             </div>
 
-            {/* Bloc extrait éditable */}
-            {docExtracted && (
-              <div className="mb-5 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-indigo-800">Éléments extraits du document</h3>
-                  <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
-                    Vérifiez et corrigez si nécessaire
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Problématique</label>
-                    <textarea
-                      value={docExtracted.problematique}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, problematique: e.target.value })}
-                      rows={2}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
-                    />
+            {/* Liste des documents ajoutés, chacun avec ses éléments extraits éditables */}
+            {docs.length > 0 && (
+              <div className="mb-5 space-y-3">
+                {docs.map((doc, i) => (
+                  <div key={i} className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3 gap-2">
+                      <h3 className="text-sm font-bold text-indigo-800 truncate" title={doc.name}>
+                        📄 {doc.name}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => removeDoc(i)}
+                        className="text-xs text-red-600 hover:text-red-800 font-medium flex-shrink-0"
+                      >
+                        Retirer
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">Problématique</label>
+                        <textarea
+                          value={doc.problematique}
+                          onChange={(e) => updateDoc(i, { problematique: e.target.value })}
+                          rows={2}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">Acteurs</label>
+                        <input
+                          value={doc.acteurs}
+                          onChange={(e) => updateDoc(i, { acteurs: e.target.value })}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">Zone / Population</label>
+                        <input
+                          value={doc.zone}
+                          onChange={(e) => updateDoc(i, { zone: e.target.value })}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">Enjeux</label>
+                        <textarea
+                          value={doc.enjeux}
+                          onChange={(e) => updateDoc(i, { enjeux: e.target.value })}
+                          rows={2}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Acteurs</label>
-                    <input
-                      value={docExtracted.acteurs}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, acteurs: e.target.value })}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Zone / Population</label>
-                    <input
-                      value={docExtracted.zone}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, zone: e.target.value })}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Enjeux</label>
-                    <textarea
-                      value={docExtracted.enjeux}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, enjeux: e.target.value })}
-                      rows={2}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
-                    />
-                  </div>
-                </div>
+                ))}
               </div>
             )}
 

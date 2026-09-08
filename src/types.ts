@@ -30,11 +30,23 @@ export interface QuadrantData {
   postIts: PostIt[];
 }
 
+export interface ContextDocument {
+  name: string;
+  problematique: string;
+  acteurs: string;
+  zone: string;
+  enjeux: string;
+}
+
 export interface BoardContext {
   situationActuelle?: string;
   symptomesObservables?: string;
   perimetre?: string;
-  // Éléments extraits d'un document (jamais envoyés bruts à l'IA finale)
+  // Documents de contexte (TDR, cahier du participant...) — éléments extraits uniquement,
+  // jamais le document brut envoyé à l'IA finale.
+  documents?: ContextDocument[];
+  // Champs legacy (sessions créées avant le support multi-documents) : un seul document,
+  // conservés en lecture pour compatibilité, plus jamais écrits.
   problematique?: string;
   acteurs?: string;
   zone?: string;

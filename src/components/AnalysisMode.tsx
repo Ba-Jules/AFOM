@@ -47,6 +47,27 @@ type AIExploration = {
 };
 const blankExploration: AIExploration = { customRuns: [] };
 
+// ---- Sélection des rubriques du rapport PDF (case à cocher avant génération) ----
+type PdfSectionKey =
+  | 'groupe' | 'ffom' | 'indicateurs' | 'camembert' | 'histogramme'
+  | 'problemeCentral' | 'implications' | 'enjeux' | 'analysesIA';
+
+const PDF_SECTION_LABELS: Record<PdfSectionKey, string> = {
+  groupe: 'Informations du groupe / thématique',
+  ffom: 'FFOM / idées retenues',
+  indicateurs: 'Indicateurs et synthèse chiffrée',
+  camembert: 'Camembert (répartition AFOM)',
+  histogramme: 'Histogramme (timeline des contributions)',
+  problemeCentral: 'Problème central',
+  implications: 'Implications organisationnelles',
+  enjeux: 'Enjeux',
+  analysesIA: 'Analyses IA disponibles',
+};
+const PDF_SECTION_ORDER: PdfSectionKey[] = [
+  'groupe', 'ffom', 'indicateurs', 'camembert', 'histogramme',
+  'problemeCentral', 'implications', 'enjeux', 'analysesIA',
+];
+
 const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
@@ -186,6 +207,11 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
   const pieChartRef = useRef<HTMLDivElement>(null);
   const barChartRef = useRef<HTMLDivElement>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfSections, setPdfSections] = useState<Record<PdfSectionKey, boolean>>({
+    groupe: true, ffom: true, indicateurs: true, camembert: true, histogramme: true,
+    problemeCentral: true, implications: true, enjeux: true, analysesIA: true,
+  });
 
   // ---- Analyse IA du FFOM (4 fonctions, zone dédiée, distincte du problème central manuel) ----
   const [aiExploration, setAiExploration] = useState<AIExploration>(blankExploration);
@@ -486,14 +512,17 @@ ${sections.join('')}
 
   // Génère et télécharge un vrai fichier .pdf (pas une impression navigateur à configurer) :
   // aucune ambiguïté possible avec l'export Excel/Word, le fichier est directement conservable.
-  // Inclut le camembert et l'histogramme (capturés en image), pas seulement le texte.
-  const exportPDF = async () => {
+  // Composé uniquement des rubriques cochées dans la modale de sélection (sections).
+  const exportPDF = async (sections: Record<PdfSectionKey, boolean>) => {
     if (!analysisData) return;
     setExportingPDF(true);
     // Laisse le temps au navigateur de peindre les graphiques (SVG Recharts) avant capture,
     // pour ne jamais photographier un rendu partiel/vide (ex: page tout juste chargée).
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const [pieImg, barImg] = await Promise.all([captureChart(pieChartRef.current), captureChart(barChartRef.current)]);
+    const [pieImg, barImg] = await Promise.all([
+      sections.camembert ? captureChart(pieChartRef.current) : Promise.resolve(null),
+      sections.histogramme ? captureChart(barChartRef.current) : Promise.resolve(null),
+    ]);
     const d = analysisData;
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -543,61 +572,118 @@ ${sections.join('')}
     doc.text(`${groupMeta.name || `Session ${sessionId || '—'}`}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}  |  Exporté le ${new Date().toLocaleDateString('fr-FR')}`, marginX, y);
     y += 22;
 
-    heading('Groupe');
-    paragraph(`Groupe : ${groupMeta.name || '—'}`, { bold: true });
-    paragraph(`Thématique : ${groupMeta.theme || '—'}`);
-    spacer();
-
-    heading('Problème central');
-    paragraph(central.text || '—');
-    if (central.textCourt) paragraph(`Titre court : ${central.textCourt}`);
-    if (central.rationale) paragraph(`Justification IA : ${central.rationale}`);
-    spacer();
-
-    heading('Métriques de session');
-    paragraph(`Total contributions : ${d.metrics.totalContributions}`);
-    paragraph(`Participants uniques : ${d.metrics.uniqueParticipants}`);
-    paragraph(`Durée : ${d.metrics.sessionDuration} min`);
-    paragraph(`Score d'engagement : ${d.metrics.engagementScore}`);
-    spacer();
-
-    heading('Quadrants AFOM');
-    QUADRANT_ORDER.forEach((k) => paragraph(`${QUADRANT_INFO[k].title} : ${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`, { bold: true }));
-    spacer();
-
-    if (pieImg || barImg) {
-      heading('Graphiques');
-      image(pieImg, 'Répartition AFOM');
-      image(barImg, 'Timeline des contributions');
+    if (sections.groupe) {
+      heading('Groupe');
+      paragraph(`Groupe : ${groupMeta.name || '—'}`, { bold: true });
+      paragraph(`Thématique : ${groupMeta.theme || '—'}`);
       spacer();
     }
 
-    heading('Idées retenues');
-    retainedByQuadrant.forEach(({ label, items }) => {
-      paragraph(label, { bold: true, color: '#4f46e5' });
-      if (items.length === 0) {
-        paragraph('—', { indent: 12 });
-      } else {
-        items.forEach((item) => paragraph(`•  ${item.content}${item.author ? `  (${item.author})` : ''}`, { indent: 12 }));
-      }
-      spacer(4);
-    });
+    if (sections.problemeCentral && central.text) {
+      heading('Problème central');
+      paragraph(central.text);
+      if (central.textCourt) paragraph(`Titre court : ${central.textCourt}`);
+      if (central.rationale) paragraph(`Justification IA : ${central.rationale}`);
+      spacer();
+    }
 
-    if (d.insights.length > 0) {
-      heading('Insights IA');
-      d.insights.forEach((ins, i) => { paragraph(`${i + 1}. ${ins.title}`, { bold: true }); paragraph(ins.content, { indent: 12 }); spacer(2); });
+    if (sections.indicateurs) {
+      heading('Métriques de session');
+      paragraph(`Total contributions : ${d.metrics.totalContributions}`);
+      paragraph(`Participants uniques : ${d.metrics.uniqueParticipants}`);
+      paragraph(`Durée : ${d.metrics.sessionDuration} min`);
+      paragraph(`Score d'engagement : ${d.metrics.engagementScore}`);
+      spacer();
+
+      heading('Quadrants AFOM');
+      QUADRANT_ORDER.forEach((k) => paragraph(`${QUADRANT_INFO[k].title} : ${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`, { bold: true }));
+      spacer();
+
+      if (d.contributors.length > 0) {
+        heading('Contributeurs');
+        d.contributors.forEach((c) => paragraph(`${c.name} : ${c.count} contributions — ${c.totalWords} mots`));
+        spacer();
+      }
     }
-    if (d.recommendations.length > 0) {
-      heading('Recommandations');
-      d.recommendations.forEach((r, i) => { paragraph(`${i + 1}. ${r.title} [${r.priority || ''}]`, { bold: true }); paragraph(r.content, { indent: 12 }); spacer(2); });
+
+    if ((sections.camembert && pieImg) || (sections.histogramme && barImg)) {
+      heading('Graphiques');
+      if (sections.camembert) image(pieImg, 'Répartition AFOM');
+      if (sections.histogramme) image(barImg, 'Timeline des contributions');
+      spacer();
     }
-    if (d.contributors.length > 0) {
-      heading('Contributeurs');
-      d.contributors.forEach((c) => paragraph(`${c.name} : ${c.count} contributions — ${c.totalWords} mots`));
+
+    if (sections.ffom) {
+      heading('Idées retenues');
+      retainedByQuadrant.forEach(({ label, items }) => {
+        paragraph(label, { bold: true, color: '#4f46e5' });
+        if (items.length === 0) {
+          paragraph('—', { indent: 12 });
+        } else {
+          items.forEach((item) => paragraph(`•  ${item.content}${item.author ? `  (${item.author})` : ''}`, { indent: 12 }));
+        }
+        spacer(4);
+      });
+    }
+
+    if (sections.implications && aiExploration.implicationsEnjeux?.implications?.length) {
+      heading('Implications organisationnelles');
+      aiExploration.implicationsEnjeux.implications.forEach((t) => paragraph(`•  ${t}`, { indent: 12 }));
+      spacer();
+    }
+
+    if (sections.enjeux && aiExploration.implicationsEnjeux?.enjeux?.length) {
+      heading('Enjeux');
+      aiExploration.implicationsEnjeux.enjeux.forEach((t) => paragraph(`•  ${t}`, { indent: 12 }));
+      spacer();
+    }
+
+    if (sections.analysesIA) {
+      if (d.insights.length > 0) {
+        heading('Insights IA');
+        d.insights.forEach((ins, i) => { paragraph(`${i + 1}. ${ins.title}`, { bold: true }); paragraph(ins.content, { indent: 12 }); spacer(2); });
+      }
+      if (d.recommendations.length > 0) {
+        heading('Recommandations');
+        d.recommendations.forEach((r, i) => { paragraph(`${i + 1}. ${r.title} [${r.priority || ''}]`, { bold: true }); paragraph(r.content, { indent: 12 }); spacer(2); });
+      }
+      if (aiExploration.problemFull) {
+        heading('Analyse IA du FFOM — Problème central (FFOM complet)');
+        paragraph(aiExploration.problemFull.text);
+        if (aiExploration.problemFull.rationale) paragraph(`Justification IA : ${aiExploration.problemFull.rationale}`, { indent: 12 });
+        spacer();
+      }
+      if (aiExploration.problemFM) {
+        heading('Analyse IA du FFOM — Problème central (Faiblesses + Menaces)');
+        paragraph(aiExploration.problemFM.text);
+        if (aiExploration.problemFM.rationale) paragraph(`Justification IA : ${aiExploration.problemFM.rationale}`, { indent: 12 });
+        spacer();
+      }
+      if (aiExploration.customRuns.length > 0) {
+        heading('Analyses personnalisées');
+        aiExploration.customRuns.forEach((run) => {
+          paragraph(`Consigne : ${run.prompt}`, { bold: true });
+          paragraph(run.result, { indent: 12 });
+          spacer(2);
+        });
+      }
     }
 
     doc.save(`AFOM_${groupMeta.name || sessionId || 'session'}.pdf`);
     setExportingPDF(false);
+  };
+
+  const handleGeneratePDF = async () => {
+    await exportPDF(pdfSections);
+    setShowPdfModal(false);
+  };
+
+  const toggleAllPdfSections = (value: boolean) => {
+    setPdfSections((prev) => {
+      const next = { ...prev };
+      PDF_SECTION_ORDER.forEach((k) => { if (availableSections[k]) next[k] = value; });
+      return next;
+    });
   };
 
   // ---- Traitement des données de base ----
@@ -693,6 +779,26 @@ ${sections.join('')}
     }));
   }, [postIts]);
 
+  // Rubriques réellement disponibles pour CETTE session — n'affiche pas de case pour une
+  // rubrique dont les données n'existent pas (ex: implications/enjeux jamais générées).
+  const availableSections = useMemo<Record<PdfSectionKey, boolean>>(() => ({
+    groupe: true,
+    ffom: true,
+    indicateurs: true,
+    camembert: true,
+    histogramme: true,
+    problemeCentral: !!central.text,
+    implications: !!aiExploration.implicationsEnjeux?.implications?.length,
+    enjeux: !!aiExploration.implicationsEnjeux?.enjeux?.length,
+    analysesIA: !!(
+      (analysisData?.insights?.length) ||
+      (analysisData?.recommendations?.length) ||
+      aiExploration.problemFull ||
+      aiExploration.problemFM ||
+      aiExploration.customRuns.length
+    ),
+  }), [central.text, aiExploration, analysisData]);
+
   if (!analysisData) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -737,7 +843,7 @@ ${sections.join('')}
             <button onClick={exportWord} title="Télécharge un fichier .doc" className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
               <span className="sm:hidden">.doc</span><span className="hidden sm:inline">Exporter en Word (.doc)</span>
             </button>
-            <button onClick={exportPDF} disabled={exportingPDF} title="Télécharge directement un fichier .pdf, prêt à garder dans un dossier" className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0 disabled:opacity-50">
+            <button onClick={() => setShowPdfModal(true)} disabled={exportingPDF} title="Choisir les rubriques puis télécharger un fichier .pdf" className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0 disabled:opacity-50">
               <span className="sm:hidden">{exportingPDF ? '…' : '.pdf'}</span><span className="hidden sm:inline">{exportingPDF ? 'Génération du PDF…' : 'Télécharger le rapport PDF (.pdf)'}</span>
             </button>
           </div>
@@ -895,6 +1001,45 @@ ${sections.join('')}
 
         <RecommendationsList recommendations={analysisData.recommendations} loading={loadingAI} />
       </div>
+
+      {/* ---- Modale de sélection des rubriques avant génération du PDF ---- */}
+      {showPdfModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 no-print">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">Rubriques du rapport PDF</h2>
+              <button onClick={() => setShowPdfModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+            <div className="flex items-center gap-3 mb-3 text-xs">
+              <button onClick={() => toggleAllPdfSections(true)} className="text-indigo-600 hover:underline font-semibold">Tout sélectionner</button>
+              <button onClick={() => toggleAllPdfSections(false)} className="text-indigo-600 hover:underline font-semibold">Tout désélectionner</button>
+            </div>
+            <div className="space-y-2 mb-5">
+              {PDF_SECTION_ORDER.filter((k) => availableSections[k]).map((k) => (
+                <label key={k} className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={pdfSections[k]}
+                    onChange={(e) => setPdfSections((prev) => ({ ...prev, [k]: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                  />
+                  {PDF_SECTION_LABELS[k]}
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <button onClick={() => setShowPdfModal(false)} className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">Annuler</button>
+              <button
+                onClick={handleGeneratePDF}
+                disabled={exportingPDF || PDF_SECTION_ORDER.every((k) => !availableSections[k] || !pdfSections[k])}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {exportingPDF ? 'Génération du PDF…' : 'Générer le PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

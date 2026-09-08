@@ -108,10 +108,29 @@ function buildContextBlock(ctx?: BoardContext): string {
   if (ctx.situationActuelle)  parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
   if (ctx.symptomesObservables) parts.push(`Symptômes observables : ${ctx.symptomesObservables}`);
   if (ctx.perimetre)          parts.push(`Périmètre : ${ctx.perimetre}`);
-  if (ctx.problematique)      parts.push(`Problématique identifiée : ${ctx.problematique}`);
-  if (ctx.acteurs)            parts.push(`Acteurs : ${ctx.acteurs}`);
-  if (ctx.zone)               parts.push(`Zone / Population : ${ctx.zone}`);
-  if (ctx.enjeux)             parts.push(`Enjeux : ${ctx.enjeux}`);
+
+  if (ctx.documents && ctx.documents.length > 0) {
+    // Plusieurs documents de contexte (TDR, cahier du participant...) : chacun reste
+    // identifié séparément pour que l'IA sache d'où vient chaque élément.
+    ctx.documents.forEach((d, i) => {
+      const docParts: string[] = [];
+      if (d.problematique) docParts.push(`  Problématique : ${d.problematique}`);
+      if (d.acteurs)       docParts.push(`  Acteurs : ${d.acteurs}`);
+      if (d.zone)          docParts.push(`  Zone / Population : ${d.zone}`);
+      if (d.enjeux)        docParts.push(`  Enjeux : ${d.enjeux}`);
+      if (docParts.length > 0) {
+        parts.push(`Document ${i + 1} — ${d.name} :\n${docParts.join("\n")}`);
+      }
+    });
+  } else {
+    // Compatibilité : sessions créées avant le support multi-documents (un seul document,
+    // champs à plat).
+    if (ctx.problematique) parts.push(`Problématique identifiée : ${ctx.problematique}`);
+    if (ctx.acteurs)       parts.push(`Acteurs : ${ctx.acteurs}`);
+    if (ctx.zone)          parts.push(`Zone / Population : ${ctx.zone}`);
+    if (ctx.enjeux)        parts.push(`Enjeux : ${ctx.enjeux}`);
+  }
+
   if (parts.length === 0) return "";
   return `\n\nCONTEXTE DE LA SESSION :\n${parts.join("\n")}`;
 }

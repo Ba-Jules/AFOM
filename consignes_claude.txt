@@ -1,148 +1,65 @@
-Nous passons maintenant aux demandes IA formulées par Mouhamed après son utilisation réelle d’AFOM Ultimate lors de l’atelier.
+Nous avons maintenant le retour final de Mouhamed. Il considère AFOM achevé lorsque ces deux derniers besoins sont satisfaits.
 
-Tu n’as pas vu son message initial. Voici donc précisément ce qu’il demande.
+1 — Documents de contexte pour l'IA
 
-## CONTEXTE
+La fonction « + Ajouter le contexte » existe et ton audit a déjà démontré que le document de référence est effectivement exploité par Gemini.
 
-Les groupes ont produit leurs FFOM et l’application contient maintenant les contributions réelles dans les quatre quadrants :
+Son besoin est cependant de pouvoir fournir plusieurs documents de contexte pour un même FFOM, par exemple simultanément :
 
-* Acquis
-* Faiblesses
-* Opportunités
-* Menaces
+Termes de référence ;
+Cahier du participant ;
+éventuellement d'autres documents pertinents.
 
-Mouhamed souhaite maintenant pouvoir **exploiter ces contenus avec l’IA**, et pas seulement obtenir des statistiques ou des commentaires génériques.
+Vérifie d'abord si l'implémentation actuelle accepte réellement plusieurs documents. Si elle n'en accepte qu'un, fais évoluer proprement la fonction pour permettre plusieurs fichiers PDF/DOCX/TXT, afficher clairement la liste des documents ajoutés et permettre d'en retirer un.
 
-Il a formulé quatre besoins.
+Tous les documents doivent contribuer au contexte transmis à l'IA, en conservant l'isolation stricte par session/groupe. Préserve les limites raisonnables nécessaires pour ne pas envoyer un contexte démesuré à l'API.
 
-### 1. Problème central à partir de l’ensemble du FFOM
+Teste réellement avec au moins deux documents contenant des informations distinctives différentes, puis démontre que Gemini reçoit/exploite des informations provenant des deux.
 
-À partir de toutes les contributions du FFOM — Acquis, Faiblesses, Opportunités et Menaces — l’IA doit pouvoir proposer un **problème central synthétique** qui ressort du diagnostic.
+2 — PDF personnalisable
 
-Le résultat doit être directement exploitable par un animateur : formulation claire, concise, professionnelle et fidèle aux contributions réellement présentes.
+Avant de télécharger le rapport PDF, Mouhamed veut pouvoir choisir les éléments à inclure.
 
-L’IA ne doit pas inventer d’informations absentes du FFOM.
+Ajoute une interface simple de sélection avant génération du PDF, idéalement par cases à cocher. Elle doit reprendre les rubriques réellement disponibles dans le rapport actuel, notamment :
 
-### 2. Problème central à partir des Faiblesses et Menaces
+informations du groupe / thématique ;
+FFOM / idées retenues ;
+indicateurs ou synthèse chiffrée ;
+camembert ;
+histogramme ;
+problème central ;
+implications organisationnelles ;
+enjeux ;
+analyses IA disponibles.
 
-Mouhamed souhaite également une seconde analyse, distincte de la précédente :
+N'affiche pas artificiellement une rubrique qui n'existe pas dans les données de la session.
 
-**identifier/formuler le problème central en utilisant uniquement les Faiblesses et les Menaces du FFOM.**
+L'utilisateur coche/décoche les éléments souhaités puis génère un seul véritable PDF, composé uniquement des éléments sélectionnés.
 
-Il faut donc clairement distinguer dans l’interface :
+Prévois « Tout sélectionner / Tout désélectionner » pour que cela reste simple.
 
-* problème central issu de l’ensemble du FFOM ;
-* problème central issu uniquement de Faiblesses + Menaces.
+Contraintes
 
-Ne fusionne pas les deux analyses.
+Ne casse aucune fonction existante.
+Ne touche pas à main.
+Travaille sur feature/multigroupes.
+Préserve les données réelles.
+Test TypeScript + build.
+Recette réelle dans le navigateur.
+Vérifie particulièrement un PDF avec seulement FFOM + histogramme, puis un PDF complet.
+Vérifie l'ingestion simultanée de deux documents de contexte.
+Nettoie toutes les données de test.
+Commit, push et déploiement VPS uniquement après validation.
 
-### 3. Implications organisationnelles et enjeux
+Rapport final très court :
 
-À partir du contenu du FFOM, l’IA doit également pouvoir produire :
+Plusieurs documents de contexte : PASS/FAIL
+Les deux documents influencent réellement Gemini : PASS/FAIL
+Sélection des rubriques PDF : PASS/FAIL
+PDF partiel conforme à la sélection : PASS/FAIL
+PDF complet : PASS/FAIL
+Non-régression : PASS/FAIL
+Commit déployé
+Blocages
 
-* les **implications organisationnelles** qui ressortent du diagnostic ;
-* les **enjeux** qui ressortent du diagnostic.
-
-Ces productions doivent être structurées, lisibles et fondées exclusivement sur les données du FFOM concerné.
-
-Le but n’est pas d’obtenir du texte IA générique mais une véritable exploitation du diagnostic réalisé pendant l’atelier.
-
-### 4. Demande libre à l’IA
-
-C’est un besoin important de Mouhamed.
-
-Il veut disposer d’un **champ de consigne libre** permettant à l’animateur d’écrire lui-même ce qu’il souhaite obtenir à partir du FFOM.
-
-Exemples uniquement pour comprendre le fonctionnement :
-
-« À partir de ce FFOM, propose trois priorités d’action. »
-
-« À partir de ce FFOM, identifie les principaux risques. »
-
-« À partir de ce FFOM, prépare une synthèse destinée à la direction. »
-
-L’application transmet alors à Gemini :
-
-1. le contenu du FFOM concerné ;
-2. la consigne saisie par l’animateur.
-
-Puis elle affiche clairement le résultat.
-
-Ce mécanisme doit rester générique : **ne code pas une liste fermée de demandes possibles**.
-
-## INTÉGRATION
-
-Analyse d’abord l’architecture actuelle avant de modifier quoi que ce soit.
-
-Réutilise autant que possible le mécanisme Gemini déjà existant dans `geminiService.ts` et l’interface d’analyse actuelle.
-
-Conserve impérativement :
-
-* la compatibilité avec les données existantes ;
-* le fonctionnement des groupes et ateliers ;
-* la collecte ;
-* la consolidation ;
-* la matrice ;
-* les rapports et exports ;
-* Archives et Corbeille ;
-* le fallback actuel lorsque `VITE_GEMINI_API_KEY` est absente.
-
-Ne touche pas à `main`. Travaille uniquement sur `feature/multigroupes`.
-
-Si `geminiService.ts` impose actuellement `responseMimeType: "application/json"` et un schéma structuré, conserve cette architecture proprement.
-
-## UX ATTENDUE
-
-L’animateur doit comprendre immédiatement ce qu’il peut demander.
-
-Regroupe ces fonctions dans une zone clairement identifiable d’**Analyse IA du FFOM**, avec quatre possibilités compréhensibles :
-
-* Problème central — FFOM complet
-* Problème central — Faiblesses + Menaces
-* Implications organisationnelles et enjeux
-* Analyse personnalisée
-
-Pour l’analyse personnalisée : champ de saisie + bouton explicite de génération + résultat affiché proprement.
-
-Évite une accumulation de boutons ou une interface technique.
-
-Les résultats IA doivent pouvoir être lus et utilisés pendant ou après l’atelier.
-
-## GARDE-FOUS
-
-L’IA doit travailler sur le **FFOM effectivement sélectionné** et ses contributions réelles.
-
-Elle ne doit jamais mélanger silencieusement les données de plusieurs groupes ou sessions.
-
-Dans chaque appel, vérifie précisément quelles contributions sont envoyées à Gemini.
-
-Si aucune donnée suffisante n’existe, afficher un message compréhensible plutôt que produire artificiellement une réponse.
-
-Ne modifie ni ne supprime automatiquement les contributions originales : les productions IA sont une analyse des données, pas une réécriture de la collecte.
-
-## VALIDATION
-
-Après développement :
-
-1. `npm run build`
-2. tests TypeScript
-3. teste les quatre fonctions IA avec un FFOM de test comportant réellement A/F/O/M ;
-4. vérifie spécifiquement que l’analyse « Faiblesses + Menaces » n’envoie réellement que F+M à Gemini ;
-5. vérifie que la demande personnalisée utilise bien la consigne saisie ;
-6. vérifie qu’aucune donnée d’un autre groupe/session n’est injectée ;
-7. vérifie le comportement sans clé Gemini ;
-8. vérifie qu’aucune fonction existante n’a régressé.
-
-Ensuite seulement : commit, push sur `feature/multigroupes`, déploiement VPS et vérification réelle de la version déployée.
-
-À la fin, rends-moi un rapport court :
-
-* Problème central FFOM complet : PASS/FAIL
-* Problème central F+M : PASS/FAIL
-* Implications organisationnelles : PASS/FAIL
-* Enjeux : PASS/FAIL
-* Demande IA personnalisée : PASS/FAIL
-* Isolation des données par FFOM/session : PASS/FAIL
-* Fallback sans Gemini : PASS/FAIL
-* Commit déployé
-* Blocages éventuels
+Ne développe aucune autre fonctionnalité. Ces deux points constituent le périmètre de clôture demandé par Mouhamed.
