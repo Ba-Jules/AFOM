@@ -21,6 +21,7 @@ import UserBadge from "./UserBadge";
 
 import { PostIt, QuadrantKey, BoardMeta, AppUser } from "../types";
 import { QUADRANTS } from "../constants";
+import { PreferenceControls, quadrantSubtitle, quadrantTitle, usePreferences } from "../i18n";
 
 /* Palette minimale pour Quadrant */
 const PALETTE: Record<
@@ -66,6 +67,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
   groupId,
   user,
 }) => {
+  const { t, lang } = usePreferences();
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   const [expanded, setExpanded] = useState<QuadrantKey | null>(null);
 
@@ -155,13 +157,13 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
   };
 
   const clearSession = async () => {
-    if (!confirm("Supprimer tous les post-its de cette session ?")) return;
+    if (!confirm(t("workInterface.clearSessionConfirm"))) return;
     const q = query(collection(db, "postits"), where("sessionId", "==", sessionId));
     const snap = await getDocs(q);
     const batch = writeBatch(db);
     snap.docs.forEach((d) => batch.delete(d.ref));
     await batch.commit();
-    alert("Session vidée.");
+    alert(t("workInterface.clearSessionDone"));
   };
 
   const addPostIt = async (quadrant: QuadrantKey) => {
@@ -188,11 +190,12 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
               🚀
             </span>
             <div className="leading-tight hidden xs:block sm:block">
-              <div className="text-sm font-semibold text-gray-700">AFOM Ultimate</div>
-              <div className="text-[11px] text-gray-600 hidden sm:block">Interface de Travail</div>
+              <div className="text-sm font-semibold text-gray-700">{t("workInterface.appName")}</div>
+              <div className="text-[11px] text-gray-600 hidden sm:block">{t("workInterface.tagline")}</div>
             </div>
           </div>
 
+          <PreferenceControls className="hidden sm:inline-flex" />
           <UserBadge user={user} className="hidden sm:flex text-gray-600 flex-shrink-0" />
 
           {/* Nav — scrollable horizontalement sur mobile */}
@@ -200,39 +203,39 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             className="flex items-center gap-1 sm:gap-2 overflow-x-auto flex-1 justify-end"
             style={{ scrollbarWidth: "none" }}
           >
-            {workshopId && <button className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-indigo-700 text-white font-medium whitespace-nowrap" onClick={() => window.location.href = `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`}>Atelier</button>}
+            {workshopId && <button className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-indigo-700 text-white font-medium whitespace-nowrap" onClick={() => window.location.href = `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`}>{t("workInterface.workshopNav")}</button>}
             <button
               className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => goto("analysis")}
             >
-              Analyse
+              {t("workInterface.analysisNav")}
             </button>
             <button
               className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => goto("matrix")}
             >
-              Matrice
+              {t("workInterface.matrixNav")}
             </button>
             <button
               className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => setShowQR(true)}
             >
-              <span className="sm:hidden">QR</span>
-              <span className="hidden sm:inline">QR Code</span>
+              <span className="sm:hidden">{t("workInterface.qrCodeShort")}</span>
+              <span className="hidden sm:inline">{t("workInterface.qrCodeNav")}</span>
             </button>
             <button
               className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50"
               onClick={clearSession}
             >
-              <span className="sm:hidden">🗑</span>
-              <span className="hidden sm:inline">Supprimer</span>
+              <span className="sm:hidden">{t("workInterface.deleteShort")}</span>
+              <span className="hidden sm:inline">{t("workInterface.deleteNav")}</span>
             </button>
             <button
               className="px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm bg-white shadow-sm border font-medium whitespace-nowrap flex-shrink-0"
               onClick={() => goto("presentation")}
             >
-              <span className="sm:hidden">🏠</span>
-              <span className="hidden sm:inline">Présentation</span>
+              <span className="sm:hidden">{t("workInterface.homeShort")}</span>
+              <span className="hidden sm:inline">{t("workInterface.homeNav")}</span>
             </button>
           </nav>
         </div>
@@ -244,11 +247,11 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         <div className="rounded-lg border bg-white shadow-sm px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-1">
             <div className="text-[15px] md:text-lg">
-              <span className="font-extrabold text-gray-800">Projet :</span>{" "}
+              <span className="font-extrabold text-gray-800">{t("workInterface.projectLabel")}</span>{" "}
               <span className="font-semibold text-gray-700">{meta?.projectName || "—"}</span>
             </div>
             <div className="text-[15px] md:text-lg">
-              <span className="font-extrabold text-gray-800">Thème :</span>{" "}
+              <span className="font-extrabold text-gray-800">{t("workInterface.themeLabel")}</span>{" "}
               <span className="font-semibold text-gray-700">{meta?.themeName || "—"}</span>
             </div>
             <div className="ml-auto">
@@ -256,7 +259,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 className="text-sm px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50"
                 onClick={() => { setMetaModalTouched(false); setShowMetaModal(true); }}
               >
-                Modifier
+                {t("workInterface.edit")}
               </button>
             </div>
           </div>
@@ -280,7 +283,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 <div className="text-sm font-semibold text-gray-600 uppercase tracking-wide" />
                 <div className="flex items-center gap-2">
                   <button
-                    title="Créer une étiquette"
+                    title={t("workInterface.createLabelTitle")}
                     onClick={() => addPostIt(key)}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-white hover:bg-gray-50 shadow text-base font-bold"
                   >
@@ -291,8 +294,8 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
 
               <Quadrant
                 info={{
-                  title: info.title,
-                  subtitle: info.subtitle,
+                  title: quadrantTitle(lang, key),
+                  subtitle: quadrantSubtitle(lang, key),
                   textColor: info.textColor,
                   borderColor: info.borderColor,
                   bgColor: info.bgColor,
@@ -315,7 +318,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
       {/* Bouton flottant QR */}
       <button
         onClick={() => setShowQR(true)}
-        title="Afficher le QR code participant"
+        title={t("workInterface.qrFabTitle")}
         className="fixed bottom-6 right-6 z-[90] h-12 w-12 rounded-full shadow-lg border bg-white hover:bg-gray-50 text-[18px] font-bold"
         aria-label="QR code"
       >
@@ -339,7 +342,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
         <div className="fixed inset-0 bg-black/30 z-[80] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h4 className="font-bold">Définir Projet & Thème</h4>
+              <h4 className="font-bold">{t("workInterface.defineTitle")}</h4>
               <button
                 onClick={() => setShowMetaModal(false)}
                 className="w-8 h-8 rounded-md border hover:bg-gray-100"
@@ -351,30 +354,30 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             <div className="p-4 space-y-3">
               <div>
                 <label className="text-sm font-semibold text-gray-600">
-                  Nom du projet
+                  {t("workInterface.projectNameLabel")}
                 </label>
                 <input
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                   className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                  placeholder="Ex : Transformation 2025"
+                  placeholder={t("workInterface.projectNamePlaceholder")}
                 />
                 {metaModalTouched && !projectName.trim() && (
-                  <p className="mt-1 text-xs text-red-600">Indiquez un projet pour continuer.</p>
+                  <p className="mt-1 text-xs text-red-600">{t("workInterface.projectRequired")}</p>
                 )}
               </div>
               <div>
                 <label className="text-sm font-semibold text-gray-600">
-                  Thème de la session
+                  {t("workInterface.sessionThemeLabel")}
                 </label>
                 <input
                   value={themeName}
                   onChange={(e) => setThemeName(e.target.value)}
                   className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                  placeholder="Ex : Offre digitale PME"
+                  placeholder={t("workInterface.themePlaceholder")}
                 />
                 {metaModalTouched && !themeName.trim() && (
-                  <p className="mt-1 text-xs text-red-600">Indiquez un thème pour continuer.</p>
+                  <p className="mt-1 text-xs text-red-600">{t("workInterface.themeRequired")}</p>
                 )}
               </div>
             </div>
@@ -384,7 +387,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 onClick={() => setShowMetaModal(false)}
                 className="px-4 py-2 rounded-md border hover:bg-gray-50"
               >
-                Annuler
+                {t("common.cancel")}
               </button>
               <button
                 onClick={async () => {
@@ -408,7 +411,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                     setShowMetaModal(false);
                   } catch (e) {
                     console.error(e);
-                    alert("Impossible d’enregistrer le Projet/Thème.");
+                    alert(t("workInterface.saveMetaFailed"));
                   } finally {
                     setSavingModalMeta(false);
                   }
@@ -416,7 +419,7 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
                 disabled={savingModalMeta}
                 className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {savingModalMeta ? "Enregistrement…" : "Enregistrer"}
+                {savingModalMeta ? t("common.saving") : t("common.save")}
               </button>
             </div>
           </div>

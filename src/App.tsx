@@ -7,6 +7,7 @@ import MatrixMode from "./components/MatrixMode";
 import WorkshopDashboard from "./components/WorkshopDashboard";
 import ConsolidatedAFOM from "./components/ConsolidatedAFOM";
 import LoginScreen from "./components/LoginScreen";
+import { usePreferences } from "./i18n";
 
 // 🔥 on récupère les Post-its ici pour les passer à AnalysisMode
 import { collection, onSnapshot, query, where } from "firebase/firestore";
@@ -19,6 +20,7 @@ type View = "presentation" | "work" | "participant" | "analysis" | "matrix" | "w
 const PROTECTED_VIEWS: View[] = ["work", "analysis", "matrix", "workshop", "consolidation"];
 
 const App: React.FC = () => {
+  const { t } = usePreferences();
   const [view, setView] = useState<View>("presentation");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [workshopId, setWorkshopId] = useState<string | null>(null);
@@ -127,7 +129,7 @@ const App: React.FC = () => {
   // Protection des écrans de gestion : une URL directe ne doit pas contourner la connexion
   if (PROTECTED_VIEWS.includes(view)) {
     if (authLoading) {
-      return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">Chargement…</div>;
+      return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">{t("common.loading")}</div>;
     }
     if (!appUser) {
       return <LoginScreen onCancel={handleBackToPresentation} />;
@@ -161,7 +163,7 @@ const App: React.FC = () => {
           />
         </div>
       ) : (
-        <div>Loading…</div>
+        <div>{t("common.loading")}</div>
       );
 
     case "analysis":
@@ -177,7 +179,7 @@ const App: React.FC = () => {
           <MatrixMode sessionId={sessionId} onBack={() => setView("work")} />
         </div>
       ) : (
-        <div>Loading…</div>
+        <div>{t("common.loading")}</div>
       );
 
     case "participant":
@@ -186,14 +188,14 @@ const App: React.FC = () => {
           <ParticipantInterface sessionId={sessionId} workshopId={workshopId || undefined} groupId={groupId || undefined} />
         </div>
       ) : (
-        <div>Invalid session ID.</div>
+        <div>{t("common.invalidSession")}</div>
       );
 
     case "workshop":
       return <WorkshopDashboard workshopId={workshopId || undefined} onOpenSession={openGroup} onSelectWorkshop={selectWorkshop} onConsolidate={(id) => { setWorkshopId(id); window.history.replaceState({}, "", `${window.location.pathname}?v=consolidation&workshop=${encodeURIComponent(id)}`); setView("consolidation"); }} onBack={handleBackToPresentation} user={appUser!} />;
 
     case "consolidation":
-      return workshopId ? <ConsolidatedAFOM workshopId={workshopId} onBack={() => { window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`); setView("workshop"); }} user={appUser!} /> : <div>Atelier introuvable.</div>;
+      return workshopId ? <ConsolidatedAFOM workshopId={workshopId} onBack={() => { window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`); setView("workshop"); }} user={appUser!} /> : <div>{t("common.workshopNotFound")}</div>;
   }
 };
 

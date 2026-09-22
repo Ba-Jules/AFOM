@@ -12,19 +12,20 @@ import { BoardMeta, BoardContext, ContextDocument } from "../types";
 import { extractContextFromDocument } from "../services/geminiService";
 import AIConfigPanel from "./AIConfigPanel";
 import { useAIConfig } from "../hooks/useAIConfig";
+import { PreferenceControls, translate, translateList, usePreferences, type Lang } from "../i18n";
 
 // Limite raisonnable pour ne pas envoyer un contexte démesuré à l'API IA.
 const MAX_CONTEXT_DOCUMENTS = 5;
 
 /** Extrait le texte brut d'un fichier TXT, PDF ou DOCX (côté navigateur) */
-async function extractTextFromFile(file: File): Promise<string> {
+async function extractTextFromFile(file: File, lang: Lang): Promise<string> {
   const ext = (file.name.split(".").pop() ?? "").toLowerCase();
 
   if (ext === "txt") {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error("Lecture échouée"));
+      reader.onerror = () => reject(new Error(translate(lang, "presentation.readFailed")));
       reader.readAsText(file, "UTF-8");
     });
   }
@@ -53,7 +54,7 @@ async function extractTextFromFile(file: File): Promise<string> {
     return result.value as string;
   }
 
-  throw new Error(`Format ".${ext}" non supporté. Utilisez TXT, PDF ou DOCX.`);
+  throw new Error(translate(lang, "presentation.unsupportedFormat", { ext }));
 }
 
 type Slide = { id: string; render: () => React.ReactNode };
@@ -136,7 +137,9 @@ function Pill({ sign }: { sign: "+" | "-" }) {
 
 /* ------------ Slide “logique des deux axes” ------------------ */
 
-function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
+function MatrixSlide({ topReserve = 0, lang }: { topReserve?: number; lang: Lang }) {
+  const t = (key: string, vars?: Record<string, string | number>) => translate(lang, key, vars);
+  const list = (key: string) => translateList(lang, key);
   return (
     <FitToScreen topReserve={topReserve}>
       <div
@@ -145,30 +148,30 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
       >
         {/* Titre */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[-1px] text-white text-[48px] font-extrabold tracking-tight whitespace-nowrap">
-          Composantes de l'outil AFOM
+          {t("presentation.componentsTitle")}
         </div>
 
         {/* Interne / Externe */}
         <div className="absolute top-[70px] left-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
-            Interne
+            {t("presentation.internal")}
           </div>
         </div>
         <div className="absolute top-[70px] right-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
-            Externe
+            {t("presentation.external")}
           </div>
         </div>
 
         {/* vision rétrospective / vision prospective */}
         <div className="absolute top-[110px] left-[200px]">
           <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
-            vision rétrospective
+            {t("presentation.retrospective")}
           </div>
         </div>
         <div className="absolute top-[110px] right-[200px]">
           <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
-            vision prospective
+            {t("presentation.prospective")}
           </div>
         </div>
 
@@ -183,7 +186,7 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
         {/* Axe du jugement (vertical) */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[302px] -rotate-90 z-10">
           <div className="text-white font-black text-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Axe du jugement
+            {t("presentation.judgmentAxis")}
           </div>
         </div>
 
@@ -191,17 +194,17 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
         <div className="absolute left-[64px] right-[64px] top-[420px] h-[48px] bg-[#ffea00] border-6 border-black rounded-md" />
         <div className="absolute left-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Passé
+            {t("presentation.past")}
           </div>
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-lg bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Axe du temps
+            {t("presentation.timeAxis")}
           </div>
         </div>
         <div className="absolute right-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Futur
+            {t("presentation.future")}
           </div>
         </div>
 
@@ -210,15 +213,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* A - Acquis */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">A pour Acquis</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.aAcquis")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Passé • Positif • Interne
+                {t("presentation.aAcquisSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Forces / Succès</li>
-                <li>• Réalisations désirées</li>
-                <li>• Aspects positifs</li>
-                <li>• Ce qu'on a aimé</li>
+                {list("presentation.aAcquisItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -226,15 +226,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* O - Opportunités */}
           <div className="relative border-[6px] border-[#004d40] bg-[#2ec4b6] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">O pour Opportunités</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.oOpportunites")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Futur • Positif • Externe
+                {t("presentation.oOpportunitesSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Potentialités</li>
-                <li>• Ressources exploitables</li>
-                <li>• Atouts</li>
-                <li>• Ce qu'on peut valoriser</li>
+                {list("presentation.oOpportunitesItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -242,15 +239,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* F - Faiblesses */}
           <div className="relative border-[6px] border-[#b71c1c] bg-[#ef5350] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">F pour Faiblesses</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.fFaiblesses")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Passé • Négatif • Interne
+                {t("presentation.fFaiblessesSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Échecs</li>
-                <li>• Aspects négatifs</li>
-                <li>• Problèmes rencontrés</li>
-                <li>• Ce qu'on n'a pas aimé</li>
+                {list("presentation.fFaiblessesItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -258,15 +252,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* M - Menaces */}
           <div className="relative border-[6px] border-[#e65100] bg-[#ff8a65] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">M pour Menaces</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.mMenaces")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Futur • Négatif • Externe
+                {t("presentation.mMenacesSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Risques</li>
-                <li>• Obstacles</li>
-                <li>• Craintes</li>
-                <li>• Suppositions pouvant influencer négativement</li>
+                {list("presentation.mMenacesItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -284,6 +275,7 @@ const PresentationMode: React.FC<Props> = ({
   initialSessionId,
   onBackToWork,
 }) => {
+  const { t, lang } = usePreferences();
   const [sessionId, setSessionId] = useState<string>(initialSessionId || "");
   useEffect(() => {
     if (initialSessionId) setSessionId(initialSessionId);
@@ -356,20 +348,20 @@ const PresentationMode: React.FC<Props> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     if (docs.length >= MAX_CONTEXT_DOCUMENTS) {
-      alert(`Maximum ${MAX_CONTEXT_DOCUMENTS} documents de contexte par session.`);
+      alert(t('presentation.maxDocuments', { max: MAX_CONTEXT_DOCUMENTS }));
       e.target.value = "";
       return;
     }
     setExtractingDoc(true);
     try {
-      const rawText = await extractTextFromFile(file);
-      if (!rawText.trim()) { alert("Impossible d’extraire le texte du document."); return; }
+      const rawText = await extractTextFromFile(file, lang);
+      if (!rawText.trim()) { alert(t('presentation.extractFailed')); return; }
       // Tronquer à 8000 caractères max — jamais le document brut en analyse finale
       const truncated = rawText.slice(0, 8000);
       const extracted = await extractContextFromDocument(truncated);
       setDocs((prev) => [...prev, { name: file.name, ...extracted }]);
     } catch (err: any) {
-      alert(err?.message || "Erreur lors de l’extraction du document.");
+      alert(err?.message || t('presentation.extractError'));
     } finally {
       setExtractingDoc(false);
       e.target.value = "";
@@ -405,9 +397,9 @@ const PresentationMode: React.FC<Props> = ({
     } catch (e: any) {
       console.error(e);
       if (e?.code === "permission-denied") {
-        alert("Connectez-vous en tant que modérateur (via « Préparer l’atelier ») pour enregistrer ces informations.");
+        alert(t('presentation.saveNeedsModerator'));
       } else {
-        alert("Impossible d’enregistrer.");
+        alert(t('presentation.saveFailed'));
       }
     } finally {
       setSavingMeta(false);
@@ -434,8 +426,9 @@ const PresentationMode: React.FC<Props> = ({
                 <h1 className="text-6xl md:text-7xl font-black bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent leading-tight drop-shadow">
                   AFOM
                 </h1>
+                <div className="absolute top-4 right-4 z-20"><PreferenceControls /></div>
                 <p className="mt-6 text-2xl text-white/90 max-w-3xl font-semibold">
-                  Outil de diagnostic rapide pouvant conduire à des décisions éclairées
+                  {t('presentation.heroTagline')}
                 </p>
 
                 {/* Bouton vidéo de présentation */}
@@ -449,7 +442,7 @@ const PresentationMode: React.FC<Props> = ({
                         <polygon points="5 3 19 12 5 21 5 3" />
                       </svg>
                     </div>
-                    Voir la vidéo de présentation AFOM
+                    {t('presentation.watchVideo')}
                     <svg viewBox="0 0 24 24" className="w-4 h-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all fill-none stroke-current" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
                     </svg>
@@ -461,30 +454,30 @@ const PresentationMode: React.FC<Props> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-gray-700">
-                        Projet
+                        {t('presentation.projectLabel')}
                       </label>
                       <input
                         value={projectName}
                         onChange={(e) => setProjectName(e.target.value)}
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                        placeholder="Ex : Transformation 2025"
+                        placeholder={t('presentation.projectPlaceholder')}
                       />
                       {metaTouched && !projectName.trim() && (
-                        <p className="mt-1 text-xs text-red-600">Indiquez un projet pour continuer.</p>
+                        <p className="mt-1 text-xs text-red-600">{t('presentation.projectRequired')}</p>
                       )}
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-700">
-                        Thème
+                        {t('presentation.themeLabel')}
                       </label>
                       <input
                         value={themeName}
                         onChange={(e) => setThemeName(e.target.value)}
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                        placeholder="Ex : Offre digitale PME"
+                        placeholder={t('presentation.themePlaceholder')}
                       />
                       {metaTouched && !themeName.trim() && (
-                        <p className="mt-1 text-xs text-red-600">Indiquez un thème pour continuer.</p>
+                        <p className="mt-1 text-xs text-red-600">{t('presentation.themeRequired')}</p>
                       )}
                     </div>
                   </div>
@@ -498,17 +491,17 @@ const PresentationMode: React.FC<Props> = ({
                       }`}
                     >
                       {(elementsContexte || perimetre || docs.length > 0)
-                        ? "Contexte ✓"
-                        : "+ Ajouter contexte et documents"}
+                        ? t('presentation.contextDone')
+                        : t('presentation.addContext')}
                     </button>
                     <div className="flex items-center gap-2">
-                      {metaSaved && <span className="text-xs font-semibold text-emerald-600">✓ Enregistré</span>}
+                      {metaSaved && <span className="text-xs font-semibold text-emerald-600">{t('presentation.savedIndicator')}</span>}
                       <button
                         onClick={saveMeta}
                         disabled={savingMeta}
                         className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                       >
-                        {savingMeta ? "Enregistrement…" : "Enregistrer"}
+                        {savingMeta ? t('presentation.saving') : t('presentation.save')}
                       </button>
                     </div>
                   </div>
@@ -520,7 +513,7 @@ const PresentationMode: React.FC<Props> = ({
       },
       {
         id: "framework",
-        render: () => <MatrixSlide topReserve={0} />,
+        render: () => <MatrixSlide topReserve={0} lang={lang} />,
       },
       {
         id: "launch",
@@ -528,24 +521,25 @@ const PresentationMode: React.FC<Props> = ({
           <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-indigo-50 flex items-start justify-center px-4 pt-6 pb-28">
             <div className="w-full max-w-3xl space-y-5">
 
+              <div className="flex justify-end"><PreferenceControls /></div>
               {/* ── CTA principal ── */}
               <div className="rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-8 text-center shadow-xl">
-                <h2 className="text-2xl font-black mb-2">Préparer votre atelier AFOM</h2>
+                <h2 className="text-2xl font-black mb-2">{t('presentation.prepareWorkshopTitle')}</h2>
                 <p className="text-indigo-100 mb-6 max-w-md mx-auto">
-                  Donnez un titre à l'atelier et organisez les participants selon vos besoins.
+                  {t('presentation.prepareWorkshopBody')}
                 </p>
                 <button
                   onClick={onPrepareWorkshop}
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-indigo-700 font-black text-lg shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
                 >
-                  Préparer l'atelier →
+                  {t('presentation.prepareWorkshopCta')}
                 </button>
               </div>
 
               {/* ── Options avancées (repliées) ── */}
               <details className="group rounded-2xl border border-gray-200 bg-white/70">
                 <summary className="cursor-pointer select-none list-none px-5 py-3 text-sm font-semibold text-gray-500 flex items-center justify-between">
-                  Options avancées
+                  {t('presentation.advancedOptions')}
                   <span className="text-gray-400 transition-transform group-open:rotate-180">⌄</span>
                 </summary>
                 <div className="px-5 pb-5 space-y-5">
@@ -555,14 +549,14 @@ const PresentationMode: React.FC<Props> = ({
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-base">🤖</span>
                       <p className="text-sm font-bold text-gray-700">
-                        Assistance IA <span className="font-normal text-gray-400">(optionnelle)</span>
+                        {t('presentation.aiAssistance')} <span className="font-normal text-gray-400">{t('presentation.optional')}</span>
                       </p>
                       {aiConfigured ? (
                         <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Prête
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {t('presentation.ready')}
                         </span>
                       ) : (
-                        <span className="ml-auto text-[11px] text-gray-400">Non configurée</span>
+                        <span className="ml-auto text-[11px] text-gray-400">{t('presentation.notConfigured')}</span>
                       )}
                     </div>
                     <AIConfigPanel onConfigured={(next) => setAiConfigured(!!next?.configured)} />
@@ -570,9 +564,9 @@ const PresentationMode: React.FC<Props> = ({
 
                   {/* Accès direct par lien (rétrocompatibilité session seule) */}
                   <div className="rounded-xl border border-gray-200 bg-white p-4">
-                    <h4 className="text-sm font-bold text-gray-700 mb-1">Accès direct par lien</h4>
+                    <h4 className="text-sm font-bold text-gray-700 mb-1">{t('presentation.directLinkTitle')}</h4>
                     <p className="text-xs text-gray-400 mb-3">
-                      Pour rouvrir une session existante sans passer par un atelier.
+                      {t('presentation.directLinkBody')}
                     </p>
                     <div className="flex items-start gap-4 mb-4">
                       <div className="shrink-0 p-2 rounded-lg bg-gray-50 border">
@@ -582,28 +576,28 @@ const PresentationMode: React.FC<Props> = ({
                         {(participantUrl.includes("localhost") || participantUrl.includes("127.0.0.1")) && (
                           <div className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-700">
                             <span className="shrink-0 font-bold">⚠</span>
-                            <span>URL locale — les participants doivent être sur le même réseau.</span>
+                            <span>{t('presentation.localUrlWarning')}</span>
                           </div>
                         )}
                         <p className="break-all font-mono text-gray-400 text-[10px]">{participantUrl}</p>
                         <button
                           onClick={async () => {
                             await navigator.clipboard.writeText(participantUrl);
-                            alert("Lien copié !");
+                            alert(t('presentation.linkCopied'));
                           }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors text-xs font-medium"
                         >
-                          📋 Copier le lien
+                          {t('presentation.copyLink')}
                         </button>
                       </div>
                     </div>
                     <label className="block">
-                      <span className="block text-xs font-medium text-gray-700">ID de session</span>
+                      <span className="block text-xs font-medium text-gray-700">{t('presentation.sessionIdLabel')}</span>
                       <input
                         value={sessionId}
                         onChange={(e) => setSessionId(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
-                        placeholder="SESSION-2025-XXX"
+                        placeholder={t('presentation.sessionIdPlaceholder')}
                       />
                     </label>
                     <div className="flex gap-2 mt-3">
@@ -611,7 +605,7 @@ const PresentationMode: React.FC<Props> = ({
                         onClick={() => onLaunchSession(sessionId || "")}
                         className="flex-1 inline-flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold transition-colors"
                       >
-                        Ouvrir cette session
+                        {t('presentation.openSession')}
                       </button>
                       <button
                         onClick={() => {
@@ -623,7 +617,7 @@ const PresentationMode: React.FC<Props> = ({
                           setSessionId(ns);
                         }}
                         className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 text-sm font-medium transition"
-                        title="Générer un nouvel ID"
+                        title={t('presentation.newSessionId')}
                       >
                         🔄
                       </button>
@@ -637,7 +631,7 @@ const PresentationMode: React.FC<Props> = ({
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, elementsContexte, perimetre, docs, setShowContextModal, aiConfigured, setAiConfigured]
+    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, elementsContexte, perimetre, docs, setShowContextModal, aiConfigured, setAiConfigured, lang]
   );
 
   /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
@@ -686,7 +680,7 @@ const PresentationMode: React.FC<Props> = ({
           onClick={onBackToWork}
           className="fixed top-4 left-4 z-[70] inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold shadow-lg hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
         >
-          ← Retour à l'atelier en cours
+          {t('presentation.backToWork')}
         </button>
       )}
       {current.render()}
@@ -696,7 +690,7 @@ const PresentationMode: React.FC<Props> = ({
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-gray-900">Contexte de la session</h2>
+              <h2 className="text-lg font-bold text-gray-900">{t('presentation.contextModalTitle')}</h2>
               <button
                 onClick={() => setShowContextModal(false)}
                 className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
@@ -708,36 +702,36 @@ const PresentationMode: React.FC<Props> = ({
             {/* Éléments de contexte (optionnel) */}
             <div className="mb-4">
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Éléments de contexte
-                <span className="text-xs font-normal text-gray-500 ml-1">(optionnel)</span>
+                {t('presentation.contextElementsLabel')}
+                <span className="text-xs font-normal text-gray-500 ml-1">{t('presentation.optionalTag')}</span>
               </label>
               <textarea
                 value={elementsContexte}
                 onChange={(e) => setElementsContexte(e.target.value)}
                 rows={3}
                 className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                placeholder="Ex : Le programme est en phase d'exécution depuis 2 ans, résultats en deçà des objectifs, faible taux de participation, budget non consommé..."
+                placeholder={t('presentation.contextElementsPlaceholder')}
               />
             </div>
 
             {/* Périmètre */}
             <div className="mb-5">
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Périmètre (zone / population concernée)
+                {t('presentation.perimeterLabel')}
               </label>
               <input
                 value={perimetre}
                 onChange={(e) => setPerimetre(e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
-                placeholder="Ex : Région Nord, 12 communes, 50 000 bénéficiaires"
+                placeholder={t('presentation.perimeterPlaceholder')}
               />
             </div>
 
             {/* Upload documents (plusieurs possibles) */}
             <div className="mb-4 border-t pt-5">
-              <h3 className="text-sm font-semibold text-gray-700">Documents pour l'analyse IA</h3>
+              <h3 className="text-sm font-semibold text-gray-700">{t('presentation.documentsTitle')}</h3>
               <p className="text-xs text-gray-500 mt-1 mb-2">
-                Joignez ici les documents utiles à l'IA pour affiner ses analyses : termes de référence, cahier du participant, rapports, etc. ({docs.length}/{MAX_CONTEXT_DOCUMENTS} — PDF, DOCX, TXT)
+                {t('presentation.documentsBody', { n: docs.length, max: MAX_CONTEXT_DOCUMENTS })}
               </p>
               <div className="flex items-center gap-3">
                 <label
@@ -747,7 +741,7 @@ const PresentationMode: React.FC<Props> = ({
                       : "bg-gray-50 hover:bg-gray-100"
                   }`}
                 >
-                  {extractingDoc ? "Extraction en cours…" : "Ajouter des documents"}
+                  {extractingDoc ? t('presentation.extracting') : t('presentation.addDocuments')}
                   <input
                     type="file"
                     accept=".pdf,.docx,.txt"
@@ -758,12 +752,12 @@ const PresentationMode: React.FC<Props> = ({
                 </label>
                 {extractingDoc && (
                   <span className="text-xs text-indigo-600 animate-pulse">
-                    L'IA analyse le document…
+                    {t('presentation.aiAnalyzing')}
                   </span>
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Seuls les éléments extraits de chaque document (problématique, acteurs, zone, enjeux) seront utilisés par l'IA — jamais le document brut.
+                {t('presentation.extractedNote')}
               </p>
             </div>
 
@@ -781,12 +775,12 @@ const PresentationMode: React.FC<Props> = ({
                         onClick={() => removeDoc(i)}
                         className="text-xs text-red-600 hover:text-red-800 font-medium flex-shrink-0"
                       >
-                        Retirer
+                        {t('presentation.remove')}
                       </button>
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <label className="text-xs font-semibold text-indigo-700">Problématique</label>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.problematiqueLabel')}</label>
                         <textarea
                           value={doc.problematique}
                           onChange={(e) => updateDoc(i, { problematique: e.target.value })}
@@ -795,7 +789,7 @@ const PresentationMode: React.FC<Props> = ({
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-indigo-700">Acteurs</label>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.acteursLabel')}</label>
                         <input
                           value={doc.acteurs}
                           onChange={(e) => updateDoc(i, { acteurs: e.target.value })}
@@ -803,7 +797,7 @@ const PresentationMode: React.FC<Props> = ({
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-indigo-700">Zone / Population</label>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.zoneLabel')}</label>
                         <input
                           value={doc.zone}
                           onChange={(e) => updateDoc(i, { zone: e.target.value })}
@@ -811,7 +805,7 @@ const PresentationMode: React.FC<Props> = ({
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-indigo-700">Enjeux</label>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.enjeuxLabel')}</label>
                         <textarea
                           value={doc.enjeux}
                           onChange={(e) => updateDoc(i, { enjeux: e.target.value })}
@@ -830,14 +824,14 @@ const PresentationMode: React.FC<Props> = ({
                 onClick={() => setShowContextModal(false)}
                 className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50"
               >
-                Annuler
+                {t('common.cancel')}
               </button>
               <button
                 onClick={saveMeta}
                 disabled={savingMeta}
                 className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50"
               >
-                {savingMeta ? "Enregistrement…" : "Enregistrer"}
+                {savingMeta ? t('presentation.saving') : t('presentation.save')}
               </button>
             </div>
           </div>
@@ -855,7 +849,7 @@ const PresentationMode: React.FC<Props> = ({
               type="button"
               className="absolute top-4 right-4 z-[60] p-2 bg-white/90 rounded-full hover:bg-gray-100 shadow-sm transition"
               onClick={() => setShowVideo(false)}
-              aria-label="Fermer la vidéo"
+              aria-label={t('presentation.closeVideo')}
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-600 fill-none stroke-current" strokeWidth={2} strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -869,7 +863,7 @@ const PresentationMode: React.FC<Props> = ({
               </div>
               <div className="mt-3 text-sm text-gray-500 text-center">
                 <a href={videoUrl} target="_blank" rel="noreferrer" className="underline hover:text-gray-700">
-                  Ouvrir dans un nouvel onglet
+                  {t('presentation.openInNewTab')}
                 </a>
               </div>
             </div>
@@ -888,7 +882,7 @@ const PresentationMode: React.FC<Props> = ({
               disabled={index === 0}
               style={{ visibility: index === 0 ? "hidden" : "visible" }}
             >
-              ← Précédent
+              {t('presentation.prev')}
             </button>
 
             <div className="flex items-center">
@@ -905,7 +899,7 @@ const PresentationMode: React.FC<Props> = ({
                 disabled={index === slides.length - 1}
                 style={{ visibility: index === slides.length - 1 ? "hidden" : "visible" }}
               >
-                Suivant →
+                {t('presentation.next')}
               </button>
             </div>
           </div>

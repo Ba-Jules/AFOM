@@ -18,6 +18,7 @@ import {
   BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts';
 import { QUADRANT_INFO, QUADRANT_ORDER, PRIORITY_STYLES } from '../constants';
+import { PreferenceControls, analysisExportText, quadrantTitle, translate, usePreferences, type Lang } from '../i18n';
 import { doc as fsDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { BoardMeta, BoardContext } from '../types';
@@ -52,23 +53,25 @@ type PdfSectionKey =
   | 'groupe' | 'ffom' | 'indicateurs' | 'camembert' | 'histogramme'
   | 'problemeCentral' | 'implications' | 'enjeux' | 'analysesIA';
 
-const PDF_SECTION_LABELS: Record<PdfSectionKey, string> = {
-  groupe: 'Informations du groupe / thématique',
-  ffom: 'FFOM / idées retenues',
-  indicateurs: 'Indicateurs et synthèse chiffrée',
-  camembert: 'Camembert (répartition AFOM)',
-  histogramme: 'Histogramme (timeline des contributions)',
-  problemeCentral: 'Problème central',
-  implications: 'Implications organisationnelles',
-  enjeux: 'Enjeux',
-  analysesIA: 'Analyses IA disponibles',
-};
+const pdfSectionLabels = (lang: Lang): Record<PdfSectionKey, string> => ({
+  groupe: translate(lang, 'analysis.pdfSections.groupe'),
+  ffom: translate(lang, 'analysis.pdfSections.ffom'),
+  indicateurs: translate(lang, 'analysis.pdfSections.indicateurs'),
+  camembert: translate(lang, 'analysis.pdfSections.camembert'),
+  histogramme: translate(lang, 'analysis.pdfSections.histogramme'),
+  problemeCentral: translate(lang, 'analysis.pdfSections.problemeCentral'),
+  implications: translate(lang, 'analysis.pdfSections.implications'),
+  enjeux: translate(lang, 'analysis.pdfSections.enjeux'),
+  analysesIA: translate(lang, 'analysis.pdfSections.analysesIA'),
+});
 const PDF_SECTION_ORDER: PdfSectionKey[] = [
   'groupe', 'ffom', 'indicateurs', 'camembert', 'histogramme',
   'problemeCentral', 'implications', 'enjeux', 'analysesIA',
 ];
 
 const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
+  const { t, lang } = usePreferences();
+  const PDF_SECTION_LABELS = pdfSectionLabels(lang);
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [boardContext, setBoardContext] = useState<BoardContext | undefined>();
@@ -159,7 +162,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
       setCentral(next);
     } catch (e) {
       console.error(e);
-      alert("Impossible d'enregistrer le problème central.");
+      alert(t('analysis.saveCentralFailed'));
     } finally {
       setSavingCentral(false);
     }
@@ -167,18 +170,18 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 
   const askAIForCentral = async (mode: 'full' | 'fm') => {
     if (!postIts.length) {
-      alert('Pas de données AFOM.');
+      alert(t('analysis.noData'));
       return;
     }
     if (!isAIAvailable()) {
-      alert("Aucun provider IA configuré.\n\nOuvrez le bandeau « Assistance IA » ci-dessus pour renseigner votre clé API.");
+      alert(t('analysis.noAiProviderAbove'));
       return;
     }
     try {
       setAiRunningCentral(mode);
       const fn = (geminiAny as any).proposeCentralProblem;
       if (typeof fn !== 'function') {
-        alert("La génération IA n'est pas disponible dans ce build.");
+        alert(t('analysis.buildUnavailable'));
         return;
       }
       const input = mode === 'full'
@@ -192,12 +195,12 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
         rationale: result?.rationale || '',
         source: mode === 'full' ? 'ai_full' : 'ai_fm',
       };
-      if (!next.text) { alert("L'IA n'a pas renvoyé de problème central exploitable."); return; }
+      if (!next.text) { alert(t('analysis.noExploitableProblem')); return; }
       await saveCentral(next);
     } catch (e) {
       console.error(e);
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`Échec de la génération IA du problème central.\n\nErreur : ${msg}`);
+      alert(t('analysis.genericGenerationError', { msg }));
     } finally {
       setAiRunningCentral(null);
     }
@@ -244,11 +247,11 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
   };
 
   const requireAIAndData = (needFM = false): string | null => {
-    if (!isAIAvailable()) return "Aucun provider IA configuré.\n\nOuvrez le bandeau « Assistance IA » ci-dessus pour renseigner votre clé API.";
+    if (!isAIAvailable()) return t('analysis.noAiProviderAbove');
     if (needFM ? fmPostIts.length === 0 : activePostIts.length === 0)
       return needFM
-        ? "Aucune Faiblesse ni Menace n'a été saisie pour ce groupe : impossible de lancer cette analyse."
-        : "Ajoutez des contributions à ce FFOM avant de lancer une analyse IA.";
+        ? t('analysis.noFmData')
+        : t('analysis.addContributionsFirst');
     return null;
   };
 
@@ -258,10 +261,10 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
     setAiExplorationRunning('full');
     try {
       const res = await proposeCentralProblem(activePostIts, { mode: 'full', context: boardContext, matrixInteractions });
-      if (!res.problem) { alert("L'IA n'a pas renvoyé de problème central exploitable."); return; }
+      if (!res.problem) { alert(t('analysis.noExploitableProblem')); return; }
       await saveAiExploration({ problemFull: { text: res.problem, rationale: res.rationale, generatedAt: new Date() } });
     } catch (e) {
-      alert(`Échec de la génération.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+      alert(t('analysis.genericGenerationError2', { msg: e instanceof Error ? e.message : String(e) }));
     } finally {
       setAiExplorationRunning(null);
     }
@@ -275,10 +278,10 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
       // proposeCentralProblem filtre en interne sur Faiblesses+Menaces quand mode==='fm' :
       // seules ces contributions sont effectivement envoyées à l'IA.
       const res = await proposeCentralProblem(activePostIts, { mode: 'fm', context: boardContext, matrixInteractions });
-      if (!res.problem) { alert("L'IA n'a pas renvoyé de problème central exploitable."); return; }
+      if (!res.problem) { alert(t('analysis.noExploitableProblem')); return; }
       await saveAiExploration({ problemFM: { text: res.problem, rationale: res.rationale, generatedAt: new Date() } });
     } catch (e) {
-      alert(`Échec de la génération.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+      alert(t('analysis.genericGenerationError2', { msg: e instanceof Error ? e.message : String(e) }));
     } finally {
       setAiExplorationRunning(null);
     }
@@ -290,17 +293,17 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
     setAiExplorationRunning('implications');
     try {
       const res = await proposeImplicationsEnjeux(activePostIts, boardContext);
-      if (res.implications.length === 0 && res.enjeux.length === 0) { alert("L'IA n'a renvoyé aucun résultat exploitable."); return; }
+      if (res.implications.length === 0 && res.enjeux.length === 0) { alert(t('analysis.noExploitableResult')); return; }
       await saveAiExploration({ implicationsEnjeux: { ...res, generatedAt: new Date() } });
     } catch (e) {
-      alert(`Échec de la génération.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+      alert(t('analysis.genericGenerationError2', { msg: e instanceof Error ? e.message : String(e) }));
     } finally {
       setAiExplorationRunning(null);
     }
   };
 
   const runExplorationCustom = async () => {
-    if (!customPrompt.trim()) { alert('Saisissez une consigne avant de générer.'); return; }
+    if (!customPrompt.trim()) { alert(t('analysis.fillPromptFirst')); return; }
     const err = requireAIAndData();
     if (err) { alert(err); return; }
     setAiExplorationRunning('custom');
@@ -310,7 +313,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
       await saveAiExploration({ customRuns: [entry, ...aiExploration.customRuns].slice(0, 5) });
       setCustomPrompt('');
     } catch (e) {
-      alert(`Échec de l'analyse personnalisée.\n\nErreur : ${e instanceof Error ? e.message : String(e)}`);
+      alert(t('analysis.genericCustomError', { msg: e instanceof Error ? e.message : String(e) }));
     } finally {
       setAiExplorationRunning(null);
     }
@@ -334,43 +337,44 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
       `<tr><td colspan="4" style="background:#e0e7ff;font-weight:bold;padding:8px 10px;border:1px solid #c7d2fe;font-size:13px">${t}</td></tr>`;
 
     const rows: string[] = [];
+    const x = analysisExportText(lang);
 
     // Groupe
-    rows.push(sectionTitle('👥 Groupe'));
-    rows.push(hdr('Champ', 'Valeur', '', ''));
-    rows.push(`<tr>${cell('Groupe', true)}${cell(groupMeta.name || '—')}<td></td><td></td></tr>`);
-    rows.push(`<tr>${cell('Thématique', true)}${cell(groupMeta.theme || '—')}<td></td><td></td></tr>`);
+    rows.push(sectionTitle(x.group));
+    rows.push(hdr(x.field, x.value, '', ''));
+    rows.push(`<tr>${cell(x.groupLabel, true)}${cell(groupMeta.name || '—')}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell(x.themeLabel, true)}${cell(groupMeta.theme || '—')}<td></td><td></td></tr>`);
     rows.push(`<tr><td colspan="4"></td></tr>`);
 
     // Problème central
-    rows.push(sectionTitle('🎯 Problème central'));
-    rows.push(hdr('Champ', 'Valeur', '', ''));
-    rows.push(`<tr>${cell('Texte', true)}${cell(central.text || '—')}<td></td><td></td></tr>`);
-    rows.push(`<tr>${cell('Source', true)}${cell(central.source || '—')}<td></td><td></td></tr>`);
-    if (central.rationale) rows.push(`<tr>${cell('Justification', true)}${cell(central.rationale)}<td></td><td></td></tr>`);
+    rows.push(sectionTitle(x.centralProblem));
+    rows.push(hdr(x.field, x.value, '', ''));
+    rows.push(`<tr>${cell(x.statementLabel, true)}${cell(central.text || '—')}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell(x.sourceLabel, true)}${cell(central.source || '—')}<td></td><td></td></tr>`);
+    if (central.rationale) rows.push(`<tr>${cell(x.rationaleLabel, true)}${cell(central.rationale)}<td></td><td></td></tr>`);
     rows.push(`<tr><td colspan="4"></td></tr>`);
 
     // Métriques
-    rows.push(sectionTitle('📊 Métriques de session'));
-    rows.push(hdr('Indicateur', 'Valeur', '', ''));
-    rows.push(`<tr>${cell('Total contributions', true)}${cell(d.metrics.totalContributions)}<td></td><td></td></tr>`);
-    rows.push(`<tr>${cell('Participants uniques', true)}${cell(d.metrics.uniqueParticipants)}<td></td><td></td></tr>`);
-    rows.push(`<tr>${cell('Durée (min)', true)}${cell(d.metrics.sessionDuration)}<td></td><td></td></tr>`);
-    rows.push(`<tr>${cell('Score d\'engagement', true)}${cell(d.metrics.engagementScore)}<td></td><td></td></tr>`);
+    rows.push(sectionTitle(x.metrics));
+    rows.push(hdr(x.indicator, x.value, '', ''));
+    rows.push(`<tr>${cell(x.totalContributions, true)}${cell(d.metrics.totalContributions)}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell(x.uniqueParticipants, true)}${cell(d.metrics.uniqueParticipants)}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell(x.duration, true)}${cell(d.metrics.sessionDuration)}<td></td><td></td></tr>`);
+    rows.push(`<tr>${cell(x.engagement, true)}${cell(d.metrics.engagementScore)}<td></td><td></td></tr>`);
     rows.push(`<tr><td colspan="4"></td></tr>`);
 
     // Quadrants AFOM (totaux, ordre imposé A → F → O → M)
-    rows.push(sectionTitle('🔲 Quadrants AFOM'));
-    rows.push(hdr('Quadrant', 'Nombre de contributions', 'Nombre de mots', ''));
+    rows.push(sectionTitle(x.quadrants));
+    rows.push(hdr(x.quadrant, x.contributionsCountHeader, x.wordsCountHeader, ''));
     QUADRANT_ORDER.forEach((k) => {
       const q = d.quadrants[k];
-      rows.push(`<tr>${cell(QUADRANT_INFO[k].title, true)}${cell(q.count)}${cell(q.wordCount)}<td></td></tr>`);
+      rows.push(`<tr>${cell(quadrantTitle(lang, k), true)}${cell(q.count)}${cell(q.wordCount)}<td></td></tr>`);
     });
     rows.push(`<tr><td colspan="4"></td></tr>`);
 
     // Idées retenues, lisibles et rattachées à leur quadrant (ordre imposé A → F → O → M)
-    rows.push(sectionTitle('💬 Idées retenues'));
-    rows.push(hdr('Quadrant', 'Idée', 'Auteur', ''));
+    rows.push(sectionTitle(x.retainedIdeas));
+    rows.push(hdr(x.quadrant, x.idea, x.author, ''));
     retainedByQuadrant.forEach(({ label, items }) => {
       if (items.length === 0) {
         rows.push(`<tr>${cell(label, true)}${cell('—')}<td></td><td></td></tr>`);
@@ -384,8 +388,8 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 
     // Insights IA
     if (d.insights.length > 0) {
-      rows.push(sectionTitle('💡 Insights IA'));
-      rows.push(hdr('#', 'Titre', 'Contenu', ''));
+      rows.push(sectionTitle(x.insights));
+      rows.push(hdr('#', x.title, x.content, ''));
       d.insights.forEach((ins, i) => {
         rows.push(`<tr>${cell(i + 1)}${cell(ins.title, true)}${cell(ins.content)}<td></td></tr>`);
       });
@@ -394,8 +398,8 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 
     // Recommandations
     if (d.recommendations.length > 0) {
-      rows.push(sectionTitle('✅ Recommandations'));
-      rows.push(hdr('#', 'Titre', 'Contenu', 'Priorité'));
+      rows.push(sectionTitle(x.recommendations));
+      rows.push(hdr('#', x.title, x.content, x.priority));
       d.recommendations.forEach((r, i) => {
         const pColor: Record<string, string> = { HIGH: '#fca5a5', URGENT: '#f87171', MEDIUM: '#fde68a', LOW: '#bbf7d0' };
         const bg = pColor[r.priority || ''] || '';
@@ -406,8 +410,8 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 
     // Contributeurs
     if (d.contributors.length > 0) {
-      rows.push(sectionTitle('👥 Contributeurs'));
-      rows.push(hdr('Nom', 'Contributions', 'Total mots', ''));
+      rows.push(sectionTitle(x.contributors));
+      rows.push(hdr(x.name, x.contributionsCol, x.totalWords, ''));
       d.contributors.forEach((c) => {
         rows.push(`<tr>${cell(c.name, true)}${cell(c.count)}${cell(c.totalWords)}<td></td></tr>`);
       });
@@ -417,7 +421,7 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 <head><meta charset="UTF-8">
 <style>table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px}td,th{white-space:pre-wrap;max-width:400px}</style>
 </head><body>
-<h2 style="font-family:Calibri,sans-serif;color:#4f46e5">Rapport AFOM — ${groupMeta.name || `Session ${sessionId || ''}`}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}</h2>
+<h2 style="font-family:Calibri,sans-serif;color:#4f46e5">${x.reportTitle} — ${groupMeta.name || x.sessionFallback(sessionId || '')}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}</h2>
 <table>${rows.join('')}</table>
 </body></html>`;
   };
@@ -430,32 +434,33 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
       `<p style="margin:4pt 0"><strong>${l} :</strong> ${String(v ?? '').replace(/</g, '&lt;')}</p>`;
 
     const prioColor: Record<string, string> = { HIGH: '#dc2626', URGENT: '#7f1d1d', MEDIUM: '#d97706', LOW: '#16a34a' };
+    const x = analysisExportText(lang);
 
     const sections: string[] = [
-      sec('👥 Groupe', [
-        label('Groupe', groupMeta.name || '—'),
-        label('Thématique', groupMeta.theme || '—'),
+      sec(x.group, [
+        label(x.groupLabel, groupMeta.name || '—'),
+        label(x.themeLabel, groupMeta.theme || '—'),
       ].join('')),
 
-      sec('🎯 Problème central', [
-        label('Énoncé', central.text || '—'),
-        central.textCourt ? label('Titre court', central.textCourt) : '',
-        central.rationale ? label('Justification IA', central.rationale) : '',
-        label('Source', central.source === 'ai_full' ? 'IA (analyse complète)' : central.source === 'ai_fm' ? 'IA (F+M)' : 'Manuel'),
+      sec(x.centralProblem, [
+        label(x.statementLabel, central.text || '—'),
+        central.textCourt ? label(x.shortTitleLabel, central.textCourt) : '',
+        central.rationale ? label(x.rationaleLabel, central.rationale) : '',
+        label(x.sourceLabel, central.source === 'ai_full' ? x.sourceAiFull : central.source === 'ai_fm' ? x.sourceAiFm : x.sourceManual),
       ].join('')),
 
-      sec('📊 Métriques de session', [
-        label('Total contributions', String(d.metrics.totalContributions)),
-        label('Participants uniques', String(d.metrics.uniqueParticipants)),
-        label('Durée', `${d.metrics.sessionDuration} min`),
-        label("Score d'engagement", String(d.metrics.engagementScore)),
+      sec(x.metrics, [
+        label(x.totalContributions, String(d.metrics.totalContributions)),
+        label(x.uniqueParticipants, String(d.metrics.uniqueParticipants)),
+        label(x.duration, x.durationMin(d.metrics.sessionDuration)),
+        label(x.engagement, String(d.metrics.engagementScore)),
       ].join('')),
 
-      sec('🔲 Quadrants AFOM', QUADRANT_ORDER.map((k) =>
-        label(QUADRANT_INFO[k].title, `${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`)
+      sec(x.quadrants, QUADRANT_ORDER.map((k) =>
+        label(quadrantTitle(lang, k), x.contributionsWords(d.quadrants[k].count, d.quadrants[k].wordCount))
       ).join('')),
 
-      sec('💬 Idées retenues', retainedByQuadrant.map(({ label: quadLabel, items }) =>
+      sec(x.retainedIdeas, retainedByQuadrant.map(({ label: quadLabel, items }) =>
         `<p style="margin:10pt 0 2pt"><strong style="color:#4f46e5">${quadLabel}</strong></p>` +
         (items.length === 0
           ? p('—')
@@ -464,17 +469,17 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
             ).join('')}</ul>`)
       ).join('')),
 
-      d.insights.length > 0 ? sec('💡 Insights IA', d.insights.map((ins, i) =>
+      d.insights.length > 0 ? sec(x.insights, d.insights.map((ins, i) =>
         `<p style="margin:8pt 0 2pt"><strong style="color:#4f46e5">${i + 1}. ${ins.title.replace(/</g, '&lt;')}</strong></p>${p(ins.content)}`
       ).join('')) : '',
 
-      d.recommendations.length > 0 ? sec('✅ Recommandations', d.recommendations.map((r, i) => {
+      d.recommendations.length > 0 ? sec(x.recommendations, d.recommendations.map((r, i) => {
         const col = prioColor[r.priority || ''] || '#374151';
         return `<p style="margin:8pt 0 2pt"><strong>${i + 1}. ${r.title.replace(/</g, '&lt;')}</strong> <span style="color:${col};font-size:9pt">[${r.priority || ''}]</span></p>${p(r.content)}`;
       }).join('')) : '',
 
-      d.contributors.length > 0 ? sec('👥 Contributeurs', d.contributors.map((c) =>
-        label(c.name, `${c.count} contributions — ${c.totalWords} mots`)
+      d.contributors.length > 0 ? sec(x.contributors, d.contributors.map((c) =>
+        label(c.name, x.contributionsWords(c.count, c.totalWords))
       ).join('')) : '',
     ].filter(Boolean);
 
@@ -482,8 +487,8 @@ const AnalysisMode: React.FC<AnalysisModeProps> = ({ postIts, onBack }) => {
 <style>body{font-family:Calibri,Georgia,serif;font-size:12pt;color:#111;margin:2cm;line-height:1.6}
 h1{color:#4f46e5;font-size:18pt}h2{font-size:13pt}strong{font-weight:600}</style>
 </head><body>
-<h1>Rapport d'analyse AFOM</h1>
-<p style="color:#6b7280;margin-bottom:18pt">${groupMeta.name || `Session ${sessionId || '—'}`}${groupMeta.theme ? ' — ' + groupMeta.theme : ''} &nbsp;|&nbsp; Exporté le ${new Date().toLocaleDateString('fr-FR')}</p>
+<h1>${x.reportTitle}</h1>
+<p style="color:#6b7280;margin-bottom:18pt">${groupMeta.name || x.sessionFallback(sessionId || '—')}${groupMeta.theme ? ' — ' + groupMeta.theme : ''} &nbsp;|&nbsp; ${x.exportedOn(new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR'))}</p>
 ${sections.join('')}
 </body></html>`;
   };
@@ -567,54 +572,55 @@ ${sections.join('')}
       doc.text(caption, marginX, y); y += 14;
     };
 
-    title('Rapport d\'analyse AFOM');
+    const x = analysisExportText(lang);
+    title(x.reportTitle);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor('#6b7280');
-    doc.text(`${groupMeta.name || `Session ${sessionId || '—'}`}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}  |  Exporté le ${new Date().toLocaleDateString('fr-FR')}`, marginX, y);
+    doc.text(`${groupMeta.name || x.sessionFallback(sessionId || '—')}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}  |  ${x.exportedOn(new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR'))}`, marginX, y);
     y += 22;
 
     if (sections.groupe) {
-      heading('Groupe');
-      paragraph(`Groupe : ${groupMeta.name || '—'}`, { bold: true });
-      paragraph(`Thématique : ${groupMeta.theme || '—'}`);
+      heading(x.group);
+      paragraph(`${x.groupLabel} : ${groupMeta.name || '—'}`, { bold: true });
+      paragraph(`${x.themeLabel} : ${groupMeta.theme || '—'}`);
       spacer();
     }
 
     if (sections.problemeCentral && central.text) {
-      heading('Problème central');
+      heading(x.centralProblem);
       paragraph(central.text);
-      if (central.textCourt) paragraph(`Titre court : ${central.textCourt}`);
-      if (central.rationale) paragraph(`Justification IA : ${central.rationale}`);
+      if (central.textCourt) paragraph(`${x.shortTitleLabel} : ${central.textCourt}`);
+      if (central.rationale) paragraph(`${x.rationaleLabel} : ${central.rationale}`);
       spacer();
     }
 
     if (sections.indicateurs) {
-      heading('Métriques de session');
-      paragraph(`Total contributions : ${d.metrics.totalContributions}`);
-      paragraph(`Participants uniques : ${d.metrics.uniqueParticipants}`);
-      paragraph(`Durée : ${d.metrics.sessionDuration} min`);
-      paragraph(`Score d'engagement : ${d.metrics.engagementScore}`);
+      heading(x.metrics);
+      paragraph(`${x.totalContributions} : ${d.metrics.totalContributions}`);
+      paragraph(`${x.uniqueParticipants} : ${d.metrics.uniqueParticipants}`);
+      paragraph(`${x.duration} : ${x.durationMin(d.metrics.sessionDuration)}`);
+      paragraph(`${x.engagement} : ${d.metrics.engagementScore}`);
       spacer();
 
-      heading('Quadrants AFOM');
-      QUADRANT_ORDER.forEach((k) => paragraph(`${QUADRANT_INFO[k].title} : ${d.quadrants[k].count} contributions — ${d.quadrants[k].wordCount} mots`, { bold: true }));
+      heading(x.quadrants);
+      QUADRANT_ORDER.forEach((k) => paragraph(`${quadrantTitle(lang, k)} : ${x.contributionsWords(d.quadrants[k].count, d.quadrants[k].wordCount)}`, { bold: true }));
       spacer();
 
       if (d.contributors.length > 0) {
-        heading('Contributeurs');
-        d.contributors.forEach((c) => paragraph(`${c.name} : ${c.count} contributions — ${c.totalWords} mots`));
+        heading(x.contributors);
+        d.contributors.forEach((c) => paragraph(`${c.name} : ${x.contributionsWords(c.count, c.totalWords)}`));
         spacer();
       }
     }
 
     if ((sections.camembert && pieImg) || (sections.histogramme && barImg)) {
-      heading('Graphiques');
-      if (sections.camembert) image(pieImg, 'Répartition AFOM');
-      if (sections.histogramme) image(barImg, 'Timeline des contributions');
+      heading(x.graphs);
+      if (sections.camembert) image(pieImg, x.pieChartCaption);
+      if (sections.histogramme) image(barImg, x.barChartCaption);
       spacer();
     }
 
     if (sections.ffom) {
-      heading('Idées retenues');
+      heading(x.retainedIdeas);
       retainedByQuadrant.forEach(({ label, items }) => {
         paragraph(label, { bold: true, color: '#4f46e5' });
         if (items.length === 0) {
@@ -627,42 +633,42 @@ ${sections.join('')}
     }
 
     if (sections.implications && aiExploration.implicationsEnjeux?.implications?.length) {
-      heading('Implications organisationnelles');
-      aiExploration.implicationsEnjeux.implications.forEach((t) => paragraph(`•  ${t}`, { indent: 12 }));
+      heading(x.organizationalImplications);
+      aiExploration.implicationsEnjeux.implications.forEach((txt) => paragraph(`•  ${txt}`, { indent: 12 }));
       spacer();
     }
 
     if (sections.enjeux && aiExploration.implicationsEnjeux?.enjeux?.length) {
-      heading('Enjeux');
-      aiExploration.implicationsEnjeux.enjeux.forEach((t) => paragraph(`•  ${t}`, { indent: 12 }));
+      heading(x.issues);
+      aiExploration.implicationsEnjeux.enjeux.forEach((txt) => paragraph(`•  ${txt}`, { indent: 12 }));
       spacer();
     }
 
     if (sections.analysesIA) {
       if (d.insights.length > 0) {
-        heading('Insights IA');
+        heading(x.insights);
         d.insights.forEach((ins, i) => { paragraph(`${i + 1}. ${ins.title}`, { bold: true }); paragraph(ins.content, { indent: 12 }); spacer(2); });
       }
       if (d.recommendations.length > 0) {
-        heading('Recommandations');
+        heading(x.recommendations);
         d.recommendations.forEach((r, i) => { paragraph(`${i + 1}. ${r.title} [${r.priority || ''}]`, { bold: true }); paragraph(r.content, { indent: 12 }); spacer(2); });
       }
       if (aiExploration.problemFull) {
-        heading('Analyse IA du FFOM — Problème central (FFOM complet)');
+        heading(x.aiFullProblem);
         paragraph(aiExploration.problemFull.text);
-        if (aiExploration.problemFull.rationale) paragraph(`Justification IA : ${aiExploration.problemFull.rationale}`, { indent: 12 });
+        if (aiExploration.problemFull.rationale) paragraph(`${x.rationaleLabel} : ${aiExploration.problemFull.rationale}`, { indent: 12 });
         spacer();
       }
       if (aiExploration.problemFM) {
-        heading('Analyse IA du FFOM — Problème central (Faiblesses + Menaces)');
+        heading(x.aiFmProblem);
         paragraph(aiExploration.problemFM.text);
-        if (aiExploration.problemFM.rationale) paragraph(`Justification IA : ${aiExploration.problemFM.rationale}`, { indent: 12 });
+        if (aiExploration.problemFM.rationale) paragraph(`${x.rationaleLabel} : ${aiExploration.problemFM.rationale}`, { indent: 12 });
         spacer();
       }
       if (aiExploration.customRuns.length > 0) {
-        heading('Analyses personnalisées');
+        heading(x.customAnalyses);
         aiExploration.customRuns.forEach((run) => {
-          paragraph(`Consigne : ${run.prompt}`, { bold: true });
+          paragraph(`${x.instructionLabel} ${run.prompt}`, { bold: true });
           paragraph(run.result, { indent: 12 });
           spacer(2);
         });
@@ -763,21 +769,21 @@ ${sections.join('')}
   const doughnutData = useMemo(() => {
     if (!analysisData) return [];
     return QUADRANT_ORDER.map((key) => ({
-      name: QUADRANT_INFO[key].title,
+      name: quadrantTitle(lang, key),
       value: analysisData.quadrants[key].count,
       color: QUADRANT_INFO[key].color,
     }));
-  }, [analysisData]);
+  }, [analysisData, lang]);
 
   // Idées retenues par quadrant, dans l'ordre imposé A → F → O → M
   const retainedByQuadrant = useMemo(() => {
     const active = postIts.filter((p) => p.status !== 'bin');
     return QUADRANT_ORDER.map((key) => ({
       key,
-      label: QUADRANT_INFO[key].title,
+      label: quadrantTitle(lang, key),
       items: active.filter((p) => p.quadrant === key),
     }));
-  }, [postIts]);
+  }, [postIts, lang]);
 
   // Rubriques réellement disponibles pour CETTE session — n'affiche pas de case pour une
   // rubrique dont les données n'existent pas (ex: implications/enjeux jamais générées).
@@ -805,11 +811,11 @@ ${sections.join('')}
         <PrintStyles />
         <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center gap-2">
-            <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">← Retour</button>
-            <div className="text-sm font-semibold text-gray-600">Analyse{groupMeta.name ? ` — ${groupMeta.name}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}` : ''}</div>
+            <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">{t('analysis.back')}</button>
+            <div className="text-sm font-semibold text-gray-600">{t('analysis.analysisTitle', { group: groupMeta.name ? `${groupMeta.name}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}` : '' })}</div>
           </div>
         </header>
-        <div className="p-8 text-center text-gray-500">Commencez à ajouter des post-its pour voir l'analyse.</div>
+        <div className="p-8 text-center text-gray-500">{t('analysis.startPrompt')}</div>
       </div>
     );
   }
@@ -820,31 +826,31 @@ ${sections.join('')}
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b no-print">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center gap-2 min-w-0">
-          <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm flex-shrink-0">← Retour</button>
-          <div className="text-sm font-semibold text-gray-600 flex-shrink-0 truncate">Analyse{groupMeta.name ? ` — ${groupMeta.name}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}` : ''}</div>
+          <button onClick={goBack} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm flex-shrink-0">{t('analysis.back')}</button>
+          <div className="text-sm font-semibold text-gray-600 flex-shrink-0 truncate">{t('analysis.analysisTitle', { group: groupMeta.name ? `${groupMeta.name}${groupMeta.theme ? ' — ' + groupMeta.theme : ''}` : '' })}</div>
           <div className="flex items-center gap-1 sm:gap-2 ml-auto overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             <button
               onClick={() => {
                 if (!isAIAvailable()) {
-                  alert("Aucun provider IA configuré.\n\nOuvrez le bandeau « Assistance IA » ci-dessous pour renseigner votre clé API.");
+                  alert(t('analysis.noAiProvider'));
                   return;
                 }
                 runAIAnalysis(postIts, boardContext, matrixInteractions);
               }}
               disabled={loadingAI}
               className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0 disabled:opacity-50"
-              title="Relancer l'analyse IA avec le provider configuré"
+              title={t('analysis.rerunAiTitle')}
             >
-              {loadingAI ? 'IA…' : '⟳ Analyse IA'}
+              {loadingAI ? 'IA…' : t('analysis.rerunAi')}
             </button>
-            <button onClick={exportExcel} title="Télécharge un fichier .xls" className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">.xls</span><span className="hidden sm:inline">Exporter en Excel (.xls)</span>
+            <button onClick={exportExcel} title={t('analysis.exportExcelTitle')} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">{t('analysis.exportExcelShort')}</span><span className="hidden sm:inline">{t('analysis.exportExcelLong')}</span>
             </button>
-            <button onClick={exportWord} title="Télécharge un fichier .doc" className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
-              <span className="sm:hidden">.doc</span><span className="hidden sm:inline">Exporter en Word (.doc)</span>
+            <button onClick={exportWord} title={t('analysis.exportWordTitle')} className="px-2 sm:px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
+              <span className="sm:hidden">{t('analysis.exportWordShort')}</span><span className="hidden sm:inline">{t('analysis.exportWordLong')}</span>
             </button>
-            <button onClick={() => setShowPdfModal(true)} disabled={exportingPDF} title="Choisir les rubriques puis télécharger un fichier .pdf" className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0 disabled:opacity-50">
-              <span className="sm:hidden">{exportingPDF ? '…' : '.pdf'}</span><span className="hidden sm:inline">{exportingPDF ? 'Génération du PDF…' : 'Télécharger le rapport PDF (.pdf)'}</span>
+            <button onClick={() => setShowPdfModal(true)} disabled={exportingPDF} title={t('analysis.exportPdfTitle')} className="px-2 sm:px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-xs sm:text-sm whitespace-nowrap flex-shrink-0 disabled:opacity-50">
+              <span className="sm:hidden">{t('analysis.exportPdfShort', { busy: exportingPDF ? 1 : 0 })}</span><span className="hidden sm:inline">{t('analysis.exportPdfLong', { busy: exportingPDF ? 1 : 0 })}</span>
             </button>
           </div>
         </div>
@@ -858,18 +864,18 @@ ${sections.join('')}
         >
           <span className="text-lg leading-none">🤖</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white leading-tight">Assistance IA</p>
-            <p className="text-[11px] text-indigo-200">Analyse · Recommandations · Problème central</p>
+            <p className="text-sm font-bold text-white leading-tight">{t('analysis.aiBannerTitle')}</p>
+            <p className="text-[11px] text-indigo-200">{t('analysis.aiBannerSubtitle')}</p>
           </div>
           {aiConfigured ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-400/30 text-white border border-emerald-300/50">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
-              Prête
+              {t('analysis.ready')}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/15 text-indigo-100 border border-white/25">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
-              Non configurée
+              {t('analysis.notConfigured')}
             </span>
           )}
           <span className="text-white/60 text-xs ml-1">{showAIPanel ? '▲' : '▼'}</span>
@@ -885,37 +891,37 @@ ${sections.join('')}
         {/* ---- Problème central ---- */}
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="text-lg font-black text-gray-800">🎯 Problème central</h3>
+            <h3 className="text-lg font-black text-gray-800">{t('analysis.centralProblemTitle')}</h3>
             <div className="flex items-center gap-2">
               {matrixInteractions.length > 0 && (
                 <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  {matrixInteractions.length} interaction{matrixInteractions.length > 1 ? 's' : ''} matrice utilisée{matrixInteractions.length > 1 ? 's' : ''}
+                  {t('analysis.matrixInteractions', { n: matrixInteractions.length })}
                 </span>
               )}
-              <div className="text-xs text-gray-500">Source : <span className="font-bold">{central.source}</span></div>
+              <div className="text-xs text-gray-500">{t('analysis.sourceLabel')} <span className="font-bold">{central.source}</span></div>
             </div>
           </div>
 
           {/* Formulation longue */}
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Formulation complète</label>
+          <label className="text-xs font-semibold text-gray-600 mb-1 block">{t('analysis.fullFormulationLabel')}</label>
           <textarea
             value={central.text}
             onChange={(e) => setCentral({ ...central, text: e.target.value, source: 'manual' })}
-            placeholder="Saisissez ou générez le problème central… (état négatif, spécifique aux données)"
+            placeholder={t('analysis.centralPlaceholder')}
             className="w-full min-h-[90px] rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400 text-sm"
           />
 
           {/* Formulation courte — arbre à problème */}
           <div className="mt-3">
             <label className="text-xs font-semibold text-gray-600 mb-1 block">
-              Titre pour arbre à problème
-              <span className="font-normal text-gray-400 ml-1">(max 5 mots)</span>
+              {t('analysis.shortTitleLabel')}
+              <span className="font-normal text-gray-400 ml-1">{t('analysis.shortTitleHint')}</span>
             </label>
             <div className="flex items-center gap-2">
               <input
                 value={central.textCourt || ''}
                 onChange={(e) => setCentral({ ...central, textCourt: e.target.value, source: 'manual' })}
-                placeholder="Ex : Participation faible et sous-financement"
+                placeholder={t('analysis.shortTitlePlaceholder')}
                 className="flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
                 maxLength={60}
               />
@@ -929,21 +935,21 @@ ${sections.join('')}
 
           {central.rationale && (
             <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2">
-              <span className="font-semibold text-gray-700">Justification IA :</span> {central.rationale}
+              <span className="font-semibold text-gray-700">{t('analysis.aiRationale')}</span> {central.rationale}
             </div>
           )}
 
           <div className="mt-3 flex flex-wrap gap-2">
             <button onClick={() => askAIForCentral('full')} disabled={!!aiRunningCentral} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">
-              {aiRunningCentral === 'full' ? 'Génération…' : 'IA – AFOM complet'}
+              {t('analysis.aiFullBtn', { busy: aiRunningCentral === 'full' ? 1 : 0 })}
             </button>
             <button onClick={() => askAIForCentral('fm')} disabled={!!aiRunningCentral} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm">
-              {aiRunningCentral === 'fm' ? 'Génération…' : 'IA – Faiblesses + Menaces'}
+              {t('analysis.aiFmBtn', { busy: aiRunningCentral === 'fm' ? 1 : 0 })}
             </button>
             <button onClick={() => saveCentral({ ...central, source: 'manual' })} disabled={savingCentral} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm">
-              {savingCentral ? 'Enregistrement…' : 'Enregistrer'}
+              {savingCentral ? t('common.saving') : t('analysis.save')}
             </button>
-            <button onClick={() => saveCentral({ text: '', textCourt: '', source: 'manual' })} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm text-gray-500">Effacer</button>
+            <button onClick={() => saveCentral({ text: '', textCourt: '', source: 'manual' })} className="px-3 py-1.5 rounded-md border bg-white hover:bg-gray-50 text-sm text-gray-500">{t('analysis.clear')}</button>
           </div>
         </div>
 
@@ -965,7 +971,7 @@ ${sections.join('')}
         <MetricGrid metrics={analysisData.metrics} />
 
         <div className="grid lg:grid-cols-2 gap-8">
-          <ChartCard title="Répartition AFOM">
+          <ChartCard title={t('analysis.chartPieTitle')}>
             <div ref={pieChartRef} className="bg-white">
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -977,7 +983,7 @@ ${sections.join('')}
               </ResponsiveContainer>
             </div>
           </ChartCard>
-          <ChartCard title="Timeline des Contributions">
+          <ChartCard title={t('analysis.chartBarTitle')}>
             <div ref={barChartRef} className="bg-white">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={analysisData.timeline}>
@@ -1007,12 +1013,12 @@ ${sections.join('')}
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Rubriques du rapport PDF</h2>
+              <h2 className="text-lg font-bold text-gray-900">{t('analysis.pdfModalTitle')}</h2>
               <button onClick={() => setShowPdfModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
             <div className="flex items-center gap-3 mb-3 text-xs">
-              <button onClick={() => toggleAllPdfSections(true)} className="text-indigo-600 hover:underline font-semibold">Tout sélectionner</button>
-              <button onClick={() => toggleAllPdfSections(false)} className="text-indigo-600 hover:underline font-semibold">Tout désélectionner</button>
+              <button onClick={() => toggleAllPdfSections(true)} className="text-indigo-600 hover:underline font-semibold">{t('analysis.selectAll')}</button>
+              <button onClick={() => toggleAllPdfSections(false)} className="text-indigo-600 hover:underline font-semibold">{t('analysis.deselectAll')}</button>
             </div>
             <div className="space-y-2 mb-5">
               {PDF_SECTION_ORDER.filter((k) => availableSections[k]).map((k) => (
@@ -1028,13 +1034,13 @@ ${sections.join('')}
               ))}
             </div>
             <div className="flex justify-end gap-3 border-t pt-4">
-              <button onClick={() => setShowPdfModal(false)} className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">Annuler</button>
+              <button onClick={() => setShowPdfModal(false)} className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">{t('common.cancel')}</button>
               <button
                 onClick={handleGeneratePDF}
                 disabled={exportingPDF || PDF_SECTION_ORDER.every((k) => !availableSections[k] || !pdfSections[k])}
                 className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50"
               >
-                {exportingPDF ? 'Génération du PDF…' : 'Générer le PDF'}
+                {t('analysis.generatePdf', { busy: exportingPDF ? 1 : 0 })}
               </button>
             </div>
           </div>
@@ -1048,16 +1054,19 @@ ${sections.join('')}
 // l'ordre de sa légende auto-générée pour un PieChart/BarChart empilé, même quand les
 // séries/données sont déjà dans le bon ordre (constaté en recette) — on ignore donc
 // entièrement le payload que Recharts fournit et on rend notre propre légende fixe.
-const QuadrantLegend: React.FC = () => (
-  <ul className="mt-2 flex flex-wrap justify-center gap-4 text-sm text-gray-600">
-    {QUADRANT_ORDER.map((key) => (
-      <li key={key} className="flex items-center gap-1.5">
-        <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: QUADRANT_INFO[key].color }} />
-        {QUADRANT_INFO[key].title}
-      </li>
-    ))}
-  </ul>
-);
+const QuadrantLegend: React.FC = () => {
+  const { lang } = usePreferences();
+  return (
+    <ul className="mt-2 flex flex-wrap justify-center gap-4 text-sm text-gray-600">
+      {QUADRANT_ORDER.map((key) => (
+        <li key={key} className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: QUADRANT_INFO[key].color }} />
+          {quadrantTitle(lang, key)}
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 /** Styles impression */
 const PrintStyles: React.FC = () => (
@@ -1070,14 +1079,17 @@ const PrintStyles: React.FC = () => (
   `}</style>
 );
 
-const MetricGrid: React.FC<{ metrics: AnalysisMetrics }> = ({ metrics }) => (
-  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <MetricCard label="Contributions" value={metrics.totalContributions} />
-    <MetricCard label="Participants" value={metrics.uniqueParticipants} />
-    <MetricCard label="Durée (min)" value={metrics.sessionDuration} />
-    <MetricCard label="Engagement" value={metrics.engagementScore} />
-  </div>
-);
+const MetricGrid: React.FC<{ metrics: AnalysisMetrics }> = ({ metrics }) => {
+  const { t } = usePreferences();
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <MetricCard label={t('analysis.metricContributions')} value={metrics.totalContributions} />
+      <MetricCard label={t('analysis.metricParticipants')} value={metrics.uniqueParticipants} />
+      <MetricCard label={t('analysis.metricDuration')} value={metrics.sessionDuration} />
+      <MetricCard label={t('analysis.metricEngagement')} value={metrics.engagementScore} />
+    </div>
+  );
+};
 
 const MetricCard: React.FC<{ label: string; value: number }> = ({ label, value }) => (
   <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200 text-center">
@@ -1093,9 +1105,9 @@ const ChartCard: React.FC<{ title: string; children: React.ReactNode }> = ({ tit
   </div>
 );
 
-function formatAIDate(v: any): string {
+function formatAIDate(v: any, lang: Lang): string {
   const d = v?.toDate ? v.toDate() : v instanceof Date ? v : null;
-  return d ? d.toLocaleString('fr-FR') : '';
+  return d ? d.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') : '';
 }
 
 const AIExplorationPanel: React.FC<{
@@ -1110,85 +1122,87 @@ const AIExplorationPanel: React.FC<{
   onRunFM: () => void;
   onRunImplications: () => void;
   onRunCustom: () => void;
-}> = ({ activeCount, fmCount, aiConfigured, exploration, running, customPrompt, onCustomPromptChange, onRunFull, onRunFM, onRunImplications, onRunCustom }) => (
+}> = ({ activeCount, fmCount, aiConfigured, exploration, running, customPrompt, onCustomPromptChange, onRunFull, onRunFM, onRunImplications, onRunCustom }) => {
+  const { t, lang } = usePreferences();
+  return (
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-    <h3 className="text-lg font-black text-gray-800">🧠 Analyse IA du FFOM</h3>
+    <h3 className="text-lg font-black text-gray-800">{t('analysis.aiExplorationTitle')}</h3>
     <p className="mt-1 text-xs text-gray-500">
-      Fondée uniquement sur les {activeCount} contribution{activeCount > 1 ? 's' : ''} réelle{activeCount > 1 ? 's' : ''} de ce groupe — jamais mélangée avec un autre groupe ou atelier.
+      {t('analysis.aiExplorationSubtitle', { n: activeCount })}
     </p>
     {!aiConfigured && (
       <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-        Aucun provider IA configuré — ouvrez le bandeau « Assistance IA » ci-dessus pour renseigner une clé API.
+        {t('analysis.noAiConfiguredBanner')}
       </p>
     )}
 
     <div className="mt-4 grid gap-4 sm:grid-cols-2">
       <div className="rounded-lg border p-4">
-        <h4 className="font-bold text-gray-800">Problème central — FFOM complet</h4>
-        <p className="text-xs text-gray-500 mt-0.5">À partir de l'ensemble Acquis / Faiblesses / Opportunités / Menaces.</p>
+        <h4 className="font-bold text-gray-800">{t('analysis.problemFullTitle')}</h4>
+        <p className="text-xs text-gray-500 mt-0.5">{t('analysis.problemFullBody')}</p>
         <button onClick={onRunFull} disabled={running !== null || activeCount === 0} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
-          {running === 'full' ? 'Génération…' : 'Générer'}
+          {t('analysis.generate', { busy: running === 'full' ? 1 : 0 })}
         </button>
         {exploration.problemFull && (
           <div className="mt-3 text-sm bg-indigo-50 border border-indigo-100 rounded-lg p-3">
             <p className="text-gray-800">{exploration.problemFull.text}</p>
             {exploration.problemFull.rationale && <p className="mt-1 text-xs text-gray-500">{exploration.problemFull.rationale}</p>}
-            <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(exploration.problemFull.generatedAt)}</p>
+            <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(exploration.problemFull.generatedAt, lang)}</p>
           </div>
         )}
       </div>
 
       <div className="rounded-lg border p-4">
-        <h4 className="font-bold text-gray-800">Problème central — Faiblesses + Menaces</h4>
-        <p className="text-xs text-gray-500 mt-0.5">À partir uniquement des Faiblesses et Menaces ({fmCount}).</p>
+        <h4 className="font-bold text-gray-800">{t('analysis.problemFmTitle')}</h4>
+        <p className="text-xs text-gray-500 mt-0.5">{t('analysis.problemFmBody', { n: fmCount })}</p>
         <button onClick={onRunFM} disabled={running !== null || fmCount === 0} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
-          {running === 'fm' ? 'Génération…' : 'Générer'}
+          {t('analysis.generate', { busy: running === 'fm' ? 1 : 0 })}
         </button>
-        {fmCount === 0 && <p className="mt-2 text-xs text-gray-400">Aucune Faiblesse ni Menace saisie pour ce groupe.</p>}
+        {fmCount === 0 && <p className="mt-2 text-xs text-gray-400">{t('analysis.noFmData')}</p>}
         {exploration.problemFM && (
           <div className="mt-3 text-sm bg-orange-50 border border-orange-100 rounded-lg p-3">
             <p className="text-gray-800">{exploration.problemFM.text}</p>
             {exploration.problemFM.rationale && <p className="mt-1 text-xs text-gray-500">{exploration.problemFM.rationale}</p>}
-            <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(exploration.problemFM.generatedAt)}</p>
+            <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(exploration.problemFM.generatedAt, lang)}</p>
           </div>
         )}
       </div>
 
       <div className="rounded-lg border p-4 sm:col-span-2">
-        <h4 className="font-bold text-gray-800">Implications organisationnelles et enjeux</h4>
+        <h4 className="font-bold text-gray-800">{t('analysis.implicationsTitle')}</h4>
         <button onClick={onRunImplications} disabled={running !== null || activeCount === 0} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
-          {running === 'implications' ? 'Génération…' : 'Générer'}
+          {t('analysis.generate', { busy: running === 'implications' ? 1 : 0 })}
         </button>
         {exploration.implicationsEnjeux && (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm">
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-              <p className="font-semibold text-blue-800 mb-1">Implications organisationnelles</p>
+              <p className="font-semibold text-blue-800 mb-1">{t('analysis.implicationsResultTitle')}</p>
               <ul className="list-disc pl-4 space-y-1 text-gray-800">
-                {exploration.implicationsEnjeux.implications.map((t, i) => <li key={i}>{t}</li>)}
+                {exploration.implicationsEnjeux.implications.map((txt, i) => <li key={i}>{txt}</li>)}
               </ul>
             </div>
             <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
-              <p className="font-semibold text-purple-800 mb-1">Enjeux</p>
+              <p className="font-semibold text-purple-800 mb-1">{t('analysis.issuesResultTitle')}</p>
               <ul className="list-disc pl-4 space-y-1 text-gray-800">
-                {exploration.implicationsEnjeux.enjeux.map((t, i) => <li key={i}>{t}</li>)}
+                {exploration.implicationsEnjeux.enjeux.map((txt, i) => <li key={i}>{txt}</li>)}
               </ul>
             </div>
-            <p className="sm:col-span-2 text-[10px] text-gray-400">{formatAIDate(exploration.implicationsEnjeux.generatedAt)}</p>
+            <p className="sm:col-span-2 text-[10px] text-gray-400">{formatAIDate(exploration.implicationsEnjeux.generatedAt, lang)}</p>
           </div>
         )}
       </div>
 
       <div className="rounded-lg border p-4 sm:col-span-2">
-        <h4 className="font-bold text-gray-800">Analyse personnalisée</h4>
-        <p className="text-xs text-gray-500 mt-0.5">Écrivez votre propre consigne, elle sera appliquée aux données de ce FFOM.</p>
+        <h4 className="font-bold text-gray-800">{t('analysis.customTitle')}</h4>
+        <p className="text-xs text-gray-500 mt-0.5">{t('analysis.customBody')}</p>
         <textarea
           value={customPrompt}
           onChange={(e) => onCustomPromptChange(e.target.value)}
-          placeholder="Ex : À partir de ce FFOM, propose trois priorités d'action."
+          placeholder={t('analysis.customPlaceholder')}
           className="mt-2 w-full min-h-[70px] rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
         />
         <button onClick={onRunCustom} disabled={running !== null || activeCount === 0 || !customPrompt.trim()} className="mt-2 px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50">
-          {running === 'custom' ? 'Génération…' : 'Générer'}
+          {t('analysis.generate', { busy: running === 'custom' ? 1 : 0 })}
         </button>
         {exploration.customRuns.length > 0 && (
           <div className="mt-3 space-y-2">
@@ -1196,7 +1210,7 @@ const AIExplorationPanel: React.FC<{
               <div key={i} className="text-sm bg-gray-50 border rounded-lg p-3">
                 <p className="text-xs font-semibold text-gray-500">« {run.prompt} »</p>
                 <p className="mt-1 whitespace-pre-wrap text-gray-800">{run.result}</p>
-                <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(run.generatedAt)}</p>
+                <p className="mt-1 text-[10px] text-gray-400">{formatAIDate(run.generatedAt, lang)}</p>
               </div>
             ))}
           </div>
@@ -1204,17 +1218,20 @@ const AIExplorationPanel: React.FC<{
       </div>
     </div>
   </div>
-);
+  );
+};
 
-const RetainedIdeasList: React.FC<{ groups: { key: QuadrantKey; label: string; items: PostIt[] }[] }> = ({ groups }) => (
+const RetainedIdeasList: React.FC<{ groups: { key: QuadrantKey; label: string; items: PostIt[] }[] }> = ({ groups }) => {
+  const { t } = usePreferences();
+  return (
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-    <h3 className="text-lg font-black text-gray-700 mb-4">💬 Idées retenues</h3>
+    <h3 className="text-lg font-black text-gray-700 mb-4">{t('analysis.retainedIdeasTitle')}</h3>
     <div className="grid gap-4 sm:grid-cols-2">
       {groups.map(({ key, label, items }) => (
         <div key={key} className={`rounded-lg border-l-4 p-4 ${QUADRANT_INFO[key].bgColor} ${QUADRANT_INFO[key].borderColor}`}>
           <h4 className={`font-bold mb-2 ${QUADRANT_INFO[key].textColor}`}>{label} <span className="font-normal text-gray-500">({items.length})</span></h4>
           {items.length === 0
-            ? <p className="text-sm text-gray-500">Aucune idée retenue.</p>
+            ? <p className="text-sm text-gray-500">{t('analysis.noIdeaRetained')}</p>
             : <ul className="space-y-1.5">
                 {items.map((item) => (
                   <li key={item.id} className="text-sm text-gray-800">
@@ -1227,13 +1244,16 @@ const RetainedIdeasList: React.FC<{ groups: { key: QuadrantKey; label: string; i
       ))}
     </div>
   </div>
-);
+  );
+};
 
-const InsightsList: React.FC<{ insights: Insight[]; loading: boolean }> = ({ insights, loading }) => (
+const InsightsList: React.FC<{ insights: Insight[]; loading: boolean }> = ({ insights, loading }) => {
+  const { t } = usePreferences();
+  return (
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 h-full">
-    <h3 className="text-lg font-black text-gray-700 mb-4">🧠 Insights Stratégiques (IA)</h3>
-    {loading ? <div className="text-center p-4">Analyse par IA en cours...</div> :
-      !insights.length ? <div className="text-center p-4 text-gray-500">Pas assez de données pour l'analyse IA.</div> :
+    <h3 className="text-lg font-black text-gray-700 mb-4">{t('analysis.insightsTitle')}</h3>
+    {loading ? <div className="text-center p-4">{t('analysis.aiAnalyzing')}</div> :
+      !insights.length ? <div className="text-center p-4 text-gray-500">{t('analysis.notEnoughDataInsights')}</div> :
       <div className="space-y-4">
         {insights.map((insight, i) => (
           <div key={i} className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
@@ -1243,13 +1263,16 @@ const InsightsList: React.FC<{ insights: Insight[]; loading: boolean }> = ({ ins
         ))}
       </div>}
   </div>
-);
+  );
+};
 
-const RecommendationsList: React.FC<{ recommendations: Recommendation[]; loading: boolean }> = ({ recommendations, loading }) => (
+const RecommendationsList: React.FC<{ recommendations: Recommendation[]; loading: boolean }> = ({ recommendations, loading }) => {
+  const { t } = usePreferences();
+  return (
   <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-    <h3 className="text-lg font-black text-gray-700 mb-4">🎯 Recommandations Stratégiques (IA)</h3>
-    {loading ? <div className="text-center p-4">Génération des recommandations par IA...</div> :
-      !recommendations.length ? <div className="text-center p-4 text-gray-500">Pas assez de données pour les recommandations IA.</div> :
+    <h3 className="text-lg font-black text-gray-700 mb-4">{t('analysis.recommendationsTitle')}</h3>
+    {loading ? <div className="text-center p-4">{t('analysis.generatingRecs')}</div> :
+      !recommendations.length ? <div className="text-center p-4 text-gray-500">{t('analysis.notEnoughDataRecs')}</div> :
       <div className="space-y-4">
         {recommendations.map((rec, i) => {
           const styles = (PRIORITY_STYLES as any)[rec.priority] || { bg: 'bg-gray-100', color: 'text-gray-800', icon: '💡', borderColor: 'border-gray-500' };
@@ -1265,19 +1288,21 @@ const RecommendationsList: React.FC<{ recommendations: Recommendation[]; loading
         })}
       </div>}
   </div>
-);
+  );
+};
 
 const ContributorsList: React.FC<{ contributors: Contributor[] }> = ({ contributors }) => {
+  const { t } = usePreferences();
   const medals = ['🥇', '🥈', '🥉', '🏅', '🏅'];
   return (
     <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white p-6 rounded-xl shadow-lg h-full">
-      <h3 className="text-lg font-black mb-4">🏆 Top Contributeurs</h3>
+      <h3 className="text-lg font-black mb-4">{t('analysis.topContributorsTitle')}</h3>
       <div className="space-y-3">
         {contributors.map((c, i) => (
           <div key={i} className="bg-white/20 p-3 rounded-lg flex justify-between items-center">
             <div>
               <div className="font-bold">{medals[i]} {c.name}</div>
-              <div className="text-xs opacity-80">{c.totalWords} mots</div>
+              <div className="text-xs opacity-80">{c.totalWords} {t('analysis.wordsLabel')}</div>
             </div>
             <div className="text-lg font-black">{c.count}</div>
           </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAIConfig, PROVIDER_DEFAULTS } from '../hooks/useAIConfig';
+import { translateList, usePreferences } from '../i18n';
 
 // ─── SVG icons inline (pas de dépendance lucide) ────────────────────────────
 const ChevronDownIcon = () => (
@@ -145,6 +146,7 @@ interface AIConfigPanelProps {
 }
 
 const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
+  const { t, lang } = usePreferences();
   const { config, save, clear } = useAIConfig();
   const [provider, setProvider]   = useState<ProviderId | ''>(config.provider as ProviderId | '');
   const [apiKey, setApiKey]       = useState(config.apiKey || '');
@@ -155,7 +157,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
   const [testMsg, setTestMsg]     = useState('');
 
   const currentProvider = PROVIDERS.find((p) => p.id === provider);
-  const hint = currentProvider?.hint ?? PROVIDER_DEFAULTS[provider]?.hint ?? 'Votre clé API…';
+  const hint = currentProvider?.hint ?? PROVIDER_DEFAULTS[provider]?.hint ?? t('aiConfig.yourApiKey');
 
   const handleProviderChange = (val: string) => {
     setProvider(val as ProviderId | '');
@@ -200,13 +202,13 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
     if (keyMismatch) {
       setTestState('error');
       const label = PROVIDERS.find((p) => p.id === detectedProvider)?.name ?? detectedProvider;
-      setTestMsg(`Clé ${label} détectée — sélectionnez le bon fournisseur.`);
+      setTestMsg(t('aiConfig.testDetected', { name: label || '' }));
     } else if (!re || re.test(apiKey.trim())) {
       setTestState('ok');
-      setTestMsg('Format de clé valide ✓');
+      setTestMsg(t('aiConfig.testValid'));
     } else {
       setTestState('error');
-      setTestMsg('Format de clé inattendu — vérifiez la syntaxe.');
+      setTestMsg(t('aiConfig.testInvalid'));
     }
   };
 
@@ -226,7 +228,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
       {/* ── Sélecteur provider ── */}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Fournisseur IA
+          {t('aiConfig.providerLabel')}
         </label>
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
@@ -235,7 +237,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
               onChange={(e) => handleProviderChange(e.target.value)}
               className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 focus:bg-white pl-3.5 pr-8 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-200 transition cursor-pointer"
             >
-              <option value="">Choisir un fournisseur…</option>
+              <option value="">{t('aiConfig.chooseProvider')}</option>
               {PROVIDERS.map((p) => (
                 <option key={p.id} value={p.id}>{p.name} — {p.sub}</option>
               ))}
@@ -254,7 +256,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
                   ? 'border-indigo-300 bg-indigo-50 text-indigo-600'
                   : 'border-gray-200 text-gray-400 hover:text-indigo-500 hover:border-indigo-200 bg-gray-50',
               ].join(' ')}
-              title="Comment obtenir cette clé API"
+              title={t('aiConfig.howToGetKey')}
             >
               <SearchIcon />
             </button>
@@ -267,10 +269,10 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
         <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-4 space-y-3">
           <p className="text-xs font-bold text-indigo-800 flex items-center gap-1.5">
             <SearchIcon />
-            Comment obtenir votre clé {currentProvider.name}
+            {t('aiConfig.howToGetKeyTitle', { name: currentProvider.name })}
           </p>
           <ol className="space-y-1.5">
-            {currentProvider.steps.map((step, i) => (
+            {translateList(lang, `aiConfig.steps.${currentProvider.id}`).map((step, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-indigo-700">
                 <span className="shrink-0 w-4 h-4 rounded-full bg-indigo-200 text-indigo-700 text-[10px] font-bold flex items-center justify-center mt-0.5">
                   {i + 1}
@@ -287,7 +289,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
             >
               <ExternalLinkIcon />
-              Accéder directement à la console {currentProvider.name}
+              {t('aiConfig.openConsole', { name: currentProvider.name })}
             </a>
           )}
         </div>
@@ -298,7 +300,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
         <>
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Clé API
+              {t('aiConfig.apiKeyLabel')}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
@@ -318,7 +320,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                title={showKey ? 'Masquer' : 'Afficher'}
+                title={showKey ? t('aiConfig.hide') : t('aiConfig.show')}
               >
                 {showKey ? <EyeOffIcon /> : <EyeIcon />}
               </button>
@@ -326,12 +328,12 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
             {keyMismatch ? (
               <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1 font-medium">
                 <AlertCircleIcon />
-                Cette clé semble être une clé {PROVIDERS.find((p) => p.id === detectedProvider)?.name ?? detectedProvider} — sélectionnez le bon fournisseur.
+                {t('aiConfig.keyMismatch', { name: PROVIDERS.find((p) => p.id === detectedProvider)?.name ?? detectedProvider ?? '' })}
               </p>
             ) : (
               <p className="mt-1 text-[10px] text-gray-400 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                Stockée localement dans votre navigateur — non transmise à nos serveurs.
+                {t('aiConfig.keyStoredLocally')}
               </p>
             )}
           </div>
@@ -339,14 +341,14 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
           {/* ── Modèle ── */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Modèle
+              {t('aiConfig.modelLabel')}
             </label>
             <input
               type="text"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-              placeholder={PROVIDER_DEFAULTS[provider]?.model || 'Identifiant du modèle'}
+              placeholder={PROVIDER_DEFAULTS[provider]?.model || t('aiConfig.modelPlaceholder')}
               className="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 font-mono transition"
               autoComplete="off"
               spellCheck={false}
@@ -381,7 +383,7 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
           disabled={!provider || !apiKey.trim()}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
         >
-          <CheckIcon /> Enregistrer
+          <CheckIcon /> {t('aiConfig.save')}
         </button>
         <button
           type="button"
@@ -393,14 +395,14 @@ const AIConfigPanel: React.FC<AIConfigPanelProps> = ({ onConfigured }) => {
             ? <span className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
             : <ZapIcon />
           }
-          Tester
+          {t('aiConfig.test')}
         </button>
         {config.configured && (
           <button
             type="button"
             onClick={handleClear}
             className="p-2.5 rounded-xl border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition"
-            title="Supprimer la configuration"
+            title={t('aiConfig.clearConfig')}
           >
             <RotateCcwIcon />
           </button>

@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { PostIt, QuadrantKey } from "../types";
+import { quadrantTitle, usePreferences } from "../i18n";
 
 function resolveSessionId(): string | null {
   const url = new URL(window.location.href);
@@ -37,6 +38,7 @@ async function nextSortIndex(sessionId: string, quadrant: QuadrantKey): Promise<
 }
 
 const BinPanel: React.FC = () => {
+  const { t, lang } = usePreferences();
   const [items, setItems] = useState<PostIt[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -104,7 +106,7 @@ const BinPanel: React.FC = () => {
       });
     } catch (e) {
       console.error("Restore failed", e);
-      alert("Impossible de restaurer cette étiquette.");
+      alert(t("binPanel.restoreFailed"));
     }
   };
 
@@ -125,12 +127,12 @@ const BinPanel: React.FC = () => {
     >
       <div className="flex items-baseline justify-between">
         <div>
-          <h3 className="text-xl font-black text-amber-700">À discuter (Panier)</h3>
+          <h3 className="text-xl font-black text-amber-700">{t("binPanel.title")}</h3>
           <p className="text-xs text-amber-900/80 font-semibold">
-            Idées mises de côté — glissez-les vers un quadrant ou utilisez “Restaurer”.
+            {t("binPanel.hint")}
           </p>
         </div>
-        <div className="text-sm text-amber-800">{items.length} élément(s)</div>
+        <div className="text-sm text-amber-800">{t("binPanel.itemCount", { n: items.length })}</div>
       </div>
 
       <div ref={containerRef} className="mt-3 grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -148,16 +150,16 @@ const BinPanel: React.FC = () => {
                 e.dataTransfer.effectAllowed = "move";
               }}
               className="rounded-lg border border-amber-300 bg-white p-3 shadow-sm"
-              title="Glissez vers un quadrant pour réintégrer l'idée"
+              title={t("binPanel.dragHint")}
             >
-              <div className="text-xs text-gray-600 mb-1">par {p.author}</div>
+              <div className="text-xs text-gray-600 mb-1">{t("postIt.byAuthor", { author: p.author })}</div>
               <div className="text-[15px] sm:text-base md:text-lg leading-snug font-semibold whitespace-pre-wrap">
                 {p.content}
               </div>
 
               <div className="mt-2 flex items-center justify-between text-[11px] text-amber-800/80">
                 <div>
-                  Origine : <strong>{origin}</strong>
+                  {t("binPanel.origin")} <strong>{quadrantTitle(lang, origin)}</strong>
                 </div>
               </div>
 
@@ -166,13 +168,13 @@ const BinPanel: React.FC = () => {
                 <button
                   onClick={() => restoreDefault(p)}
                   className="px-2.5 py-1 rounded-md border bg-white hover:bg-gray-50 text-xs font-bold"
-                  title="Restaurer vers le quadrant d’origine"
+                  title={t("binPanel.restoreDefaultTitle")}
                 >
-                  Restaurer
+                  {t("binPanel.restore")}
                 </button>
 
                 <div className="ml-auto inline-flex items-center gap-1">
-                  <span className="text-[11px] text-amber-900/80">Vers :</span>
+                  <span className="text-[11px] text-amber-900/80">{t("binPanel.towards")}</span>
                   {(
                     [
                       ["acquis", "A"],
@@ -184,7 +186,7 @@ const BinPanel: React.FC = () => {
                     <button
                       key={qk}
                       onClick={() => restoreTo(p, qk)}
-                      title={`Restaurer vers ${qk}`}
+                      title={t("binPanel.restoreTo", { quadrant: quadrantTitle(lang, qk) })}
                       className="w-7 h-7 text-xs rounded-md border bg-white hover:bg-gray-50 font-bold"
                     >
                       {label}
@@ -196,7 +198,7 @@ const BinPanel: React.FC = () => {
           );
         })}
         {items.length === 0 && (
-          <div className="text-sm text-amber-800/70">Déposez ici des étiquettes pour les traiter plus tard.</div>
+          <div className="text-sm text-amber-800/70">{t("binPanel.empty")}</div>
         )}
       </div>
     </section>

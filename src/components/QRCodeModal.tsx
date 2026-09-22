@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { usePreferences } from "../i18n";
 
 interface QRCodeModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ const isLocalhost =
   window.location.hostname === "127.0.0.1";
 
 const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, workshopId, groupId, workshopTitle, groupName, groupTheme }) => {
+  const { t } = usePreferences();
   // IP réseau saisie manuellement (utile en local uniquement)
   const [networkIP, setNetworkIP] = useState(
     () => localStorage.getItem("afom_network_ip") || ""
@@ -50,7 +52,7 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, w
 
   const copyUrl = async () => {
     await navigator.clipboard.writeText(participantUrl);
-    alert("Lien copié !");
+    alert(t("qrModal.linkCopied"));
   };
 
   return (
@@ -65,10 +67,10 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, w
         {/* En-tête */}
         <div className="px-6 pt-6 pb-4">
           <h3 className="text-xl font-black text-gray-800 mb-1">
-            📱 Scannez pour participer
+            {t("qrModal.title")}
           </h3>
           <p className="text-xs text-gray-500">
-            Session : <span className="font-mono">{sessionId}</span>
+            {t("qrModal.sessionLabel")} <span className="font-mono">{sessionId}</span>
           </p>
           {workshopTitle && <p className="mt-2 text-sm font-semibold text-gray-700">{workshopTitle}</p>}
           {groupName && <p className="text-lg font-black text-indigo-700">{groupName}</p>}
@@ -79,31 +81,20 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, w
         {isLocalhost && (
           <div className="mx-4 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-left">
             <div className="text-xs font-bold text-amber-800 mb-1">
-              ⚠️ Serveur local détecté
+              {t("qrModal.localhostWarning")}
             </div>
             {!networkIP ? (
               <>
                 <p className="text-xs text-amber-700 mb-2">
-                  Les participants sur d'autres appareils ne peuvent pas
-                  accéder à <code>localhost</code>. Entrez l'adresse IP de
-                  votre machine sur le réseau Wi-Fi.
+                  {t("qrModal.localhostBody")}
                 </p>
                 <p className="text-[11px] text-amber-600 mb-2">
-                  Retrouvez-la avec{" "}
-                  <code className="bg-amber-100 px-1 rounded">
-                    ipconfig
-                  </code>{" "}
-                  (Windows) ou{" "}
-                  <code className="bg-amber-100 px-1 rounded">
-                    ifconfig
-                  </code>{" "}
-                  (Mac/Linux) — ex. <strong>192.168.1.42</strong>
+                  {t("qrModal.localhostHint")}
                 </p>
               </>
             ) : (
               <p className="text-xs text-amber-700 mb-2">
-                IP réseau configurée :{" "}
-                <span className="font-mono font-bold">{networkIP}</span>
+                {t("qrModal.ipConfigured", { ip: networkIP })}
               </p>
             )}
 
@@ -114,7 +105,7 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, w
                   value={ipDraft}
                   onChange={(e) => setIpDraft(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSaveIP()}
-                  placeholder="http://192.168.1.42:5173"
+                  placeholder={t("qrModal.ipPlaceholder")}
                   className="flex-1 text-xs border rounded-lg px-2 py-1.5 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
                 <button
@@ -135,7 +126,7 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, w
                 onClick={() => setEditingIP(true)}
                 className="text-xs text-amber-700 underline font-medium"
               >
-                {networkIP ? "Modifier l'IP réseau" : "Entrer l'IP réseau →"}
+                {networkIP ? t("qrModal.editIp") : t("qrModal.enterIp")}
               </button>
             )}
           </div>
@@ -159,13 +150,13 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, sessionId, w
             onClick={copyUrl}
             className="flex-1 py-2.5 border border-gray-300 bg-white rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
           >
-            📋 Copier le lien
+            {t("qrModal.copyLink")}
           </button>
           <button
             onClick={onClose}
             className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-sm hover:bg-indigo-700 transition"
           >
-            Fermer
+            {t("qrModal.close")}
           </button>
         </div>
       </div>

@@ -16,6 +16,7 @@ import {
 import { db } from "../services/firebase";
 import PostItComponent from "./PostIt";
 import { PostIt, QuadrantKey } from "../types";
+import { usePreferences } from "../i18n";
 
 interface QuadrantProps {
   info: {
@@ -217,6 +218,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
   isExpanded,
   onToggleExpand,
 }) => {
+  const { t } = usePreferences();
   const [isDragOver, setIsDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -269,7 +271,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
   async function toggleMatrixTag(label: string) {
     const sid = resolveBoardIdFromContext(postIts);
     if (!sid) {
-      alert("Session introuvable.");
+      alert(t("quadrantCard.sessionNotFound"));
       return;
     }
     const ref = fsDoc(db, "confrontations", sid);
@@ -302,7 +304,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
     } else {
       // TAG — limite 4
       if (cur.length >= 4) {
-        alert("Vous avez déjà 4 éléments sélectionnés dans ce quadrant.");
+        alert(t("quadrantCard.limitReached"));
         return;
       }
       const next = [...cur, label];
@@ -388,17 +390,17 @@ const Quadrant: React.FC<QuadrantProps> = ({
       <div className="flex items-center gap-2">
         <button
           onClick={() => setShowAdd(true)}
-          title="Ajouter une étiquette"
+          title={t("quadrantCard.addLabel")}
           className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-          aria-label="Ajouter une étiquette"
+          aria-label={t("quadrantCard.addLabel")}
         >
           +
         </button>
         <button
           onClick={onToggleExpand}
-          title={isExpanded ? "Réduire" : "Agrandir"}
+          title={isExpanded ? t("quadrantCard.collapse") : t("quadrantCard.expand")}
           className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-          aria-label={isExpanded ? "Réduire ce cadran" : "Agrandir ce cadran"}
+          aria-label={isExpanded ? t("quadrantCard.collapseThis") : t("quadrantCard.expandThis")}
         >
           {isExpanded ? "⤡" : "⤢"}
         </button>
@@ -433,7 +435,7 @@ const Quadrant: React.FC<QuadrantProps> = ({
         {ordered.length === 0 && (
           <div className="col-span-full">
             <div className="h-40 rounded-xl border-2 border-dashed border-gray-300 bg-white/60 flex items-center justify-center text-gray-500 text-sm">
-              Déposez ici vos étiquettes ou cliquez sur “+”
+              {t("quadrantCard.dropHint")}
             </div>
           </div>
         )}
@@ -460,8 +462,8 @@ const Quadrant: React.FC<QuadrantProps> = ({
                   ${selected
                     ? "bg-amber-300 text-amber-900 ring-amber-400 hover:bg-amber-400"
                     : "bg-white text-gray-400 ring-gray-300 hover:bg-gray-50 hover:text-gray-600"}`}
-                title={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
-                aria-label={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
+                title={selected ? t("quadrantCard.removeFromMatrix") : t("quadrantCard.addToMatrix")}
+                aria-label={selected ? t("quadrantCard.removeFromMatrix") : t("quadrantCard.addToMatrix")}
               >
                 {selected ? "★" : "☆"}
               </button>
@@ -490,12 +492,12 @@ const Quadrant: React.FC<QuadrantProps> = ({
           <button
             onClick={() => setShowAdd(true)}
             className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-            title="Ajouter une étiquette"
+            title={t("quadrantCard.addLabel")}
           >+</button>
           <button
             onClick={onToggleExpand}
             className="w-8 h-8 inline-flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-100"
-            title="Réduire"
+            title={t("quadrantCard.collapse")}
           >⤡</button>
         </div>
       </div>
@@ -528,8 +530,8 @@ const Quadrant: React.FC<QuadrantProps> = ({
                   ${selected
                     ? "bg-amber-300 text-amber-900 ring-amber-400 hover:bg-amber-400"
                     : "bg-white text-gray-400 ring-gray-300 hover:bg-gray-50 hover:text-gray-600"}`}
-                title={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
-                aria-label={selected ? "Retirer de la sélection matrice" : "Ajouter à la sélection matrice"}
+                title={selected ? t("quadrantCard.removeFromMatrix") : t("quadrantCard.addToMatrix")}
+                aria-label={selected ? t("quadrantCard.removeFromMatrix") : t("quadrantCard.addToMatrix")}
               >
                 {selected ? "★" : "☆"}
               </button>
@@ -551,49 +553,51 @@ const Quadrant: React.FC<QuadrantProps> = ({
     <div className="fixed inset-0 z-[60] bg-black/30 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
         <div className="px-4 py-3 border-b flex items-center justify-between">
-          <h4 className="font-bold">Nouvelle étiquette — {info.title}</h4>
-          <button onClick={() => setShowAdd(false)} className="p-2 rounded hover:bg-gray-100" aria-label="Fermer">×</button>
+          <h4 className="font-bold">{t("quadrantCard.newLabelTitle", { quadrant: info.title })}</h4>
+          <button onClick={() => setShowAdd(false)} className="p-2 rounded hover:bg-gray-100" aria-label={t("common.close")}>×</button>
         </div>
 
         <div className="p-4 space-y-3">
           <div>
-            <label className="text-sm font-semibold text-gray-600">Auteur</label>
+            <label className="text-sm font-semibold text-gray-600">{t("quadrantCard.authorLabel")}</label>
             <input
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
               className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="Animateur"
+              placeholder={t("quadrantCard.authorPlaceholder")}
             />
           </div>
           <div>
-            <label className="text-sm font-semibold text-gray-600">Contenu</label>
+            <label className="text-sm font-semibold text-gray-600">{t("quadrantCard.contentLabel")}</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="mt-1 w-full rounded-lg border px-3 py-2 h-32 resize-y outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="Saisir l'idée…"
+              placeholder={t("quadrantCard.contentPlaceholder")}
             />
           </div>
         </div>
 
         <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-          <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-md border hover:bg-gray-50">Annuler</button>
+          <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-md border hover:bg-gray-50">{t("common.cancel")}</button>
           <button
             onClick={async () => {
               const boardId = resolveBoardIdFromContext(postIts);
-              if (!boardId) { alert("Session introuvable."); return; }
-              if (!content.trim()) { alert("Le contenu ne peut pas être vide."); return; }
+              if (!boardId) { alert(t("quadrantCard.sessionNotFound")); return; }
+              if (!content.trim()) { alert(t("quadrantCard.emptyContent")); return; }
               try {
+                // Valeur stockée volontairement fixe (jamais traduite) : donnée d'atelier, comme dans
+                // WorkInterface.addPostIt — pas un libellé d'interface.
                 await createFacilitatorNote(quadrantKey, boardId, author.trim() || "Animateur", content.trim());
                 localStorage.setItem("lastAuthor", author.trim() || "Animateur");
                 setContent(""); setShowAdd(false);
               } catch (e) {
                 console.error("Create note failed", e);
-                alert("Impossible de créer l'étiquette.");
+                alert(t("quadrantCard.createFailed"));
               }
             }}
             className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-          >Ajouter</button>
+          >{t("common.add")}</button>
         </div>
       </div>
     </div>
