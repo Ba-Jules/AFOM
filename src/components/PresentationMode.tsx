@@ -484,10 +484,10 @@ const PresentationMode: React.FC<Props> = ({
                   <div className="flex items-center justify-between mt-3 gap-2 flex-wrap">
                     <button
                       onClick={() => setShowContextModal(true)}
-                      className={`px-4 py-2 rounded-md border text-sm font-medium ${
+                      className={`px-5 py-3 rounded-lg text-sm font-bold shadow-md transition-colors flex items-center gap-2 ${
                         (elementsContexte || perimetre || docs.length > 0)
-                          ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700"
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                          : "bg-violet-600 text-white hover:bg-violet-700"
                       }`}
                     >
                       {(elementsContexte || perimetre || docs.length > 0)
