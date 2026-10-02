@@ -536,8 +536,8 @@ const PresentationMode: React.FC<Props> = ({
                 </button>
               </div>
 
-              {/* ── Options avancées (repliées) ── */}
-              <details className="group rounded-2xl border border-gray-200 bg-white/70">
+              {/* ── Options avancées (dépliées par défaut : la configuration IA doit rester visible) ── */}
+              <details open className="group rounded-2xl border border-gray-200 bg-white/70">
                 <summary className="cursor-pointer select-none list-none px-5 py-3 text-sm font-semibold text-gray-500 flex items-center justify-between">
                   {t('presentation.advancedOptions')}
                   <span className="text-gray-400 transition-transform group-open:rotate-180">⌄</span>
