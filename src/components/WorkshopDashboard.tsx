@@ -5,7 +5,7 @@ import { createGroup, createWorkshop, deleteGroup, deleteWorkshopCascade, restor
 import { AppUser, PostIt, Workshop, WorkshopGroup } from "../types";
 import QRCodeModal from "./QRCodeModal";
 import UserBadge from "./UserBadge";
-import { PreferenceControls, usePreferences } from "../i18n";
+import { usePreferences } from "../i18n";
 
 interface Props {
   workshopId?: string;
@@ -38,16 +38,28 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onDelete, 
   onEdit: () => void;
   onArchive: () => void;
   onDelete: () => void;
-  onCount: (count: number) => void;
+  onCount: (count: number | null) => void;
 }) {
   const { t } = usePreferences();
   const [posts, setPosts] = useState<PostIt[]>([]);
+  // Tant que Firestore n'a pas répondu, on affiche « … » et non 0 : un groupe en cours de
+  // chargement ne doit pas ressembler à un groupe vide.
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [qr, setQr] = useState(false);
-  useEffect(() => onSnapshot(
-    query(collection(db, "postits"), where("sessionId", "==", group.sessionId)),
-    snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() } as PostIt))),
-  ), [group.sessionId]);
-  useEffect(() => onCount(posts.filter(p => p.status !== "bin").length), [posts, onCount]);
+  useEffect(() => {
+    setLoaded(false); setLoadError(false);
+    return onSnapshot(
+      query(collection(db, "postits"), where("sessionId", "==", group.sessionId)),
+      snap => { setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() } as PostIt))); setLoaded(true); setLoadError(false); },
+      error => { console.error("Unable to load group contributions", error); setLoadError(true); },
+    );
+  }, [group.sessionId]);
+  useEffect(() => {
+    if (loadError) onCount(null);
+    else if (loaded) onCount(posts.filter(p => p.status !== "bin").length);
+  }, [posts, loaded, loadError, onCount]);
+  const show = (n: number) => loadError ? "!" : loaded ? n : "…";
   const counts = useMemo(() => ({
     acquis: posts.filter(p => p.status !== "bin" && p.quadrant === "acquis").length,
     faiblesses: posts.filter(p => p.status !== "bin" && p.quadrant === "faiblesses").length,
@@ -60,12 +72,13 @@ function GroupCard({ group, workshopTitle, onOpen, onEdit, onArchive, onDelete, 
       <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">{t("workshopDashboard.active")}</span>
     </div>
     <div className="mt-4 grid grid-cols-5 gap-1 text-center text-xs">
-      <div className="rounded bg-gray-100 p-2"><b className="block text-lg">{posts.filter(p => p.status !== "bin").length}</b>{t("workshopDashboard.total")}</div>
-      <div className="rounded bg-green-50 p-2"><b className="block text-lg">{counts.acquis}</b>{t("workshopDashboard.forces")}</div>
-      <div className="rounded bg-red-50 p-2"><b className="block text-lg">{counts.faiblesses}</b>{t("workshopDashboard.weak")}</div>
-      <div className="rounded bg-blue-50 p-2"><b className="block text-lg">{counts.opportunites}</b>{t("workshopDashboard.opp")}</div>
-      <div className="rounded bg-orange-50 p-2"><b className="block text-lg">{counts.menaces}</b>{t("workshopDashboard.threats")}</div>
+      <div className="rounded bg-gray-100 p-2"><b className="block text-lg">{show(posts.filter(p => p.status !== "bin").length)}</b>{t("workshopDashboard.total")}</div>
+      <div className="rounded bg-green-50 p-2"><b className="block text-lg">{show(counts.acquis)}</b>{t("workshopDashboard.forces")}</div>
+      <div className="rounded bg-red-50 p-2"><b className="block text-lg">{show(counts.faiblesses)}</b>{t("workshopDashboard.weak")}</div>
+      <div className="rounded bg-blue-50 p-2"><b className="block text-lg">{show(counts.opportunites)}</b>{t("workshopDashboard.opp")}</div>
+      <div className="rounded bg-orange-50 p-2"><b className="block text-lg">{show(counts.menaces)}</b>{t("workshopDashboard.threats")}</div>
     </div>
+    {loadError && <p className="mt-2 text-xs font-semibold text-red-600">{t("workshopDashboard.countLoadError")}</p>}
     <div className="mt-4 flex flex-wrap gap-2">
       <button onClick={onOpen} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white">{t("workshopDashboard.openBtn")}</button>
       <button onClick={() => setQr(true)} className="rounded-lg border px-3 py-2 text-sm font-semibold">{t("workshopDashboard.share")}</button>
@@ -193,7 +206,8 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
   const [editing, setEditing] = useState<WorkshopGroup | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [groupCounts, setGroupCounts] = useState<Record<string, number>>({});
+  // null = erreur de chargement ; clé absente = pas encore chargé
+  const [groupCounts, setGroupCounts] = useState<Record<string, number | null>>({});
   const [showTrash, setShowTrash] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
   const [showWorkshopTrash, setShowWorkshopTrash] = useState(false);
@@ -252,7 +266,6 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
       <div className="mb-5 flex items-center justify-between gap-2">
         <button onClick={onBack} className="text-sm text-indigo-700">{t("workshopDashboard.backToAfom")}</button>
         <div className="flex items-center gap-3">
-          <PreferenceControls />
           <button onClick={() => setShowWorkshopTrash(v => !v)} className="text-sm font-semibold text-red-600">{t("workshopDashboard.workshopTrashLink", { n: trashedWorkshops.length })}</button>
           <UserBadge user={user} className="text-gray-500" />
         </div>
@@ -311,6 +324,9 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
   </main>;
 
   const total = activeGroups.reduce((sum, group) => sum + (groupCounts[group.id] || 0), 0);
+  const countsPending = activeGroups.some(group => !(group.id in groupCounts));
+  const countsFailed = activeGroups.some(group => groupCounts[group.id] === null);
+  const totalLabel = countsPending ? "…" : countsFailed ? "!" : (total || "—");
   const save = async () => {
     const errors: { number?: string; theme?: string } = {};
     if (!form.number.trim()) errors.number = t("workshopDashboard.numberRequired");
@@ -335,7 +351,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
     <header className="border-b bg-gradient-to-r from-indigo-700 to-purple-700 text-white"><div className="mx-auto max-w-7xl px-4 py-6">
       <div className="flex items-center justify-between gap-2">
         <button onClick={onBack} className="text-sm text-indigo-100">{t("workshopDashboard.backToAfom")}</button>
-        <div className="flex items-center gap-3"><PreferenceControls /><UserBadge user={user} className="text-indigo-100" /></div>
+        <div className="flex items-center gap-3"><UserBadge user={user} className="text-indigo-100" /></div>
       </div>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><div className="text-sm font-bold uppercase text-indigo-200">{t("workshopDashboard.dashboardEyebrow")}</div><h1 className="text-3xl font-black">{workshop?.title || t("workshopDashboard.loading")}</h1></div>
       <div className="flex flex-wrap gap-2">
@@ -346,7 +362,7 @@ export default function WorkshopDashboard({ workshopId, onOpenSession, onSelectW
       </div></div>
     </div></header>
     <section className="mx-auto max-w-7xl p-4">
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-md"><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{activeGroups.length}</b><span className="ml-2 text-gray-500">{t("workshopDashboard.groupsCount")}</span></div><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{total || "—"}</b><span className="ml-2 text-gray-500">{t("workshopDashboard.contributionsCount")}</span></div></div>
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:max-w-md"><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{activeGroups.length}</b><span className="ml-2 text-gray-500">{t("workshopDashboard.groupsCount")}</span></div><div className="rounded-xl bg-white p-4 shadow-sm"><b className="text-3xl">{totalLabel}</b><span className="ml-2 text-gray-500">{t("workshopDashboard.contributionsCount")}</span></div></div>
       {showArchive && <ArchivePanel
         groups={archivedGroups}
         onClose={() => setShowArchive(false)}

@@ -141,6 +141,7 @@ const fr: Dict = {
   workshopDashboard: {
     active: "Actif",
     total: "Total", forces: "Forces", weak: "Faib.", opp: "Opp.", threats: "Men.",
+    countLoadError: "Impossible de charger les contributions de ce groupe. Rechargez la page.",
     openBtn: "Ouvrir", share: "Partager", edit: "Modifier", archive: "Archiver", trash: "Mettre à la corbeille",
     trashTitle: "Corbeille",
     trashBody: (v: Vars) => `Les groupes supprimés restent ici ${v.days} jours avant suppression définitive automatique. Vous pouvez les restaurer à tout moment avant cette échéance.`,
@@ -543,6 +544,7 @@ const en: Dict = {
   workshopDashboard: {
     active: "Active",
     total: "Total", forces: "Str.", weak: "Weak.", opp: "Opp.", threats: "Thr.",
+    countLoadError: "Could not load this group's contributions. Please reload the page.",
     openBtn: "Open", share: "Share", edit: "Edit", archive: "Archive", trash: "Move to trash",
     trashTitle: "Trash",
     trashBody: (v: Vars) => `Deleted groups stay here for ${v.days} days before automatic permanent deletion. You can restore them at any time before then.`,

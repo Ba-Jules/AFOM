@@ -21,7 +21,7 @@ import UserBadge from "./UserBadge";
 
 import { PostIt, QuadrantKey, BoardMeta, AppUser } from "../types";
 import { QUADRANTS } from "../constants";
-import { PreferenceControls, quadrantSubtitle, quadrantTitle, usePreferences } from "../i18n";
+import { quadrantSubtitle, quadrantTitle, usePreferences } from "../i18n";
 
 /* Palette minimale pour Quadrant */
 const PALETTE: Record<
@@ -148,11 +148,17 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
       onBackToPresentation();
       return;
     }
+    // On garde atelier + groupe dans l'URL : sans eux, un rechargement depuis Analyse/Matrice
+    // faisait disparaître le bouton « Atelier » (retour vers les autres groupes).
+    const groupParams = workshopId && groupId
+      ? `&workshop=${encodeURIComponent(workshopId)}&group=${encodeURIComponent(groupId)}`
+      : "";
+    const url = `${origin}${pathname}?v=${v}&session=${encodeURIComponent(sessionId)}${groupParams}`;
     if (onNavigate) {
-      window.history.replaceState({}, "", `${origin}${pathname}?v=${v}&session=${encodeURIComponent(sessionId)}`);
+      window.history.replaceState({}, "", url);
       onNavigate(v);
     } else {
-      window.location.href = `${origin}${pathname}?v=${v}&session=${encodeURIComponent(sessionId)}`;
+      window.location.href = url;
     }
   };
 
@@ -195,7 +201,6 @@ const WorkInterface: React.FC<WorkInterfaceProps> = ({
             </div>
           </div>
 
-          <PreferenceControls className="hidden sm:inline-flex" />
           <UserBadge user={user} className="hidden sm:flex text-gray-600 flex-shrink-0" />
 
           {/* Nav — scrollable horizontalement sur mobile */}

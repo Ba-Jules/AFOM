@@ -109,6 +109,18 @@ const App: React.FC = () => {
     setView("work");
   };
 
+  // Retour Analyse/Matrice → espace de travail : on réécrit l'URL complète (atelier + groupe
+  // inclus) pour qu'un rechargement ne perde pas le bouton « Atelier » du groupe.
+  const backToWork = () => {
+    if (!sessionId) { setView("work"); return; }
+    const { origin, pathname } = window.location;
+    const groupParams = workshopId && groupId
+      ? `&workshop=${encodeURIComponent(workshopId)}&group=${encodeURIComponent(groupId)}`
+      : "";
+    window.history.replaceState({}, "", `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}${groupParams}`);
+    setView("work");
+  };
+
   const openWorkshop = () => {
     window.history.replaceState({}, "", `${window.location.pathname}?v=workshop`);
     setWorkshopId(null);
@@ -169,14 +181,14 @@ const App: React.FC = () => {
     case "analysis":
       return (
         <div className="min-h-screen bg-gray-50">
-          <AnalysisMode postIts={analysisPostIts} onBack={() => setView("work")} />
+          <AnalysisMode postIts={analysisPostIts} onBack={backToWork} />
         </div>
       );
 
     case "matrix":
       return sessionId ? (
         <div className="min-h-screen bg-gray-50">
-          <MatrixMode sessionId={sessionId} onBack={() => setView("work")} />
+          <MatrixMode sessionId={sessionId} onBack={backToWork} />
         </div>
       ) : (
         <div>{t("common.loading")}</div>
