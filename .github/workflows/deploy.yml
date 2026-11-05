@@ -31,9 +31,7 @@ jobs:
 
       - name: Build (Vite)
         run: npm run build
-        env:
-          # ⬇️ MAPPING : le secret GitHub "GEMINI_API_KEY" est exposé à Vite sous VITE_GEMINI_API_KEY
-          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        # Aucune clé IA n'est injectée au build : elle serait lisible dans le navigateur.
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
