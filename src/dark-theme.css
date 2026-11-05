@@ -1,0 +1,141 @@
+/* Mode sombre : ce fichier n'ajoute que des règles sous [data-theme="dark"], jamais une modification
+   des classes Tailwind claires déjà posées dans le JSX — le rendu clair reste identique au pixel.
+   L'app charge Tailwind par CDN (pas de build utilitaire local), donc le mode sombre est apporté ici
+   par des règles ciblant directement les classes Tailwind réellement utilisées (voir grep du projet),
+   plutôt que par des variantes `dark:` qu'il faudrait ajouter sur des milliers d'éléments. Restreint à
+   @media screen : les exports PDF/impression restent indépendants du thème client. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+  :root[data-theme="dark"] body {
+    background: #12181a;
+    color: #dce8e6;
+  }
+  /* Neutres : fonds clairs -> surfaces sombres */
+  :root[data-theme="dark"] .bg-white { background-color: #1c2422 !important; }
+  :root[data-theme="dark"] .bg-gray-50 { background-color: #171f1c !important; }
+  :root[data-theme="dark"] .bg-gray-100 { background-color: #1c2422 !important; }
+  :root[data-theme="dark"] .bg-gray-200 { background-color: #232f2b !important; }
+  :root[data-theme="dark"] .bg-gray-300 { background-color: #2e3a35 !important; }
+  :root[data-theme="dark"] .bg-slate-50 { background-color: #171f1c !important; }
+  :root[data-theme="dark"] .bg-slate-200 { background-color: #232f2b !important; }
+
+  /* Neutres : texte sombre sur fond clair -> texte clair */
+  :root[data-theme="dark"] .text-gray-400 { color: #6b8079 !important; }
+  :root[data-theme="dark"] .text-gray-500 { color: #7f958d !important; }
+  :root[data-theme="dark"] .text-gray-600 { color: #93a8a1 !important; }
+  :root[data-theme="dark"] .text-gray-700 { color: #aabfb8 !important; }
+  :root[data-theme="dark"] .text-gray-800 { color: #cadbd5 !important; }
+  :root[data-theme="dark"] .text-gray-900 { color: #dce8e6 !important; }
+  :root[data-theme="dark"] .text-slate-700 { color: #aabfb8 !important; }
+
+  /* Bordures neutres */
+  :root[data-theme="dark"] .border-gray-200 { border-color: #2e3a35 !important; }
+  :root[data-theme="dark"] .border-gray-300 { border-color: #3a4741 !important; }
+  :root[data-theme="dark"] .border-gray-400 { border-color: #45564e !important; }
+  :root[data-theme="dark"] .border-gray-500 { border-color: #51655c !important; }
+  :root[data-theme="dark"] .border-gray-800 { border-color: #2e3a35 !important; }
+  :root[data-theme="dark"] .border-slate-300 { border-color: #3a4741 !important; }
+
+  /* Panneaux d'information pastel (fond clair + texte + bordure assortis) par teinte */
+  :root[data-theme="dark"] .bg-amber-50 { background-color: #2e2410 !important; }
+  :root[data-theme="dark"] .bg-amber-100 { background-color: #3a2f16 !important; }
+  :root[data-theme="dark"] .border-amber-200 { border-color: #5c4a20 !important; }
+  :root[data-theme="dark"] .border-amber-300 { border-color: #6e5a28 !important; }
+  :root[data-theme="dark"] .border-amber-500 { border-color: #a07f30 !important; }
+  :root[data-theme="dark"] .text-amber-600 { color: #e0b955 !important; }
+  :root[data-theme="dark"] .text-amber-700 { color: #e8c583 !important; }
+  :root[data-theme="dark"] .text-amber-800 { color: #f0d9a3 !important; }
+  :root[data-theme="dark"] .text-amber-900 { color: #f5e6c3 !important; }
+
+  :root[data-theme="dark"] .bg-blue-50 { background-color: #0f2038 !important; }
+  :root[data-theme="dark"] .bg-blue-100 { background-color: #142c47 !important; }
+  :root[data-theme="dark"] .border-blue-100 { border-color: #1a3352 !important; }
+  :root[data-theme="dark"] .border-blue-300 { border-color: #2c4f78 !important; }
+  :root[data-theme="dark"] .border-blue-400 { border-color: #34608f !important; }
+  :root[data-theme="dark"] .border-blue-500 { border-color: #3d70a6 !important; }
+  :root[data-theme="dark"] .text-blue-600 { color: #7fb3e8 !important; }
+  :root[data-theme="dark"] .text-blue-700 { color: #9dc6ee !important; }
+  :root[data-theme="dark"] .text-blue-800 { color: #bbd8f3 !important; }
+
+  :root[data-theme="dark"] .bg-emerald-50 { background-color: #10261d !important; }
+  :root[data-theme="dark"] .bg-emerald-100 { background-color: #143024 !important; }
+  :root[data-theme="dark"] .border-emerald-200 { border-color: #1e4a35 !important; }
+  :root[data-theme="dark"] .border-emerald-300 { border-color: #275c41 !important; }
+  :root[data-theme="dark"] .border-emerald-400 { border-color: #2f6e4d !important; }
+  :root[data-theme="dark"] .text-emerald-600 { color: #6fcf9c !important; }
+  :root[data-theme="dark"] .text-emerald-700 { color: #92dcb6 !important; }
+  :root[data-theme="dark"] .text-emerald-950 { color: #eaf7f0 !important; }
+
+  :root[data-theme="dark"] .bg-green-50 { background-color: #10261a !important; }
+  :root[data-theme="dark"] .bg-green-100 { background-color: #143020 !important; }
+  :root[data-theme="dark"] .border-green-200 { border-color: #1e4a2e !important; }
+  :root[data-theme="dark"] .border-green-300 { border-color: #275c39 !important; }
+  :root[data-theme="dark"] .border-green-400 { border-color: #2f6e44 !important; }
+  :root[data-theme="dark"] .border-green-500 { border-color: #38804f !important; }
+  :root[data-theme="dark"] .border-green-600 { border-color: #40925a !important; }
+  :root[data-theme="dark"] .text-green-600 { color: #6fcf8c !important; }
+  :root[data-theme="dark"] .text-green-700 { color: #92dca8 !important; }
+  :root[data-theme="dark"] .text-green-800 { color: #b0e6c0 !important; }
+
+  :root[data-theme="dark"] .bg-indigo-50 { background-color: #1a1f3d !important; }
+  :root[data-theme="dark"] .bg-indigo-100 { background-color: #212a4d !important; }
+  :root[data-theme="dark"] .bg-indigo-200 { background-color: #2a355e !important; }
+  :root[data-theme="dark"] .bg-indigo-300 { background-color: #34406f !important; }
+  :root[data-theme="dark"] .border-indigo-100 { border-color: #262f52 !important; }
+  :root[data-theme="dark"] .border-indigo-200 { border-color: #303c63 !important; }
+  :root[data-theme="dark"] .border-indigo-300 { border-color: #3b4977 !important; }
+  :root[data-theme="dark"] .border-indigo-400 { border-color: #4a5a92 !important; }
+  :root[data-theme="dark"] .border-indigo-500 { border-color: #5a6cab !important; }
+  :root[data-theme="dark"] .border-indigo-600 { border-color: #6d7ec2 !important; }
+  :root[data-theme="dark"] .text-indigo-100 { color: #dfe3fa !important; }
+  :root[data-theme="dark"] .text-indigo-200 { color: #cfd4f7 !important; }
+  :root[data-theme="dark"] .text-indigo-500 { color: #9ca3ee !important; }
+  :root[data-theme="dark"] .text-indigo-600 { color: #a5abf0 !important; }
+  :root[data-theme="dark"] .text-indigo-700 { color: #b9bef2 !important; }
+  :root[data-theme="dark"] .text-indigo-800 { color: #cdd1f6 !important; }
+
+  :root[data-theme="dark"] .bg-orange-50 { background-color: #2e2010 !important; }
+  :root[data-theme="dark"] .bg-orange-100 { background-color: #3a2814 !important; }
+  :root[data-theme="dark"] .border-orange-100 { border-color: #4a3418 !important; }
+  :root[data-theme="dark"] .border-orange-300 { border-color: #6e4e20 !important; }
+  :root[data-theme="dark"] .border-orange-400 { border-color: #8a6228 !important; }
+  :root[data-theme="dark"] .border-orange-500 { border-color: #a67630 !important; }
+  :root[data-theme="dark"] .text-orange-600 { color: #eba968 !important; }
+  :root[data-theme="dark"] .text-orange-700 { color: #f0bd8a !important; }
+  :root[data-theme="dark"] .text-orange-800 { color: #f5d1ac !important; }
+
+  :root[data-theme="dark"] .bg-purple-50 { background-color: #241a30 !important; }
+  :root[data-theme="dark"] .bg-purple-100 { background-color: #2e213d !important; }
+  :root[data-theme="dark"] .border-purple-100 { border-color: #3a2a4d !important; }
+  :root[data-theme="dark"] .text-purple-800 { color: #dcc3ec !important; }
+
+  :root[data-theme="dark"] .bg-red-50 { background-color: #301715 !important; }
+  :root[data-theme="dark"] .bg-red-100 { background-color: #3c1c19 !important; }
+  :root[data-theme="dark"] .border-red-200 { border-color: #5c2b26 !important; }
+  :root[data-theme="dark"] .border-red-300 { border-color: #703530 !important; }
+  :root[data-theme="dark"] .border-red-400 { border-color: #8a423a !important; }
+  :root[data-theme="dark"] .border-red-500 { border-color: #a34f45 !important; }
+  :root[data-theme="dark"] .border-red-600 { border-color: #bd5c50 !important; }
+  :root[data-theme="dark"] .text-red-400 { color: #e79086 !important; }
+  :root[data-theme="dark"] .text-red-500 { color: #ec9f96 !important; }
+  :root[data-theme="dark"] .text-red-600 { color: #f0aea6 !important; }
+  :root[data-theme="dark"] .text-red-700 { color: #f3bdb6 !important; }
+  :root[data-theme="dark"] .text-red-800 { color: #f6ccc6 !important; }
+
+  :root[data-theme="dark"] .bg-yellow-50 { background-color: #2e2a10 !important; }
+
+  /* Champs de saisie : Tailwind ne fixe pas systématiquement leur fond, mais le style natif du
+     navigateur reste clair sans cette règle. */
+  :root[data-theme="dark"] input,
+  :root[data-theme="dark"] textarea,
+  :root[data-theme="dark"] select {
+    background-color: #1c2422;
+    color: #dce8e6;
+  }
+  :root[data-theme="dark"] input::placeholder,
+  :root[data-theme="dark"] textarea::placeholder {
+    color: #5f7269;
+  }
+}

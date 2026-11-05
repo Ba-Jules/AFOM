@@ -8,20 +8,24 @@ import React, {
 import { QRCodeCanvas } from "qrcode.react";
 import { doc as fsDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { BoardMeta, BoardContext } from "../types";
+import { BoardMeta, BoardContext, ContextDocument } from "../types";
 import { extractContextFromDocument } from "../services/geminiService";
 import AIConfigPanel from "./AIConfigPanel";
 import { useAIConfig } from "../hooks/useAIConfig";
+import { PreferenceControls, translate, translateList, usePreferences, type Lang } from "../i18n";
+
+// Limite raisonnable pour ne pas envoyer un contexte démesuré à l'API IA.
+const MAX_CONTEXT_DOCUMENTS = 5;
 
 /** Extrait le texte brut d'un fichier TXT, PDF ou DOCX (côté navigateur) */
-async function extractTextFromFile(file: File): Promise<string> {
+async function extractTextFromFile(file: File, lang: Lang): Promise<string> {
   const ext = (file.name.split(".").pop() ?? "").toLowerCase();
 
   if (ext === "txt") {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error("Lecture échouée"));
+      reader.onerror = () => reject(new Error(translate(lang, "presentation.readFailed")));
       reader.readAsText(file, "UTF-8");
     });
   }
@@ -50,14 +54,16 @@ async function extractTextFromFile(file: File): Promise<string> {
     return result.value as string;
   }
 
-  throw new Error(`Format ".${ext}" non supporté. Utilisez TXT, PDF ou DOCX.`);
+  throw new Error(translate(lang, "presentation.unsupportedFormat", { ext }));
 }
 
 type Slide = { id: string; render: () => React.ReactNode };
 
 interface Props {
   onLaunchSession: (sessionId: string) => void;
+  onPrepareWorkshop: () => void;
   initialSessionId: string;
+  onBackToWork?: () => void;
 }
 
 /* ---------------- Helpers UI ---------------- */
@@ -131,7 +137,9 @@ function Pill({ sign }: { sign: "+" | "-" }) {
 
 /* ------------ Slide “logique des deux axes” ------------------ */
 
-function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
+function MatrixSlide({ topReserve = 0, lang }: { topReserve?: number; lang: Lang }) {
+  const t = (key: string, vars?: Record<string, string | number>) => translate(lang, key, vars);
+  const list = (key: string) => translateList(lang, key);
   return (
     <FitToScreen topReserve={topReserve}>
       <div
@@ -140,30 +148,30 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
       >
         {/* Titre */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[-1px] text-white text-[48px] font-extrabold tracking-tight whitespace-nowrap">
-          Composantes de l'outil AFOM
+          {t("presentation.componentsTitle")}
         </div>
 
         {/* Interne / Externe */}
         <div className="absolute top-[70px] left-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
-            Interne
+            {t("presentation.internal")}
           </div>
         </div>
         <div className="absolute top-[70px] right-[120px]">
           <div className="px-6 py-2 rounded-xl bg-[#c6ff7f] text-[#0a0a0a] font-extrabold text-xl border-4 border-[#2e7d32]">
-            Externe
+            {t("presentation.external")}
           </div>
         </div>
 
         {/* vision rétrospective / vision prospective */}
         <div className="absolute top-[110px] left-[200px]">
           <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
-            vision rétrospective
+            {t("presentation.retrospective")}
           </div>
         </div>
         <div className="absolute top-[110px] right-[200px]">
           <div className="px-4 py-1 rounded-xl bg-[#ffd54f] text-[#0a0a0a] font-extrabold text-lg border-4 border-[#ff8f00] whitespace-nowrap">
-            vision prospective
+            {t("presentation.prospective")}
           </div>
         </div>
 
@@ -178,7 +186,7 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
         {/* Axe du jugement (vertical) */}
         <div className="absolute left-1/2 -translate-x-1/2 top-[302px] -rotate-90 z-10">
           <div className="text-white font-black text-lg bg-[#d50000] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Axe du jugement
+            {t("presentation.judgmentAxis")}
           </div>
         </div>
 
@@ -186,17 +194,17 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
         <div className="absolute left-[64px] right-[64px] top-[420px] h-[48px] bg-[#ffea00] border-6 border-black rounded-md" />
         <div className="absolute left-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Passé
+            {t("presentation.past")}
           </div>
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-lg bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Axe du temps
+            {t("presentation.timeAxis")}
           </div>
         </div>
         <div className="absolute right-[90px] top-[444px] -translate-y-1/2 z-10">
           <div className="text-black font-black text-xl bg-[#ffea00] px-3 py-1 border-2 border-black rounded whitespace-nowrap shadow-lg">
-            Futur
+            {t("presentation.future")}
           </div>
         </div>
 
@@ -205,15 +213,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* A - Acquis */}
           <div className="relative border-[6px] border-[#1b5e20] bg-[#52b788] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">A pour Acquis</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.aAcquis")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Passé • Positif • Interne
+                {t("presentation.aAcquisSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Forces / Succès</li>
-                <li>• Réalisations désirées</li>
-                <li>• Aspects positifs</li>
-                <li>• Ce qu'on a aimé</li>
+                {list("presentation.aAcquisItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -221,15 +226,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* O - Opportunités */}
           <div className="relative border-[6px] border-[#004d40] bg-[#2ec4b6] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">O pour Opportunités</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.oOpportunites")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Futur • Positif • Externe
+                {t("presentation.oOpportunitesSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Potentialités</li>
-                <li>• Ressources exploitables</li>
-                <li>• Atouts</li>
-                <li>• Ce qu'on peut valoriser</li>
+                {list("presentation.oOpportunitesItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -237,15 +239,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* F - Faiblesses */}
           <div className="relative border-[6px] border-[#b71c1c] bg-[#ef5350] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">F pour Faiblesses</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.fFaiblesses")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Passé • Négatif • Interne
+                {t("presentation.fFaiblessesSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Échecs</li>
-                <li>• Aspects négatifs</li>
-                <li>• Problèmes rencontrés</li>
-                <li>• Ce qu'on n'a pas aimé</li>
+                {list("presentation.fFaiblessesItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -253,15 +252,12 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
           {/* M - Menaces */}
           <div className="relative border-[6px] border-[#e65100] bg-[#ff8a65] p-8">
             <div className="text-white">
-              <div className="text-3xl font-extrabold mb-2">M pour Menaces</div>
+              <div className="text-3xl font-extrabold mb-2">{t("presentation.mMenaces")}</div>
               <div className="text-lg font-semibold opacity-90 mb-3">
-                Futur • Négatif • Externe
+                {t("presentation.mMenacesSubtitle")}
               </div>
               <ul className="text-lg space-y-1">
-                <li>• Risques</li>
-                <li>• Obstacles</li>
-                <li>• Craintes</li>
-                <li>• Suppositions pouvant influencer négativement</li>
+                {list("presentation.mMenacesItems").map((it) => <li key={it}>• {it}</li>)}
               </ul>
             </div>
           </div>
@@ -275,8 +271,11 @@ function MatrixSlide({ topReserve = 0 }: { topReserve?: number }) {
 
 const PresentationMode: React.FC<Props> = ({
   onLaunchSession,
+  onPrepareWorkshop,
   initialSessionId,
+  onBackToWork,
 }) => {
+  const { t, lang } = usePreferences();
   const [sessionId, setSessionId] = useState<string>(initialSessionId || "");
   useEffect(() => {
     if (initialSessionId) setSessionId(initialSessionId);
@@ -295,14 +294,14 @@ const PresentationMode: React.FC<Props> = ({
   const [themeName, setThemeName] = useState("");
 
   // Contexte de session
-  const [situationActuelle, setSituationActuelle] = useState("");
-  const [symptomesObservables, setSymptomesObservables] = useState("");
+  const [elementsContexte, setElementsContexte] = useState("");
   const [perimetre, setPerimetre] = useState("");
-  const [docExtracted, setDocExtracted] = useState<{
-    problematique: string; acteurs: string; zone: string; enjeux: string;
-  } | null>(null);
+  const [docs, setDocs] = useState<ContextDocument[]>([]);
   const [showContextModal, setShowContextModal] = useState(false);
   const [extractingDoc, setExtractingDoc] = useState(false);
+  const [savingMeta, setSavingMeta] = useState(false);
+  const [metaTouched, setMetaTouched] = useState(false);
+  const [metaSaved, setMetaSaved] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -314,16 +313,28 @@ const PresentationMode: React.FC<Props> = ({
           setProjectName(m.projectName || "");
           setThemeName(m.themeName || "");
           if (m.context) {
-            setSituationActuelle(m.context.situationActuelle || "");
-            setSymptomesObservables(m.context.symptomesObservables || "");
+            if (m.context.elementsContexte) {
+              setElementsContexte(m.context.elementsContexte);
+            } else {
+              // Session créée avant la fusion en un champ libre unique : on regroupe
+              // les deux anciens champs pour ne pas perdre ce qui a été saisi.
+              const legacy = [m.context.situationActuelle, m.context.symptomesObservables]
+                .filter(Boolean)
+                .join("\n\n");
+              if (legacy) setElementsContexte(legacy);
+            }
             setPerimetre(m.context.perimetre || "");
-            if (m.context.problematique || m.context.acteurs || m.context.zone || m.context.enjeux) {
-              setDocExtracted({
+            if (m.context.documents && m.context.documents.length > 0) {
+              setDocs(m.context.documents);
+            } else if (m.context.problematique || m.context.acteurs || m.context.zone || m.context.enjeux) {
+              // Session créée avant le support multi-documents : un seul document, sans nom mémorisé.
+              setDocs([{
+                name: "Document importé",
                 problematique: m.context.problematique || "",
                 acteurs: m.context.acteurs || "",
                 zone: m.context.zone || "",
                 enjeux: m.context.enjeux || "",
-              });
+              }]);
             }
           }
         }
@@ -336,37 +347,44 @@ const PresentationMode: React.FC<Props> = ({
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (docs.length >= MAX_CONTEXT_DOCUMENTS) {
+      alert(t('presentation.maxDocuments', { max: MAX_CONTEXT_DOCUMENTS }));
+      e.target.value = "";
+      return;
+    }
     setExtractingDoc(true);
     try {
-      const rawText = await extractTextFromFile(file);
-      if (!rawText.trim()) { alert("Impossible d’extraire le texte du document."); return; }
+      const rawText = await extractTextFromFile(file, lang);
+      if (!rawText.trim()) { alert(t('presentation.extractFailed')); return; }
       // Tronquer à 8000 caractères max — jamais le document brut en analyse finale
       const truncated = rawText.slice(0, 8000);
       const extracted = await extractContextFromDocument(truncated);
-      setDocExtracted(extracted);
+      setDocs((prev) => [...prev, { name: file.name, ...extracted }]);
     } catch (err: any) {
-      alert(err?.message || "Erreur lors de l’extraction du document.");
+      alert(err?.message || t('presentation.extractError'));
     } finally {
       setExtractingDoc(false);
       e.target.value = "";
     }
+  }, [docs.length]);
+
+  const removeDoc = useCallback((index: number) => {
+    setDocs((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const updateDoc = useCallback((index: number, patch: Partial<ContextDocument>) => {
+    setDocs((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   }, []);
 
   const saveMeta = useCallback(async () => {
-    if (!sessionId) {
-      alert("Définis d’abord un ID de session (slide Lancement).");
-      return;
-    }
-    if (!projectName.trim() || !themeName.trim()) {
-      alert("Renseigne le Projet et le Thème.");
-      return;
-    }
+    setMetaTouched(true);
+    if (!sessionId || !projectName.trim() || !themeName.trim() || savingMeta) return;
     const context: BoardContext = {
-      situationActuelle: situationActuelle.trim(),
-      symptomesObservables: symptomesObservables.trim(),
+      elementsContexte: elementsContexte.trim(),
       perimetre: perimetre.trim(),
-      ...(docExtracted ?? {}),
+      ...(docs.length > 0 ? { documents: docs } : {}),
     };
+    setSavingMeta(true);
     try {
       await setDoc(
         fsDoc(db, "boards", sessionId),
@@ -374,23 +392,23 @@ const PresentationMode: React.FC<Props> = ({
         { merge: true }
       );
       setShowContextModal(false);
-      alert("Session enregistrée.");
-    } catch (e) {
+      setMetaSaved(true);
+      setTimeout(() => setMetaSaved(false), 2000);
+    } catch (e: any) {
       console.error(e);
-      alert("Impossible d’enregistrer.");
+      if (e?.code === "permission-denied") {
+        alert(t('presentation.saveNeedsModerator'));
+      } else {
+        alert(t('presentation.saveFailed'));
+      }
+    } finally {
+      setSavingMeta(false);
     }
-  }, [sessionId, projectName, themeName, situationActuelle, symptomesObservables, perimetre, docExtracted]);
+  }, [sessionId, projectName, themeName, elementsContexte, perimetre, docs, savingMeta]);
 
   const participantUrl = useMemo(() => {
     const { origin, pathname } = window.location;
     return `${origin}${pathname}?mode=participant&session=${encodeURIComponent(
-      sessionId || ""
-    )}`;
-  }, [sessionId]);
-
-  const goModerator = useCallback(() => {
-    const { origin, pathname } = window.location;
-    window.location.href = `${origin}${pathname}?v=work&session=${encodeURIComponent(
       sessionId || ""
     )}`;
   }, [sessionId]);
@@ -408,8 +426,9 @@ const PresentationMode: React.FC<Props> = ({
                 <h1 className="text-6xl md:text-7xl font-black bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent leading-tight drop-shadow">
                   AFOM
                 </h1>
+                <div className="absolute top-4 right-4 z-20"><PreferenceControls /></div>
                 <p className="mt-6 text-2xl text-white/90 max-w-3xl font-semibold">
-                  Outil de diagnostic rapide pouvant conduire à des décisions éclairées
+                  {t('presentation.heroTagline')}
                 </p>
 
                 {/* Bouton vidéo de présentation */}
@@ -423,7 +442,7 @@ const PresentationMode: React.FC<Props> = ({
                         <polygon points="5 3 19 12 5 21 5 3" />
                       </svg>
                     </div>
-                    Voir la vidéo de présentation AFOM
+                    {t('presentation.watchVideo')}
                     <svg viewBox="0 0 24 24" className="w-4 h-4 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all fill-none stroke-current" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
                     </svg>
@@ -435,58 +454,56 @@ const PresentationMode: React.FC<Props> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-gray-700">
-                        Projet
+                        {t('presentation.projectLabel')}
                       </label>
                       <input
                         value={projectName}
                         onChange={(e) => setProjectName(e.target.value)}
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                        placeholder="Ex : Transformation 2025"
+                        placeholder={t('presentation.projectPlaceholder')}
                       />
+                      {metaTouched && !projectName.trim() && (
+                        <p className="mt-1 text-xs text-red-600">{t('presentation.projectRequired')}</p>
+                      )}
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-700">
-                        Thème
+                        {t('presentation.themeLabel')}
                       </label>
                       <input
                         value={themeName}
                         onChange={(e) => setThemeName(e.target.value)}
                         className="mt-1 w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                        placeholder="Ex : Offre digitale PME"
+                        placeholder={t('presentation.themePlaceholder')}
                       />
+                      {metaTouched && !themeName.trim() && (
+                        <p className="mt-1 text-xs text-red-600">{t('presentation.themeRequired')}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-3 gap-2 flex-wrap">
                     <button
                       onClick={() => setShowContextModal(true)}
-                      className={`px-4 py-2 rounded-md border text-sm font-medium ${
-                        (situationActuelle || perimetre || docExtracted)
-                          ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                          : "bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      className={`px-5 py-3 rounded-lg text-sm font-bold shadow-md transition-colors flex items-center gap-2 ${
+                        (elementsContexte || perimetre || docs.length > 0)
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                          : "bg-violet-600 text-white hover:bg-violet-700"
                       }`}
                     >
-                      {(situationActuelle || perimetre || docExtracted)
-                        ? "Contexte ✓"
-                        : "+ Ajouter le contexte"}
+                      {(elementsContexte || perimetre || docs.length > 0)
+                        ? t('presentation.contextDone')
+                        : t('presentation.addContext')}
                     </button>
                     <div className="flex items-center gap-2">
+                      {metaSaved && <span className="text-xs font-semibold text-emerald-600">{t('presentation.savedIndicator')}</span>}
                       <button
                         onClick={saveMeta}
-                        className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                        disabled={savingMeta}
+                        className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                       >
-                        Enregistrer
-                      </button>
-                      <button
-                        onClick={goModerator}
-                        className="px-4 py-2 rounded-md border bg-white hover:bg-gray-50"
-                        title="Aller à l’interface modérateur"
-                      >
-                        Aller au modérateur →
+                        {savingMeta ? t('presentation.saving') : t('presentation.save')}
                       </button>
                     </div>
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-1">
-                    ID de session actuel : <span className="font-mono">{sessionId || "—"}</span>
                   </div>
                 </div>
               </div>
@@ -496,138 +513,125 @@ const PresentationMode: React.FC<Props> = ({
       },
       {
         id: "framework",
-        render: () => <MatrixSlide topReserve={0} />,
+        render: () => <MatrixSlide topReserve={0} lang={lang} />,
       },
       {
         id: "launch",
         render: () => (
           <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-indigo-50 flex items-start justify-center px-4 pt-6 pb-28">
-            <div className="w-full max-w-5xl space-y-5">
+            <div className="w-full max-w-3xl space-y-5">
 
-              {/* ── Bandeau Assistance IA (clone arbre_problèmes slide 4) ── */}
-              <div className="rounded-2xl overflow-hidden shadow-lg ring-1 ring-indigo-200">
-                <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 px-6 py-5 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm">
-                    <span className="text-2xl leading-none">🤖</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-extrabold text-white leading-tight tracking-tight">
-                      Assistance IA
-                    </p>
-                    <p className="text-xs text-indigo-200 mt-0.5 leading-relaxed">
-                      Analyse du contexte · Formulation des acquis/faiblesses · Recommandations stratégiques
-                    </p>
-                  </div>
-                  {aiConfigured ? (
-                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-400/30 text-white border border-emerald-300/50 backdrop-blur-sm">
-                      <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-                      Prête
-                    </span>
-                  ) : (
-                    <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/15 text-indigo-100 border border-white/25">
-                      <span className="w-2 h-2 rounded-full bg-amber-300" />
-                      Non configurée
-                    </span>
-                  )}
-                </div>
-                <div className="bg-white px-6 py-5">
-                  <AIConfigPanel onConfigured={(next) => setAiConfigured(!!next?.configured)} />
-                </div>
+              <div className="flex justify-end"><PreferenceControls /></div>
+              {/* ── CTA principal ── */}
+              <div className="rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-8 text-center shadow-xl">
+                <h2 className="text-2xl font-black mb-2">{t('presentation.prepareWorkshopTitle')}</h2>
+                <p className="text-indigo-100 mb-6 max-w-md mx-auto">
+                  {t('presentation.prepareWorkshopBody')}
+                </p>
+                <button
+                  onClick={onPrepareWorkshop}
+                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-indigo-700 font-black text-lg shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                >
+                  {t('presentation.prepareWorkshopCta')}
+                </button>
               </div>
 
-              {/* ── Ligne 2 : QR + Config session ── */}
-              <div className="grid lg:grid-cols-2 gap-5">
+              {/* ── Options avancées (dépliées par défaut : la configuration IA doit rester visible) ── */}
+              <details open className="group rounded-2xl border border-gray-200 bg-white/70">
+                <summary className="cursor-pointer select-none list-none px-5 py-3 text-sm font-semibold text-gray-500 flex items-center justify-between">
+                  {t('presentation.advancedOptions')}
+                  <span className="text-gray-400 transition-transform group-open:rotate-180">⌄</span>
+                </summary>
+                <div className="px-5 pb-5 space-y-5">
 
-                {/* QR code participants */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-lg">📱</span>
-                    <h4 className="text-base font-bold text-gray-900">Connexion des participants</h4>
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="shrink-0 p-3 rounded-xl bg-gray-50 border">
-                      <QRCodeCanvas value={participantUrl} size={140} />
-                    </div>
-                    <div className="text-xs text-gray-600 leading-relaxed space-y-2 min-w-0">
-                      <p>
-                        Demandez aux participants de <strong>scanner</strong> ce QR code pour rejoindre la session en mode <em>participant</em>.
+                  {/* Assistance IA — discrète et optionnelle */}
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-base">🤖</span>
+                      <p className="text-sm font-bold text-gray-700">
+                        {t('presentation.aiAssistance')} <span className="font-normal text-gray-400">{t('presentation.optional')}</span>
                       </p>
-                      {(participantUrl.includes("localhost") || participantUrl.includes("127.0.0.1")) && (
-                        <div className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-700">
-                          <span className="shrink-0 font-bold">⚠</span>
-                          <span>URL locale — les participants doivent être sur le même réseau.</span>
-                        </div>
+                      {aiConfigured ? (
+                        <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {t('presentation.ready')}
+                        </span>
+                      ) : (
+                        <span className="ml-auto text-[11px] text-gray-400">{t('presentation.notConfigured')}</span>
                       )}
-                      <p className="break-all font-mono text-gray-400 text-[10px]">{participantUrl}</p>
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => window.open(participantUrl, "_blank")}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-medium"
-                        >
-                          🌐 Ouvrir
-                        </button>
+                    </div>
+                    <AIConfigPanel onConfigured={(next) => setAiConfigured(!!next?.configured)} />
+                  </div>
+
+                  {/* Accès direct par lien (rétrocompatibilité session seule) */}
+                  <div className="rounded-xl border border-gray-200 bg-white p-4">
+                    <h4 className="text-sm font-bold text-gray-700 mb-1">{t('presentation.directLinkTitle')}</h4>
+                    <p className="text-xs text-gray-400 mb-3">
+                      {t('presentation.directLinkBody')}
+                    </p>
+                    <div className="flex items-start gap-4 mb-4">
+                      <div className="shrink-0 p-2 rounded-lg bg-gray-50 border">
+                        <QRCodeCanvas value={participantUrl} size={96} />
+                      </div>
+                      <div className="text-xs text-gray-600 leading-relaxed space-y-2 min-w-0">
+                        {(participantUrl.includes("localhost") || participantUrl.includes("127.0.0.1")) && (
+                          <div className="flex items-start gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-700">
+                            <span className="shrink-0 font-bold">⚠</span>
+                            <span>{t('presentation.localUrlWarning')}</span>
+                          </div>
+                        )}
+                        <p className="break-all font-mono text-gray-400 text-[10px]">{participantUrl}</p>
                         <button
                           onClick={async () => {
                             await navigator.clipboard.writeText(participantUrl);
-                            alert("Lien copié !");
+                            alert(t('presentation.linkCopied'));
                           }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 transition-colors text-xs font-medium"
                         >
-                          📋 Copier
+                          {t('presentation.copyLink')}
                         </button>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Configuration session */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <h4 className="text-base font-bold text-gray-900 mb-4">⚙️ Configuration de la session</h4>
-                  <div className="space-y-3">
                     <label className="block">
-                      <span className="block text-sm font-medium text-gray-700">ID de session</span>
+                      <span className="block text-xs font-medium text-gray-700">{t('presentation.sessionIdLabel')}</span>
                       <input
                         value={sessionId}
                         onChange={(e) => setSessionId(e.target.value)}
-                        className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
-                        placeholder="SESSION-2025-XXX"
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-200 transition"
+                        placeholder={t('presentation.sessionIdPlaceholder')}
                       />
                     </label>
-                    <p className="text-xs text-gray-400">
-                      Projet et thème définis sur la première diapositive. Modifiables à tout moment depuis l'en-tête de l'atelier.
-                    </p>
-                  </div>
-                  <div className="flex gap-2 mt-5">
-                    <button
-                      onClick={() => onLaunchSession(sessionId || "")}
-                      className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-sm font-bold transition-all shadow-sm hover:shadow-md"
-                    >
-                      🚀 Lancer la session
-                    </button>
-                    <button
-                      onClick={() => {
-                        const ns =
-                          "SESSION-" +
-                          new Date().getFullYear() +
-                          "-" +
-                          String(Math.floor(Math.random() * 1000)).padStart(3, "0");
-                        setSessionId(ns);
-                      }}
-                      className="px-3 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 text-sm font-medium transition"
-                      title="Générer un nouvel ID"
-                    >
-                      🔄
-                    </button>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => onLaunchSession(sessionId || "")}
+                        className="flex-1 inline-flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold transition-colors"
+                      >
+                        {t('presentation.openSession')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const ns =
+                            "SESSION-" +
+                            new Date().getFullYear() +
+                            "-" +
+                            String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+                          setSessionId(ns);
+                        }}
+                        className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 text-sm font-medium transition"
+                        title={t('presentation.newSessionId')}
+                      >
+                        🔄
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </details>
 
             </div>
           </div>
         ),
       },
     ],
-    [participantUrl, sessionId, onLaunchSession, saveMeta, goModerator, projectName, themeName, situationActuelle, perimetre, docExtracted, setShowContextModal, aiConfigured, setAiConfigured]
+    [participantUrl, sessionId, onLaunchSession, onPrepareWorkshop, saveMeta, projectName, themeName, elementsContexte, perimetre, docs, setShowContextModal, aiConfigured, setAiConfigured, lang]
   );
 
   /* ---------- Navigation : flèches seulement (pas d'espace) ----------- */
@@ -671,6 +675,14 @@ const PresentationMode: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      {onBackToWork && (
+        <button
+          onClick={onBackToWork}
+          className="fixed top-4 left-4 z-[70] inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold shadow-lg hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
+        >
+          {t('presentation.backToWork')}
+        </button>
+      )}
       {current.render()}
 
       {/* ---- Modal contexte ---- */}
@@ -678,7 +690,7 @@ const PresentationMode: React.FC<Props> = ({
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-gray-900">Contexte de la session</h2>
+              <h2 className="text-lg font-bold text-gray-900">{t('presentation.contextModalTitle')}</h2>
               <button
                 onClick={() => setShowContextModal(false)}
                 className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
@@ -687,120 +699,123 @@ const PresentationMode: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Situation actuelle */}
+            {/* Éléments de contexte (optionnel) */}
             <div className="mb-4">
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Situation actuelle
+                {t('presentation.contextElementsLabel')}
+                <span className="text-xs font-normal text-gray-500 ml-1">{t('presentation.optionalTag')}</span>
               </label>
               <textarea
-                value={situationActuelle}
-                onChange={(e) => setSituationActuelle(e.target.value)}
+                value={elementsContexte}
+                onChange={(e) => setElementsContexte(e.target.value)}
                 rows={3}
                 className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                placeholder="Ex : Le programme est en phase d'exécution depuis 2 ans, les résultats restent en deçà des objectifs initiaux..."
-              />
-            </div>
-
-            {/* Symptômes observables */}
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Symptômes observables
-              </label>
-              <textarea
-                value={symptomesObservables}
-                onChange={(e) => setSymptomesObservables(e.target.value)}
-                rows={3}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                placeholder="Ex : Faible taux de participation, retards fréquents, conflits entre parties prenantes, budget non consommé..."
+                placeholder={t('presentation.contextElementsPlaceholder')}
               />
             </div>
 
             {/* Périmètre */}
             <div className="mb-5">
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Périmètre (zone / population concernée)
+                {t('presentation.perimeterLabel')}
               </label>
               <input
                 value={perimetre}
                 onChange={(e) => setPerimetre(e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
-                placeholder="Ex : Région Nord, 12 communes, 50 000 bénéficiaires"
+                placeholder={t('presentation.perimeterPlaceholder')}
               />
             </div>
 
-            {/* Upload document */}
+            {/* Upload documents (plusieurs possibles) */}
             <div className="mb-4 border-t pt-5">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Document de référence
-                <span className="text-xs font-normal text-gray-500 ml-1">(TDR, rapport… PDF, DOCX, TXT)</span>
-              </label>
+              <h3 className="text-sm font-semibold text-gray-700">{t('presentation.documentsTitle')}</h3>
+              <p className="text-xs text-gray-500 mt-1 mb-2">
+                {t('presentation.documentsBody', { n: docs.length, max: MAX_CONTEXT_DOCUMENTS })}
+              </p>
               <div className="flex items-center gap-3">
-                <label className={`cursor-pointer px-4 py-2 rounded-lg border text-sm font-medium ${extractingDoc ? "opacity-60 pointer-events-none" : "bg-gray-50 hover:bg-gray-100"}`}>
-                  {extractingDoc ? "Extraction en cours…" : "Choisir un fichier"}
+                <label
+                  className={`cursor-pointer px-4 py-2 rounded-lg border text-sm font-medium ${
+                    extractingDoc || docs.length >= MAX_CONTEXT_DOCUMENTS
+                      ? "opacity-60 pointer-events-none"
+                      : "bg-gray-50 hover:bg-gray-100"
+                  }`}
+                >
+                  {extractingDoc ? t('presentation.extracting') : t('presentation.addDocuments')}
                   <input
                     type="file"
                     accept=".pdf,.docx,.txt"
                     className="hidden"
-                    disabled={extractingDoc}
+                    disabled={extractingDoc || docs.length >= MAX_CONTEXT_DOCUMENTS}
                     onChange={handleFileUpload}
                   />
                 </label>
                 {extractingDoc && (
                   <span className="text-xs text-indigo-600 animate-pulse">
-                    L'IA analyse le document…
+                    {t('presentation.aiAnalyzing')}
                   </span>
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Seuls les éléments extraits (problématique, acteurs, zone, enjeux) seront utilisés par l'IA — jamais le document brut.
+                {t('presentation.extractedNote')}
               </p>
             </div>
 
-            {/* Bloc extrait éditable */}
-            {docExtracted && (
-              <div className="mb-5 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-indigo-800">Éléments extraits du document</h3>
-                  <span className="text-xs text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">
-                    Vérifiez et corrigez si nécessaire
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Problématique</label>
-                    <textarea
-                      value={docExtracted.problematique}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, problematique: e.target.value })}
-                      rows={2}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
-                    />
+            {/* Liste des documents ajoutés, chacun avec ses éléments extraits éditables */}
+            {docs.length > 0 && (
+              <div className="mb-5 space-y-3">
+                {docs.map((doc, i) => (
+                  <div key={i} className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3 gap-2">
+                      <h3 className="text-sm font-bold text-indigo-800 truncate" title={doc.name}>
+                        📄 {doc.name}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => removeDoc(i)}
+                        className="text-xs text-red-600 hover:text-red-800 font-medium flex-shrink-0"
+                      >
+                        {t('presentation.remove')}
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.problematiqueLabel')}</label>
+                        <textarea
+                          value={doc.problematique}
+                          onChange={(e) => updateDoc(i, { problematique: e.target.value })}
+                          rows={2}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.acteursLabel')}</label>
+                        <input
+                          value={doc.acteurs}
+                          onChange={(e) => updateDoc(i, { acteurs: e.target.value })}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.zoneLabel')}</label>
+                        <input
+                          value={doc.zone}
+                          onChange={(e) => updateDoc(i, { zone: e.target.value })}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-indigo-700">{t('presentation.enjeuxLabel')}</label>
+                        <textarea
+                          value={doc.enjeux}
+                          onChange={(e) => updateDoc(i, { enjeux: e.target.value })}
+                          rows={2}
+                          className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Acteurs</label>
-                    <input
-                      value={docExtracted.acteurs}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, acteurs: e.target.value })}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Zone / Population</label>
-                    <input
-                      value={docExtracted.zone}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, zone: e.target.value })}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-indigo-700">Enjeux</label>
-                    <textarea
-                      value={docExtracted.enjeux}
-                      onChange={(e) => setDocExtracted({ ...docExtracted, enjeux: e.target.value })}
-                      rows={2}
-                      className="w-full mt-1 rounded-lg border border-indigo-200 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-300 bg-white resize-none"
-                    />
-                  </div>
-                </div>
+                ))}
               </div>
             )}
 
@@ -809,13 +824,14 @@ const PresentationMode: React.FC<Props> = ({
                 onClick={() => setShowContextModal(false)}
                 className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50"
               >
-                Annuler
+                {t('common.cancel')}
               </button>
               <button
                 onClick={saveMeta}
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700"
+                disabled={savingMeta}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50"
               >
-                Enregistrer
+                {savingMeta ? t('presentation.saving') : t('presentation.save')}
               </button>
             </div>
           </div>
@@ -833,7 +849,7 @@ const PresentationMode: React.FC<Props> = ({
               type="button"
               className="absolute top-4 right-4 z-[60] p-2 bg-white/90 rounded-full hover:bg-gray-100 shadow-sm transition"
               onClick={() => setShowVideo(false)}
-              aria-label="Fermer la vidéo"
+              aria-label={t('presentation.closeVideo')}
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5 text-gray-600 fill-none stroke-current" strokeWidth={2} strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -847,7 +863,7 @@ const PresentationMode: React.FC<Props> = ({
               </div>
               <div className="mt-3 text-sm text-gray-500 text-center">
                 <a href={videoUrl} target="_blank" rel="noreferrer" className="underline hover:text-gray-700">
-                  Ouvrir dans un nouvel onglet
+                  {t('presentation.openInNewTab')}
                 </a>
               </div>
             </div>
@@ -866,7 +882,7 @@ const PresentationMode: React.FC<Props> = ({
               disabled={index === 0}
               style={{ visibility: index === 0 ? "hidden" : "visible" }}
             >
-              ← Précédent
+              {t('presentation.prev')}
             </button>
 
             <div className="flex items-center">
@@ -876,15 +892,6 @@ const PresentationMode: React.FC<Props> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Retour modérateur : caché sur la première slide */}
-              <button
-                onClick={goModerator}
-                className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
-                title="Retour à l’interface modérateur"
-                style={{ visibility: index === 0 ? "hidden" : "visible" }}
-              >
-                ← Retour modérateur
-              </button>
               {/* Suivant : caché sur la dernière slide */}
               <button
                 onClick={next}
@@ -892,7 +899,7 @@ const PresentationMode: React.FC<Props> = ({
                 disabled={index === slides.length - 1}
                 style={{ visibility: index === slides.length - 1 ? "hidden" : "visible" }}
               >
-                Suivant →
+                {t('presentation.next')}
               </button>
             </div>
           </div>

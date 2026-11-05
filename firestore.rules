@@ -1,0 +1,73 @@
+rules_version = '2';
+
+// AFOM Ultimate — règles Firestore
+//
+// Contrainte de compatibilité : la branche historique `main` (que Mouhamed BA
+// utilisait déjà) partage le même projet Firebase et les mêmes collections
+// (boards, postits, confrontations) que feature/multigroupes, mais n'a et
+// n'aura jamais de notion de compte. Restreindre ces collections casserait
+// main (vérifié le 2026-09-06 : lecture/écriture/temps réel/analyse/matrice
+// tous en échec pour un utilisateur anonyme). Elles restent donc ouvertes,
+// exactement comme avant l'ajout de l'authentification.
+//
+// Seules les collections strictement nouvelles et absentes de main
+// (workshops, groups, users) sont protégées derrière un compte
+// moderator/admin authentifié via Firebase Authentication.
+//
+// À déployer manuellement dans la console Firebase :
+// https://console.firebase.google.com/project/afom-e475f/firestore/rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isModerator() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Comptes moderator/admin : chacun ne lit que son propre profil.
+    // Seule écriture cliente autorisée : soi-même levant son propre
+    // indicateur mustChangePassword après un changement de mot de passe.
+    // Aucun autre champ (role, email...) n'est modifiable côté client.
+    match /users/{uid} {
+      allow get: if isSignedIn() && request.auth.uid == uid;
+      allow list: if false;
+      allow update: if isSignedIn() && request.auth.uid == uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);
+      allow create, delete: if false;
+    }
+
+    // Contexte de session (Projet/Thème) : partagé avec main, ouvert.
+    match /boards/{sessionId} {
+      allow read, write: if true;
+    }
+
+    // Post-its : partagés avec main, ouverts (comme avant l'authentification).
+    match /postits/{postitId} {
+      allow read, write: if true;
+    }
+
+    // Atelier : lecture publique nécessaire au participant (titre affiché),
+    // écriture réservée à la gestion.
+    match /workshops/{workshopId} {
+      allow get: if true;
+      allow list: if isModerator();
+      allow write: if isModerator();
+
+      match /groups/{groupId} {
+        allow get: if true;
+        allow list: if isModerator();
+        allow write: if isModerator();
+      }
+    }
+
+    // Confrontations (matrice) : partagées avec main, ouvertes.
+    match /confrontations/{sessionId} {
+      allow read, write: if true;
+    }
+  }
+}

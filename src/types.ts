@@ -30,11 +30,25 @@ export interface QuadrantData {
   postIts: PostIt[];
 }
 
+export interface ContextDocument {
+  name: string;
+  problematique: string;
+  acteurs: string;
+  zone: string;
+  enjeux: string;
+}
+
 export interface BoardContext {
+  // Champ libre optionnel : quelques mots de contexte laissés par le modérateur.
+  elementsContexte?: string;
+  perimetre?: string;
+  // Documents de contexte (TDR, cahier du participant...) — éléments extraits uniquement,
+  // jamais le document brut envoyé à l'IA finale.
+  documents?: ContextDocument[];
+  // Champs legacy (sessions créées avant la fusion en un champ libre / avant le support
+  // multi-documents) : conservés en lecture pour compatibilité, plus jamais écrits.
   situationActuelle?: string;
   symptomesObservables?: string;
-  perimetre?: string;
-  // Éléments extraits d'un document (jamais envoyés bruts à l'IA finale)
   problematique?: string;
   acteurs?: string;
   zone?: string;
@@ -47,6 +61,38 @@ export interface BoardMeta {
   context?: BoardContext;
   createdAt?: any;
   updatedAt?: any;
+}
+
+export interface Workshop {
+  id: string;
+  title: string;
+  deletedAt?: any;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface WorkshopGroup {
+  id: string;
+  workshopId: string;
+  number: string;
+  name: string;
+  theme: string;
+  sessionId: string;
+  order: number;
+  active: boolean;
+  deletedAt?: any;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export type UserRole = "admin" | "moderator";
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  mustChangePassword?: boolean;
 }
 
 export interface Insight { title: string; content: string; }

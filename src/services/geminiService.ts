@@ -105,13 +105,37 @@ function buildMatrixBlock(interactions?: MatrixInteraction[]): string {
 function buildContextBlock(ctx?: BoardContext): string {
   if (!ctx) return "";
   const parts: string[] = [];
-  if (ctx.situationActuelle)  parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
-  if (ctx.symptomesObservables) parts.push(`Symptômes observables : ${ctx.symptomesObservables}`);
+  if (ctx.elementsContexte) {
+    parts.push(`Éléments de contexte : ${ctx.elementsContexte}`);
+  } else {
+    // Compatibilité : sessions créées avant la fusion en un champ libre unique.
+    if (ctx.situationActuelle)    parts.push(`Situation actuelle : ${ctx.situationActuelle}`);
+    if (ctx.symptomesObservables) parts.push(`Symptômes observables : ${ctx.symptomesObservables}`);
+  }
   if (ctx.perimetre)          parts.push(`Périmètre : ${ctx.perimetre}`);
-  if (ctx.problematique)      parts.push(`Problématique identifiée : ${ctx.problematique}`);
-  if (ctx.acteurs)            parts.push(`Acteurs : ${ctx.acteurs}`);
-  if (ctx.zone)               parts.push(`Zone / Population : ${ctx.zone}`);
-  if (ctx.enjeux)             parts.push(`Enjeux : ${ctx.enjeux}`);
+
+  if (ctx.documents && ctx.documents.length > 0) {
+    // Plusieurs documents de contexte (TDR, cahier du participant...) : chacun reste
+    // identifié séparément pour que l'IA sache d'où vient chaque élément.
+    ctx.documents.forEach((d, i) => {
+      const docParts: string[] = [];
+      if (d.problematique) docParts.push(`  Problématique : ${d.problematique}`);
+      if (d.acteurs)       docParts.push(`  Acteurs : ${d.acteurs}`);
+      if (d.zone)          docParts.push(`  Zone / Population : ${d.zone}`);
+      if (d.enjeux)        docParts.push(`  Enjeux : ${d.enjeux}`);
+      if (docParts.length > 0) {
+        parts.push(`Document ${i + 1} — ${d.name} :\n${docParts.join("\n")}`);
+      }
+    });
+  } else {
+    // Compatibilité : sessions créées avant le support multi-documents (un seul document,
+    // champs à plat).
+    if (ctx.problematique) parts.push(`Problématique identifiée : ${ctx.problematique}`);
+    if (ctx.acteurs)       parts.push(`Acteurs : ${ctx.acteurs}`);
+    if (ctx.zone)          parts.push(`Zone / Population : ${ctx.zone}`);
+    if (ctx.enjeux)        parts.push(`Enjeux : ${ctx.enjeux}`);
+  }
+
   if (parts.length === 0) return "";
   return `\n\nCONTEXTE DE LA SESSION :\n${parts.join("\n")}`;
 }
@@ -259,6 +283,93 @@ Aucun texte hors JSON.
     problemCourt: String(json.court || "").slice(0, 60) || undefined,
     rationale:    typeof json.rationale === "string" ? json.rationale : undefined,
   };
+}
+
+/** proposeImplicationsEnjeux — JSON { implications[], enjeux[], rationale } */
+export async function proposeImplicationsEnjeux(
+  postIts: PostIt[],
+  context?: BoardContext
+): Promise<{ implications: string[]; enjeux: string[]; rationale?: string }> {
+  if (!isAIAvailable()) {
+    return {
+      implications: ["Analyse indisponible sans provider IA configuré (fallback)."],
+      enjeux: ["Analyse indisponible sans provider IA configuré (fallback)."],
+    };
+  }
+
+  const sys = `
+Tu es un analyste stratégique. À partir des données AFOM réelles ci-dessous, produis deux listes distinctes :
+1. Les IMPLICATIONS ORGANISATIONNELLES qui ressortent du diagnostic (conséquences concrètes pour l'organisation, ses processus, ses acteurs).
+2. Les ENJEUX qui ressortent du diagnostic (ce qui est en jeu à court/moyen terme si rien n'est fait).
+
+RÈGLES ABSOLUES :
+1. Fonde-toi EXCLUSIVEMENT sur les données AFOM fournies ci-dessous — n'invente aucune information absente.
+2. Chaque point DOIT être rattaché à un élément réel du diagnostic (cite ou reformule un post-it concret).
+3. Formulation professionnelle, concise, directement exploitable par un animateur.
+4. 3 à 6 points par catégorie. INTERDICTION des généralités type "améliorer la gouvernance" sans ancrage dans les données.
+
+Retourne STRICTEMENT du JSON :
+{
+  "implications": ["...", "..."],
+  "enjeux": ["...", "..."],
+  "rationale": "..."
+}
+Aucun texte hors JSON.
+`.trim();
+
+  const ctxBlock = buildContextBlock(context);
+  const data = postIts.map((p) => ({ quadrant: p.quadrant, text: p.content }));
+  const prompt = `${sys}${ctxBlock}\n\nDONNÉES AFOM :\n${JSON.stringify(data, null, 2)}`;
+
+  const text = await callAI(prompt);
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const json = JSON.parse(cleaned || "{}");
+  return {
+    implications: Array.isArray(json.implications) ? json.implications.map(String) : [],
+    enjeux: Array.isArray(json.enjeux) ? json.enjeux.map(String) : [],
+    rationale: typeof json.rationale === "string" ? json.rationale : undefined,
+  };
+}
+
+/** runCustomFFOMQuery — analyse libre à partir d'une consigne saisie par l'animateur.
+ *  Mécanisme générique : NE PAS coder ici de liste fermée de demandes possibles. */
+export async function runCustomFFOMQuery(
+  postIts: PostIt[],
+  instruction: string,
+  context?: BoardContext
+): Promise<{ result: string }> {
+  if (!instruction.trim()) throw new Error("Consigne vide.");
+  if (!isAIAvailable()) {
+    return { result: "Analyse indisponible : aucun provider IA configuré. Renseignez une clé API dans le bandeau « Assistance IA »." };
+  }
+
+  const sys = `
+Tu es un analyste stratégique AFOM. L'animateur d'un atelier te transmet une consigne libre à appliquer
+EXCLUSIVEMENT aux données AFOM réelles ci-dessous (Acquis, Faiblesses, Opportunités, Menaces de ce groupe).
+
+RÈGLES ABSOLUES :
+1. Fonde-toi UNIQUEMENT sur les données AFOM fournies ci-dessous — n'invente aucune information absente.
+2. Réponds directement à la consigne de l'animateur, de façon structurée et professionnelle.
+3. Si la consigne ne peut pas être traitée à partir des seules données AFOM fournies, dis-le clairement plutôt que d'inventer une réponse.
+
+CONSIGNE DE L'ANIMATEUR (à respecter telle quelle) :
+"${instruction.trim().replace(/"/g, '\\"')}"
+
+Retourne STRICTEMENT du JSON :
+{ "result": "texte de la réponse, peut contenir des sauts de ligne" }
+Aucun texte hors JSON.
+`.trim();
+
+  const ctxBlock = buildContextBlock(context);
+  const data = postIts.map((p) => ({ quadrant: p.quadrant, text: p.content }));
+  const prompt = `${sys}${ctxBlock}\n\nDONNÉES AFOM :\n${JSON.stringify(data, null, 2)}`;
+
+  const text = await callAI(prompt);
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const json = JSON.parse(cleaned || "{}");
+  const result = typeof json.result === "string" ? json.result : "";
+  if (!result.trim()) throw new Error("L'IA n'a renvoyé aucun résultat exploitable.");
+  return { result };
 }
 
 /** proposeMatrixSelection — choisit N étiquettes par quadrant (par défaut 4) */

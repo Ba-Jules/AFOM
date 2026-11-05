@@ -4,17 +4,28 @@ import WorkInterface from "./components/WorkInterface";
 import ParticipantInterface from "./components/ParticipantInterface";
 import AnalysisMode from "./components/AnalysisMode";
 import MatrixMode from "./components/MatrixMode";
+import WorkshopDashboard from "./components/WorkshopDashboard";
+import ConsolidatedAFOM from "./components/ConsolidatedAFOM";
+import LoginScreen from "./components/LoginScreen";
+import { usePreferences } from "./i18n";
 
 // 🔥 on récupère les Post-its ici pour les passer à AnalysisMode
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./services/firebase";
-import { PostIt } from "./types";
+import { useAuth } from "./hooks/useAuth";
+import { PostIt, WorkshopGroup } from "./types";
 
-type View = "presentation" | "work" | "participant" | "analysis" | "matrix";
+type View = "presentation" | "work" | "participant" | "analysis" | "matrix" | "workshop" | "consolidation";
+
+const PROTECTED_VIEWS: View[] = ["work", "analysis", "matrix", "workshop", "consolidation"];
 
 const App: React.FC = () => {
+  const { t } = usePreferences();
   const [view, setView] = useState<View>("presentation");
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [workshopId, setWorkshopId] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const { appUser, loading: authLoading } = useAuth();
 
   // Post-its pour AnalysisMode
   const [analysisPostIts, setAnalysisPostIts] = useState<PostIt[]>([]);
@@ -23,6 +34,10 @@ const App: React.FC = () => {
     const url = new URL(window.location.href);
     const v = (url.searchParams.get("v") || "").toLowerCase() as View;
     const mode = url.searchParams.get("mode");
+    const workshop = url.searchParams.get("workshop");
+    const group = url.searchParams.get("group");
+    setWorkshopId(workshop);
+    setGroupId(group);
     const s =
       url.searchParams.get("session") || localStorage.getItem("sessionId");
 
@@ -31,6 +46,10 @@ const App: React.FC = () => {
       setView("participant");
       return;
     }
+
+    if (v === "workshop" && workshop) { setView("workshop"); return; }
+    if (v === "workshop") { setView("workshop"); return; }
+    if (v === "consolidation" && workshop) { setView("consolidation"); return; }
 
     if ((v === "work" || v === "analysis" || v === "matrix") && s) {
       setSessionId(s);
@@ -79,6 +98,56 @@ const App: React.FC = () => {
     setView("presentation");
   };
 
+  const returnToActiveGroup = () => {
+    if (!sessionId || !workshopId || !groupId) return;
+    const { origin, pathname } = window.location;
+    window.history.replaceState(
+      {},
+      "",
+      `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}&workshop=${encodeURIComponent(workshopId)}&group=${encodeURIComponent(groupId)}`
+    );
+    setView("work");
+  };
+
+  // Retour Analyse/Matrice → espace de travail : on réécrit l'URL complète (atelier + groupe
+  // inclus) pour qu'un rechargement ne perde pas le bouton « Atelier » du groupe.
+  const backToWork = () => {
+    if (!sessionId) { setView("work"); return; }
+    const { origin, pathname } = window.location;
+    const groupParams = workshopId && groupId
+      ? `&workshop=${encodeURIComponent(workshopId)}&group=${encodeURIComponent(groupId)}`
+      : "";
+    window.history.replaceState({}, "", `${origin}${pathname}?v=work&session=${encodeURIComponent(sessionId)}${groupParams}`);
+    setView("work");
+  };
+
+  const openWorkshop = () => {
+    window.history.replaceState({}, "", `${window.location.pathname}?v=workshop`);
+    setWorkshopId(null);
+    setView("workshop");
+  };
+
+  const selectWorkshop = (id: string) => {
+    setWorkshopId(id);
+    window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(id)}`);
+  };
+
+  const openGroup = (group: WorkshopGroup) => {
+    setSessionId(group.sessionId); setWorkshopId(group.workshopId); setGroupId(group.id);
+    window.history.replaceState({}, "", `${window.location.pathname}?v=work&session=${encodeURIComponent(group.sessionId)}&workshop=${encodeURIComponent(group.workshopId)}&group=${encodeURIComponent(group.id)}`);
+    setView("work");
+  };
+
+  // Protection des écrans de gestion : une URL directe ne doit pas contourner la connexion
+  if (PROTECTED_VIEWS.includes(view)) {
+    if (authLoading) {
+      return <div className="min-h-screen flex items-center justify-center text-sm text-gray-400">{t("common.loading")}</div>;
+    }
+    if (!appUser) {
+      return <LoginScreen onCancel={handleBackToPresentation} />;
+    }
+  }
+
   // Rendu par vue
   switch (view) {
     case "presentation":
@@ -86,7 +155,9 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 font-sans">
           <PresentationMode
             onLaunchSession={handleLaunchSession}
+            onPrepareWorkshop={openWorkshop}
             initialSessionId={sessionId || ""}
+            onBackToWork={sessionId && workshopId && groupId ? returnToActiveGroup : undefined}
           />
         </div>
       );
@@ -98,36 +169,45 @@ const App: React.FC = () => {
             sessionId={sessionId}
             onBackToPresentation={handleBackToPresentation}
             onNavigate={(v) => setView(v)}
+            workshopId={workshopId || undefined}
+            groupId={groupId || undefined}
+            user={appUser!}
           />
         </div>
       ) : (
-        <div>Loading…</div>
+        <div>{t("common.loading")}</div>
       );
 
     case "analysis":
       return (
         <div className="min-h-screen bg-gray-50">
-          <AnalysisMode postIts={analysisPostIts} onBack={() => setView("work")} />
+          <AnalysisMode postIts={analysisPostIts} onBack={backToWork} />
         </div>
       );
 
     case "matrix":
       return sessionId ? (
         <div className="min-h-screen bg-gray-50">
-          <MatrixMode sessionId={sessionId} onBack={() => setView("work")} />
+          <MatrixMode sessionId={sessionId} onBack={backToWork} />
         </div>
       ) : (
-        <div>Loading…</div>
+        <div>{t("common.loading")}</div>
       );
 
     case "participant":
       return sessionId ? (
         <div className="min-h-screen bg-white">
-          <ParticipantInterface sessionId={sessionId} />
+          <ParticipantInterface sessionId={sessionId} workshopId={workshopId || undefined} groupId={groupId || undefined} />
         </div>
       ) : (
-        <div>Invalid session ID.</div>
+        <div>{t("common.invalidSession")}</div>
       );
+
+    case "workshop":
+      return <WorkshopDashboard workshopId={workshopId || undefined} onOpenSession={openGroup} onSelectWorkshop={selectWorkshop} onConsolidate={(id) => { setWorkshopId(id); window.history.replaceState({}, "", `${window.location.pathname}?v=consolidation&workshop=${encodeURIComponent(id)}`); setView("consolidation"); }} onBack={handleBackToPresentation} user={appUser!} />;
+
+    case "consolidation":
+      return workshopId ? <ConsolidatedAFOM workshopId={workshopId} onBack={() => { window.history.replaceState({}, "", `${window.location.pathname}?v=workshop&workshop=${encodeURIComponent(workshopId)}`); setView("workshop"); }} user={appUser!} /> : <div>{t("common.workshopNotFound")}</div>;
   }
 };
 

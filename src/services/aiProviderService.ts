@@ -1,12 +1,23 @@
 // Service multi-providers IA — appels REST vers Gemini, OpenAI, Anthropic, OpenRouter, Mistral, xAI.
 // La clé active est lue depuis localStorage (format unifié afom_ai_config) à chaque appel.
 
+import { auth } from './firebase';
+
 const STORAGE_KEY = 'afom_ai_config';
 
 // Modèles retirés → remplacements automatiques (synchronisé avec useAIConfig.ts)
 const DEPRECATED_MODELS: Record<string, string> = {
   'google/gemini-flash-1.5': 'openai/gpt-4o-mini',
+  'gemini-1.5-flash': 'gemini-flash-lite-latest',
+  'gemini-2.5-flash': 'gemini-flash-lite-latest',
+  'gemini-3.6-flash': 'gemini-flash-lite-latest',
 };
+
+// Chaîne de repli Gemini : le modèle "lite" a un quota gratuit bien plus large que les
+// modèles "flash" pleins (ex: gemini-3.6-flash est plafonné a 20 requetes/jour en free tier,
+// insuffisant pour un usage reel en atelier). En cas de quota depasse (429) ou de modele
+// retire (404) sur le modele demande, on retente automatiquement avec le suivant de la liste.
+const GEMINI_FALLBACK_CHAIN = ['gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
 
 export function getStoredAIConfig(): { provider: string; key: string; model?: string } | null {
   try {
@@ -28,7 +39,28 @@ export function getStoredAIConfig(): { provider: string; key: string; model?: st
 
 export function isAIAvailable(): boolean {
   if (getStoredAIConfig()) return true;
-  return !!(import.meta.env.VITE_GEMINI_API_KEY);
+  // Sans clé personnelle : le relais serveur est utilisable par un modérateur connecté.
+  return !!auth.currentUser;
+}
+
+/** Relais serveur : la clé Gemini reste sur le VPS, jamais dans le navigateur. */
+async function callRelay(prompt: string): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('no-ai-configured');
+  const token = await user.getIdToken();
+  const res = await fetch(`${import.meta.env.BASE_URL}api/ai`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ prompt }),
+  });
+  if (res.status === 404) throw new Error('no-ai-configured');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = new Error(`Relais IA ${res.status}: ${(data as any)?.error ?? res.statusText}`);
+    (e as any).status = res.status;
+    throw e;
+  }
+  return (data as any)?.text ?? '';
 }
 
 /** Appel générique : délègue au provider configuré, fallback sur la clé Gemini native. */
@@ -38,9 +70,7 @@ export async function callAI(prompt: string): Promise<string> {
   if (config) {
     const { provider, key, model } = config;
     if (provider === 'gemini') {
-      const m = model || 'gemini-1.5-flash';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
-      return callGeminiRest(prompt, key, url);
+      return callGeminiRest(prompt, key, model || GEMINI_FALLBACK_CHAIN[0]);
     }
     if (provider === 'openai')
       return callOpenAICompat(prompt, key, 'https://api.openai.com/v1/chat/completions', model || 'gpt-4o-mini');
@@ -54,17 +84,14 @@ export async function callAI(prompt: string): Promise<string> {
       return callOpenAICompat(prompt, key, 'https://api.x.ai/v1/chat/completions', model || 'grok-3-mini-fast');
   }
 
-  // Fallback : clé Gemini de l'environnement (GitHub Actions secret)
-  const envKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-  if (envKey) return callGeminiRest(prompt, envKey);
-
-  throw new Error('no-ai-configured');
+  // Sans clé personnelle : relais serveur (clé conservée côté VPS)
+  return callRelay(prompt);
 }
 
 // ─────────── implémentations REST ───────────
 
-async function callGeminiRest(prompt: string, key: string, url?: string): Promise<string> {
-  const endpoint = url ?? `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(key)}`;
+async function callGeminiOnce(prompt: string, key: string, model: string): Promise<string> {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -75,10 +102,30 @@ async function callGeminiRest(prompt: string, key: string, url?: string): Promis
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(`Gemini ${res.status}: ${(err as any)?.error?.message ?? res.statusText}`);
+    const e = new Error(`Gemini ${res.status}: ${(err as any)?.error?.message ?? res.statusText}`);
+    (e as any).status = res.status;
+    throw e;
   }
   const data = await res.json();
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
+
+/** Appelle Gemini avec repli automatique : si le modèle demandé est en quota depassé (429)
+ *  ou retire (404), retente avec le suivant de GEMINI_FALLBACK_CHAIN avant d'abandonner. */
+async function callGeminiRest(prompt: string, key: string, model?: string): Promise<string> {
+  const chain = model ? [model, ...GEMINI_FALLBACK_CHAIN.filter((m) => m !== model)] : GEMINI_FALLBACK_CHAIN;
+  let lastError: unknown;
+  for (const m of chain) {
+    try {
+      return await callGeminiOnce(prompt, key, m);
+    } catch (e) {
+      lastError = e;
+      const status = (e as any)?.status;
+      if (status !== 429 && status !== 404) throw e;
+      // sinon : ce modele est indisponible, on tente le suivant de la chaine
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Gemini indisponible');
 }
 
 async function callOpenAICompat(prompt: string, key: string, url: string, model: string): Promise<string> {

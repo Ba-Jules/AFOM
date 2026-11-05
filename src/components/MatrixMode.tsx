@@ -14,6 +14,7 @@ import { db } from "../services/firebase";
 import { PostIt, QuadrantKey } from "../types";
 import { proposeMatrixSelection, proposeOrientations } from "../services/geminiService";
 import { isAIAvailable } from "../services/aiProviderService";
+import { PreferenceControls, usePreferences } from "../i18n";
 
 type Cell = boolean;
 
@@ -77,6 +78,7 @@ const dec = (s: string): [number, number] => {
 /* --------------------------- Composant ------------------------------ */
 
 export default function MatrixMode({ sessionId, onBack }: Props) {
+  const { t } = usePreferences();
   // 1) Post-its
   const [postIts, setPostIts] = useState<PostIt[]>([]);
   useEffect(() => {
@@ -200,7 +202,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
       setTimeout(() => setSaving("idle"), 700);
     } catch (e) {
       console.error(e);
-      alert("Impossible d’enregistrer la matrice.");
+      alert(t("matrix.saveMatrixFailed"));
       setSaving("idle");
     }
   };
@@ -220,7 +222,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
       setTimeout(() => setSaving("idle"), 700);
     } catch (e) {
       console.error(e);
-      alert("Impossible d’enregistrer les orientations.");
+      alert(t("matrix.saveOrientationsFailed"));
       setSaving("idle");
     }
   };
@@ -260,7 +262,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
   async function proposeIASelection() {
     if (iaLoading) return;
     if (!isAIAvailable()) {
-      alert("Aucun provider IA configuré.\n\nVeuillez renseigner votre clé API dans le panneau « Assistance IA » (slide 3/3 de la présentation ou bandeau en haut de la vue Analyse).");
+      alert(t("matrix.noAiProvider"));
       return;
     }
     setIaLoading(true);
@@ -303,7 +305,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
     } catch (e) {
       console.error(e);
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`Proposition IA indisponible.\n\nErreur : ${msg}`);
+      alert(t("matrix.aiSelectionUnavailable", { msg }));
     } finally {
       setIaLoading(false);
     }
@@ -400,22 +402,22 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
         const row = rows[r], col = cols[c];
         const weight = rowMarkCounts[r] + colMarkCounts[c];
 
-        if (isOpp && isA) add(`Capitaliser «${col}» pour saisir «${row}».`, 10 + weight);
-        if (isOpp && !isA) add(`Corriger «${col}» pour exploiter «${row}».`, 8 + weight);
-        if (!isOpp && isA) add(`Mobiliser «${col}» pour contrer «${row}».`, 8 + weight);
-        if (!isOpp && !isA) add(`Réduire «${col}» pour se prémunir de «${row}».`, 9 + weight);
+        if (isOpp && isA) add(t("matrix.capitalize", { col, row }), 10 + weight);
+        if (isOpp && !isA) add(t("matrix.correctFor", { col, row }), 8 + weight);
+        if (!isOpp && isA) add(t("matrix.mobilize", { col, row }), 8 + weight);
+        if (!isOpp && !isA) add(t("matrix.reduce", { col, row }), 9 + weight);
       }
     }
 
     if (items.length === 0) {
-      const bestO = Orows.map((t, i) => ({ t, s: rowTotals[i] })).sort((a,b)=>b.s-a.s)[0];
-      const bestM = Mrows.map((t, i) => ({ t, s: rowTotals[Orows.length+i] })).sort((a,b)=>a.s-b.s)[0];
-      const bestA = Acols.map((t, i) => ({ t, s: colTotals[i] })).sort((a,b)=>b.s-a.s)[0];
-      const bestF = Fcols.map((t, i) => ({ t, s: colTotals[Acols.length+i] })).sort((a,b)=>b.s-a.s)[0];
-      if (bestA && bestO) items.push({ text: `Capitaliser «${bestA.t}» pour saisir «${bestO.t}».`, score: 5 });
-      if (bestF && bestO) items.push({ text: `Corriger «${bestF.t}» pour exploiter «${bestO.t}».`, score: 4 });
-      if (bestA && bestM) items.push({ text: `Mobiliser «${bestA.t}» pour contrer «${bestM.t}».`, score: 4 });
-      if (bestF && bestM) items.push({ text: `Réduire «${bestF.t}» pour se prémunir de «${bestM.t}».`, score: 5 });
+      const bestO = Orows.map((label, i) => ({ label, s: rowTotals[i] })).sort((a,b)=>b.s-a.s)[0];
+      const bestM = Mrows.map((label, i) => ({ label, s: rowTotals[Orows.length+i] })).sort((a,b)=>a.s-b.s)[0];
+      const bestA = Acols.map((label, i) => ({ label, s: colTotals[i] })).sort((a,b)=>b.s-a.s)[0];
+      const bestF = Fcols.map((label, i) => ({ label, s: colTotals[Acols.length+i] })).sort((a,b)=>b.s-a.s)[0];
+      if (bestA && bestO) items.push({ text: t("matrix.capitalize", { col: bestA.label, row: bestO.label }), score: 5 });
+      if (bestF && bestO) items.push({ text: t("matrix.correctFor", { col: bestF.label, row: bestO.label }), score: 4 });
+      if (bestA && bestM) items.push({ text: t("matrix.mobilize", { col: bestA.label, row: bestM.label }), score: 4 });
+      if (bestF && bestM) items.push({ text: t("matrix.reduce", { col: bestF.label, row: bestM.label }), score: 5 });
     }
 
     items.sort((a, b) => b.score - a.score);
@@ -427,7 +429,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
   async function proposeIAOrientations() {
     if (iaOrientLoading) return;
     if (!isAIAvailable()) {
-      alert("Aucun provider IA configuré.\n\nVeuillez renseigner votre clé API dans le panneau « Assistance IA » (slide 3/3 de la présentation ou bandeau en haut de la vue Analyse).");
+      alert(t("matrix.noAiProvider"));
       return;
     }
     setIaOrientLoading(true);
@@ -446,7 +448,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
     } catch (e) {
       console.error(e);
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`Proposition d’orientations IA indisponible.\n\nErreur : ${msg}`);
+      alert(t("matrix.aiOrientationsUnavailable", { msg }));
     } finally {
       setIaOrientLoading(false);
     }
@@ -477,7 +479,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
     lines.push(footer);
 
     lines.push([]);
-    lines.push(["Orientations stratégiques"]);
+    lines.push([t("matrix.csvOrientationsHeader")]);
     orientations.forEach((o, i) => lines.push([String(i + 1), o]));
 
     const csv = lines
@@ -517,38 +519,39 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
 
       <div className="mb-4 flex items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <button onClick={gotoWork} className="no-print px-3 py-2 rounded-md border bg-white hover:bg-gray-50">← Retour</button>
+          <button onClick={gotoWork} className="no-print px-3 py-2 rounded-md border bg-white hover:bg-gray-50">{t("matrix.back")}</button>
           <div>
-            <h1 className="text-2xl font-extrabold">Matrice de confrontation</h1>
+            <h1 className="text-2xl font-extrabold">{t("matrix.title")}</h1>
             <div className="text-sm text-gray-500">
-              Session <span className="font-mono">{sessionId}</span>
-              {!loadingDoc ? null : <span className="ml-2 text-gray-400">(chargement…)</span>}
+              {t("matrix.sessionLabel")} <span className="font-mono">{sessionId}</span>
+              {!loadingDoc ? null : <span className="ml-2 text-gray-400">{t("matrix.loading")}</span>}
             </div>
             <div className="text-xs text-gray-500 mt-0.5">
-              {saving === "saving" && "Enregistrement…"}
-              {saving === "saved" && "Enregistré."}
+              {saving === "saving" && t("matrix.saving")}
+              {saving === "saved" && t("matrix.saved")}
               {lastSavedAt ? <span className="ml-2 text-gray-400">({new Date(lastSavedAt).toLocaleTimeString()})</span> : null}
-              <span className="ml-3 text-gray-400">Source sélection : {selectionSource.toUpperCase()}</span>
-              <span className="ml-3 text-gray-400">Source orientations : {orientationsSource.toUpperCase()}</span>
+              <span className="ml-3 text-gray-400">{t("matrix.selectionSource")} {selectionSource.toUpperCase()}</span>
+              <span className="ml-3 text-gray-400">{t("matrix.orientationsSource")} {orientationsSource.toUpperCase()}</span>
             </div>
           </div>
         </div>
 
         <div className="no-print flex flex-wrap gap-2">
+          <PreferenceControls />
           <button onClick={proposeIASelection} className="px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60" disabled={loadingDoc || iaLoading}>
-            {iaLoading ? "IA…" : "Proposer une sélection IA"}
+            {iaLoading ? t("matrix.aiRunning") : t("matrix.proposeAISelection")}
           </button>
           <button onClick={autoFill} className="px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700" disabled={loadingDoc}>
-            Auto-préremplir
+            {t("matrix.autoFill")}
           </button>
           <button onClick={clearAll} className="px-3 py-2 rounded-md border hover:bg-gray-50" disabled={loadingDoc}>
-            Tout effacer
+            {t("matrix.clearAll")}
           </button>
           <button onClick={exportCSV} className="px-3 py-2 rounded-md border hover:bg-gray-50">
-            Export CSV
+            {t("matrix.exportCsv")}
           </button>
-          <button onClick={printPDF} className="px-3 py-2 rounded-md border hover:bg-gray-50" title="PDF via imprimer">
-            Export PDF
+          <button onClick={printPDF} className="px-3 py-2 rounded-md border hover:bg-gray-50" title={t("matrix.exportPdf")}>
+            {t("matrix.exportPdf")}
           </button>
         </div>
       </div>
@@ -556,12 +559,12 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
       {/* Légende axe du temps, style slide 2 : rétro (A/F) à gauche, prospectif (O/M) à droite */}
       <div className="mb-3 grid grid-cols-2 gap-3">
         <div className="rounded-lg border bg-green-50 border-green-200 px-3 py-2">
-          <div className="text-xs font-bold text-green-800">Vision rétrospective (Passé)</div>
-          <div className="text-[11px] text-green-700">Acquis & Faiblesses</div>
+          <div className="text-xs font-bold text-green-800">{t("matrix.retrospectiveTitle")}</div>
+          <div className="text-[11px] text-green-700">{t("matrix.retrospectiveBody")}</div>
         </div>
         <div className="rounded-lg border bg-amber-50 border-amber-200 px-3 py-2 text-right">
-          <div className="text-xs font-bold text-amber-800">Vision prospective (Futur)</div>
-          <div className="text-[11px] text-amber-700">Opportunités & Menaces</div>
+          <div className="text-xs font-bold text-amber-800">{t("matrix.prospectiveTitle")}</div>
+          <div className="text-[11px] text-amber-700">{t("matrix.prospectiveBody")}</div>
         </div>
       </div>
 
@@ -573,14 +576,14 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
             <tr>
               <th className="w-60 bg-white border"></th>
               <th colSpan={Acols.length + Fcols.length} className="bg-gradient-to-r from-green-100 via-green-50 to-red-100 border p-2 text-center font-black text-gray-700">
-                Vision rétrospective (Passé) — Acquis & Faiblesses
+                {t("matrix.retrospectiveBanner")}
               </th>
-              <th className="bg-white border p-2 text-left font-black">Total</th>
+              <th className="bg-white border p-2 text-left font-black">{t("matrix.totalRow")}</th>
             </tr>
 
             {/* Rangée d'en-tête classique : A | F */}
             <tr>
-              <th className="bg-yellow-50 border p-2 text-left font-bold">Opportunités</th>
+              <th className="bg-yellow-50 border p-2 text-left font-bold">{t("matrix.opportunitesCol")}</th>
               {Acols.map((t, i) => <th key={"A"+i} className="bg-green-50 border p-2 text-sm">{t}</th>)}
               {Fcols.map((t, i) => <th key={"F"+i} className="bg-red-50 border p-2 text-sm">{t}</th>)}
               <th className="bg-yellow-50 border"></th>
@@ -591,7 +594,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
             {/* Bandeau prospectif au-dessus des lignes O+M */}
             <tr>
               <td colSpan={colCount + 2} className="bg-gradient-to-r from-amber-50 via-amber-50 to-amber-100 border-t p-2 text-right font-bold text-amber-800">
-                Vision prospective (Futur) — Opportunités & Menaces
+                {t("matrix.prospectiveBanner")}
               </td>
             </tr>
 
@@ -603,7 +606,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
                     <button
                       onClick={() => toggle(r, c)}
                       className={"w-full h-8 md:h-10 " + (cells[r]?.[c] ? "bg-black text-white font-bold" : "bg-white hover:bg-gray-50")}
-                      title={cells[r]?.[c] ? "Retirer la marque" : "Ajouter une marque"}
+                      title={cells[r]?.[c] ? t("matrix.removeMark") : t("matrix.addMark")}
                     >
                       {cells[r]?.[c] ? "X" : ""}
                     </button>
@@ -613,7 +616,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
               </tr>
             ))}
             <tr>
-              <th className="bg-yellow-50 border p-2 text-left font-bold">Menaces</th>
+              <th className="bg-yellow-50 border p-2 text-left font-bold">{t("matrix.menacesRow")}</th>
               {[...Array(colCount + 1)].map((_, i) => <td key={i} className="border p-2 bg-yellow-50"></td>)}
             </tr>
             {Mrows.map((label, r2) => {
@@ -626,7 +629,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
                       <button
                         onClick={() => toggle(r, c)}
                         className={"w-full h-8 md:h-10 " + (cells[r]?.[c] ? "bg-black text-white font-bold" : "bg-white hover:bg-gray-50")}
-                        title={cells[r]?.[c] ? "Retirer la marque" : "Ajouter une marque"}
+                        title={cells[r]?.[c] ? t("matrix.removeMark") : t("matrix.addMark")}
                       >
                         {cells[r]?.[c] ? "X" : ""}
                       </button>
@@ -640,7 +643,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
 
           <tfoot>
             <tr>
-              <th className="bg-gray-100 border p-2 text-left">Total</th>
+              <th className="bg-gray-100 border p-2 text-left">{t("matrix.totalRow")}</th>
               {colTotals.map((t, i) => (
                 <th key={i} className="bg-gray-100 border p-2 text-center font-black">{fmt(t)}</th>
               ))}
@@ -652,34 +655,34 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
 
       {/* Résumé */}
       <div className="mt-4 rounded-xl border bg-white shadow p-4 print-card">
-        <h3 className="font-bold mb-2">Résumé synthétique</h3>
+        <h3 className="font-bold mb-2">{t("matrix.summaryTitle")}</h3>
         <div className="grid md:grid-cols-2 gap-4 text-sm">
           <div>
-            <div className="font-semibold mb-1">Leviers (Acquis les plus porteurs)</div>
+            <div className="font-semibold mb-1">{t("matrix.leversTitle")}</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.leverCols.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.leverCols.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
+              {summary.leverCols.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — {t("matrix.scoreLabel", { score: fmt(x.score) })}</li>))}
             </ul>
           </div>
           <div>
-            <div className="font-semibold mb-1">Faiblesses majeures</div>
+            <div className="font-semibold mb-1">{t("matrix.weaknessesTitle")}</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.weakCols.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.weakCols.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
+              {summary.weakCols.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — {t("matrix.scoreLabel", { score: fmt(x.score) })}</li>))}
             </ul>
           </div>
           <div>
-            <div className="font-semibold mb-1">Opportunités prioritaires</div>
+            <div className="font-semibold mb-1">{t("matrix.opportunitiesTitle")}</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.opps.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.opps.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
+              {summary.opps.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — {t("matrix.scoreLabel", { score: fmt(x.score) })}</li>))}
             </ul>
           </div>
           <div>
-            <div className="font-semibold mb-1">Menaces critiques</div>
+            <div className="font-semibold mb-1">{t("matrix.threatsTitle")}</div>
             <ul className="list-disc pl-5 space-y-1">
               {summary.threats.length === 0 && <li className="text-gray-500">—</li>}
-              {summary.threats.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — score {fmt(x.score)}</li>))}
+              {summary.threats.map((x, i) => (<li key={i}><span className="font-medium">{x.label}</span> — {t("matrix.scoreLabel", { score: fmt(x.score) })}</li>))}
             </ul>
           </div>
         </div>
@@ -688,23 +691,23 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
       {/* Orientations stratégiques */}
       <div className="mt-4 rounded-xl border bg-white shadow p-4 print-card">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold">Orientations stratégiques</h3>
+          <h3 className="font-bold">{t("matrix.orientationsTitle")}</h3>
           <div className="no-print flex gap-2">
-            <button onClick={generateAutoOrientations} className="px-3 py-1.5 rounded-md border hover:bg-gray-50">Générer (auto)</button>
+            <button onClick={generateAutoOrientations} className="px-3 py-1.5 rounded-md border hover:bg-gray-50">{t("matrix.generateAuto")}</button>
             <button onClick={proposeIAOrientations} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60" disabled={iaOrientLoading}>
-              {iaOrientLoading ? "IA…" : "Proposer via IA"}
+              {iaOrientLoading ? t("matrix.aiRunning") : t("matrix.proposeAI")}
             </button>
             <button
               onClick={() => { const next = [...orientations, ""]; setOrientations(next); saveOrientations(next, "manual"); }}
               className="px-3 py-1.5 rounded-md border hover:bg-gray-50"
             >
-              + Ajouter
+              {t("matrix.addOrientation")}
             </button>
           </div>
         </div>
 
         {orientations.length === 0 && (
-          <p className="text-sm text-gray-500 mt-2">Aucune orientation enregistrée. Utilisez “Générer (auto)” ou “Proposer via IA”, puis modifiez la liste.</p>
+          <p className="text-sm text-gray-500 mt-2">{t("matrix.noOrientations")}</p>
         )}
 
         <ul className="mt-3 space-y-2">
@@ -718,7 +721,7 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
                 }}
                 onBlur={() => saveOrientations(orientations, "manual")}
                 className="flex-1 rounded-md border px-3 py-2 text-sm"
-                placeholder="Renseigner l’orientation…"
+                placeholder={t("matrix.orientationPlaceholder")}
               />
               <button
                 onClick={() => {
@@ -727,16 +730,16 @@ export default function MatrixMode({ sessionId, onBack }: Props) {
                   saveOrientations(next, "manual");
                 }}
                 className="no-print px-2 py-1 rounded-md border hover:bg-gray-50"
-                title="Supprimer"
+                title={t("common.delete")}
               >
-                Suppr
+                {t("matrix.removeShort")}
               </button>
             </li>
           ))}
         </ul>
 
         <p className="text-xs text-gray-500 mt-3">
-          Source : {orientationsSource.toUpperCase()} — Modifiez librement avant export PDF/CSV.
+          {t("matrix.orientationsSource")} {orientationsSource.toUpperCase()} {t("matrix.exportSourceNote")}
         </p>
       </div>
     </div>

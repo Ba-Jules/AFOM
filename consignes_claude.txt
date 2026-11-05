@@ -1,0 +1,65 @@
+Nous avons maintenant le retour final de Mouhamed. Il considère AFOM achevé lorsque ces deux derniers besoins sont satisfaits.
+
+1 — Documents de contexte pour l'IA
+
+La fonction « + Ajouter le contexte » existe et ton audit a déjà démontré que le document de référence est effectivement exploité par Gemini.
+
+Son besoin est cependant de pouvoir fournir plusieurs documents de contexte pour un même FFOM, par exemple simultanément :
+
+Termes de référence ;
+Cahier du participant ;
+éventuellement d'autres documents pertinents.
+
+Vérifie d'abord si l'implémentation actuelle accepte réellement plusieurs documents. Si elle n'en accepte qu'un, fais évoluer proprement la fonction pour permettre plusieurs fichiers PDF/DOCX/TXT, afficher clairement la liste des documents ajoutés et permettre d'en retirer un.
+
+Tous les documents doivent contribuer au contexte transmis à l'IA, en conservant l'isolation stricte par session/groupe. Préserve les limites raisonnables nécessaires pour ne pas envoyer un contexte démesuré à l'API.
+
+Teste réellement avec au moins deux documents contenant des informations distinctives différentes, puis démontre que Gemini reçoit/exploite des informations provenant des deux.
+
+2 — PDF personnalisable
+
+Avant de télécharger le rapport PDF, Mouhamed veut pouvoir choisir les éléments à inclure.
+
+Ajoute une interface simple de sélection avant génération du PDF, idéalement par cases à cocher. Elle doit reprendre les rubriques réellement disponibles dans le rapport actuel, notamment :
+
+informations du groupe / thématique ;
+FFOM / idées retenues ;
+indicateurs ou synthèse chiffrée ;
+camembert ;
+histogramme ;
+problème central ;
+implications organisationnelles ;
+enjeux ;
+analyses IA disponibles.
+
+N'affiche pas artificiellement une rubrique qui n'existe pas dans les données de la session.
+
+L'utilisateur coche/décoche les éléments souhaités puis génère un seul véritable PDF, composé uniquement des éléments sélectionnés.
+
+Prévois « Tout sélectionner / Tout désélectionner » pour que cela reste simple.
+
+Contraintes
+
+Ne casse aucune fonction existante.
+Ne touche pas à main.
+Travaille sur feature/multigroupes.
+Préserve les données réelles.
+Test TypeScript + build.
+Recette réelle dans le navigateur.
+Vérifie particulièrement un PDF avec seulement FFOM + histogramme, puis un PDF complet.
+Vérifie l'ingestion simultanée de deux documents de contexte.
+Nettoie toutes les données de test.
+Commit, push et déploiement VPS uniquement après validation.
+
+Rapport final très court :
+
+Plusieurs documents de contexte : PASS/FAIL
+Les deux documents influencent réellement Gemini : PASS/FAIL
+Sélection des rubriques PDF : PASS/FAIL
+PDF partiel conforme à la sélection : PASS/FAIL
+PDF complet : PASS/FAIL
+Non-régression : PASS/FAIL
+Commit déployé
+Blocages
+
+Ne développe aucune autre fonctionnalité. Ces deux points constituent le périmètre de clôture demandé par Mouhamed.
