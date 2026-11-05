@@ -1,6 +1,8 @@
 // Service multi-providers IA — appels REST vers Gemini, OpenAI, Anthropic, OpenRouter, Mistral, xAI.
 // La clé active est lue depuis localStorage (format unifié afom_ai_config) à chaque appel.
 
+import { auth } from './firebase';
+
 const STORAGE_KEY = 'afom_ai_config';
 
 // Modèles retirés → remplacements automatiques (synchronisé avec useAIConfig.ts)
@@ -37,7 +39,28 @@ export function getStoredAIConfig(): { provider: string; key: string; model?: st
 
 export function isAIAvailable(): boolean {
   if (getStoredAIConfig()) return true;
-  return !!(import.meta.env.VITE_GEMINI_API_KEY);
+  // Sans clé personnelle : le relais serveur est utilisable par un modérateur connecté.
+  return !!auth.currentUser;
+}
+
+/** Relais serveur : la clé Gemini reste sur le VPS, jamais dans le navigateur. */
+async function callRelay(prompt: string): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('no-ai-configured');
+  const token = await user.getIdToken();
+  const res = await fetch(`${import.meta.env.BASE_URL}api/ai`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ prompt }),
+  });
+  if (res.status === 404) throw new Error('no-ai-configured');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = new Error(`Relais IA ${res.status}: ${(data as any)?.error ?? res.statusText}`);
+    (e as any).status = res.status;
+    throw e;
+  }
+  return (data as any)?.text ?? '';
 }
 
 /** Appel générique : délègue au provider configuré, fallback sur la clé Gemini native. */
@@ -61,11 +84,8 @@ export async function callAI(prompt: string): Promise<string> {
       return callOpenAICompat(prompt, key, 'https://api.x.ai/v1/chat/completions', model || 'grok-3-mini-fast');
   }
 
-  // Fallback : clé Gemini de l'environnement (GitHub Actions secret)
-  const envKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-  if (envKey) return callGeminiRest(prompt, envKey);
-
-  throw new Error('no-ai-configured');
+  // Sans clé personnelle : relais serveur (clé conservée côté VPS)
+  return callRelay(prompt);
 }
 
 // ─────────── implémentations REST ───────────
